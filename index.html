@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="bs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>oneS | Elektronika, skuteri i pametni dodaci</title>
+    <meta
+      name="description"
+      content="oneS katalog proizvoda: električni skuteri, multicookeri, adapteri, zaštitna stakla, utičnice, podrška, manuali i lokacije prodavnica."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="oneS" />
+    <meta property="og:title" content="oneS | Elektronika, skuteri i pametni dodaci" />
+    <meta property="og:description" content="oneS katalog proizvoda: električni skuteri, multicookeri, adapteri, zaštitna stakla, utičnice, podrška, manuali i lokacije prodavnica." />
+    <meta property="og:image" content="assets/ones-logo.webp" />
+    <link rel="canonical" href="index.html" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#pocetna" aria-label="oneS početna">
+        <img src="assets/ones-logo.webp" alt="oneS logo" />
+      </a>
+      <nav class="nav" aria-label="Glavna navigacija">
+        <a href="#proizvodi">Proizvodi</a>
+        <a href="#usporedba">Usporedba</a>
+        <a href="#lokacije">Lokacije</a>
+        <a href="#manuali">Manuali</a>
+        <a href="#podrska">Podrška</a>
+        <a href="cart.html">Korpa <span id="cartCount" class="nav-count">0</span></a>
+        <a href="login.html" id="accountLink">Prijavi se</a>
+      </nav>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+      <div class="account-menu" id="accountMenu" hidden>
+        <a href="profile.html">Moj profil</a>
+        <a href="cart.html">Moja korpa</a>
+        <button type="button" id="logoutBtn">Odjavi se</button>
+      </div>
+      <button class="menu-button" type="button" aria-label="Otvori meni" aria-expanded="false">☰</button>
+    </header>
+
+    <main>
+      <section class="hero" id="pocetna">
+        <div class="hero-copy">
+          <p class="eyebrow">Bosanski katalog | upit putem WhatsApp/Viber</p>
+          <h1>oneS proizvodi za svaki dan, od skutera do pametnih kućnih dodataka.</h1>
+          <p>
+            Pregledajte aktuelne proizvode, specifikacije, manuale i lokacije prodavnica.
+            Za narudžbu ili dostupnost pošaljite direktan upit našem timu.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#proizvodi">Pogledaj proizvode</a>
+            <a class="btn btn-secondary" href="#uskoro">Proizvodi uskoro</a>
+          </div>
+        </div>
+        <div class="hero-panel" aria-label="Izdvojene oneS kategorije">
+          <div class="hero-product hero-product-red">
+            <span>Električni skuteri</span>
+            <strong>F-serija</strong>
+          </div>
+          <div class="hero-product">
+            <span>Kuhinja</span>
+            <strong>Multicooker</strong>
+          </div>
+          <div class="hero-product">
+            <span>Mobiteli</span>
+            <strong>Adapteri i zaštita</strong>
+          </div>
+          <div class="hero-product">
+            <span>Dom i ured</span>
+            <strong>Multi utičnice</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="trust-strip" aria-label="Prednosti">
+        <div class="trust-track">
+          <div class="trust-group">
+            <div class="trust-item"><strong>Direktan upit</strong><span>WhatsApp i Viber</span></div>
+            <div class="trust-item"><strong>Manuali</strong><span>Upute i dokumenti</span></div>
+            <div class="trust-item"><strong>Prodavnice</strong><span>Lokacije partnera</span></div>
+            <div class="trust-item"><strong>Servis</strong><span>Podrska za proizvode</span></div>
+          </div>
+          <div class="trust-group" aria-hidden="true">
+            <div class="trust-item"><strong>Direktan upit</strong><span>WhatsApp i Viber</span></div>
+            <div class="trust-item"><strong>Manuali</strong><span>Upute i dokumenti</span></div>
+            <div class="trust-item"><strong>Prodavnice</strong><span>Lokacije partnera</span></div>
+            <div class="trust-item"><strong>Servis</strong><span>Podrska za proizvode</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="kategorije">
+        <div class="section-heading">
+          <p class="eyebrow">Kategorije</p>
+          <h2>Jasno organizovan katalog</h2>
+        </div>
+        <div class="category-grid" id="categoryGrid"></div>
+      </section>
+
+      <section class="section section-muted" id="proizvodi">
+        <div class="section-heading row-heading">
+          <div>
+            <p class="eyebrow">Proizvodi</p>
+            <h2>Aktuelna oneS ponuda</h2>
+          </div>
+          <div class="filters" id="filters"></div>
+        </div>
+        <div class="product-grid" id="productGrid"></div>
+      </section>
+
+      <section class="section" id="uskoro">
+        <div class="section-heading">
+          <p class="eyebrow">Uskoro</p>
+          <h2>Proizvodi koji stižu</h2>
+        </div>
+        <div class="coming-grid" id="comingGrid"></div>
+      </section>
+
+      <section class="section section-split" id="usporedba">
+        <div class="section-heading">
+          <p class="eyebrow">Usporedba</p>
+          <h2>Brzo uporedite karakteristike</h2>
+          <p>Odaberite dva proizvoda i pogledajte ključne razlike prije slanja upita.</p>
+        </div>
+        <div class="compare-tool">
+          <div class="compare-controls">
+            <select id="compareA" aria-label="Prvi proizvod"></select>
+            <select id="compareB" aria-label="Drugi proizvod"></select>
+          </div>
+          <div class="compare-table-wrap">
+            <table class="compare-table" id="compareTable"></table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-muted" id="servis">
+        <div class="section-heading">
+          <p class="eyebrow">Servis i podrška</p>
+          <h2>Pomoć prije i poslije kupovine</h2>
+        </div>
+        <div class="support-grid">
+          <article>
+            <h3>Tehnička podrška</h3>
+            <p>Pitanja o korištenju, punjenju, sigurnosti, kompatibilnosti i održavanju proizvoda.</p>
+          </article>
+          <article>
+            <h3>Rezervni dijelovi</h3>
+            <p>Posebna stranica za dijelove je pripremljena, a ponuda će biti označena kao uskoro.</p>
+          </article>
+          <article>
+            <h3>Certifikati i sigurnost</h3>
+            <p>Prostor za CE, sigurnosne napomene, pravilno korištenje adaptera, utičnica i skutera.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="rezervni-dijelovi">
+        <div class="section-heading row-heading">
+          <div>
+            <p class="eyebrow">Uskoro</p>
+            <h2>Rezervni dijelovi</h2>
+          </div>
+          <span class="status-badge">U pripremi</span>
+        </div>
+        <div class="parts-strip" id="partsStrip"></div>
+      </section>
+
+      <section class="section section-muted" id="manuali">
+        <div class="section-heading">
+          <p class="eyebrow">Preuzimanja</p>
+          <h2>Manuali i dokumenti</h2>
+        </div>
+        <div class="manual-list" id="manualList"></div>
+      </section>
+
+      <section class="section section-split" id="dostava">
+        <div class="section-heading">
+          <p class="eyebrow">Dostava i povrat</p>
+          <h2>Jednostavan upit, jasni uslovi</h2>
+        </div>
+        <div class="policy-grid">
+          <article>
+            <h3>Kako naručiti</h3>
+            <p>Odaberite proizvod, pošaljite upit putem WhatsAppa ili Vibera, a oneS tim potvrđuje cijenu, dostupnost, način preuzimanja i dostave.</p>
+          </article>
+          <article>
+            <h3>Dostava</h3>
+            <p>Dostava je planirana za BiH kroz kurirsku službu, lokalnu dostavu ili preuzimanje u prodavnici. Rok i cijena se potvrđuju prilikom upita.</p>
+          </article>
+          <article>
+            <h3>Povrat</h3>
+            <p>Za povrat je potreban račun, originalno pakovanje i kompletna oprema. Oštećeni, korišteni ili nepotpuni proizvodi se obrađuju prema stanju proizvoda.</p>
+          </article>
+          <article>
+            <h3>Servis ili zamjena</h3>
+            <p>Kod tehničkog kvara proizvod se prvo pregleda kroz servisnu podršku. Nakon pregleda se potvrđuje popravka, zamjena ili drugi dogovor.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="lokacije">
+        <div class="section-heading">
+          <p class="eyebrow">Gdje kupiti</p>
+          <h2>Prodavnice i partner lokacije</h2>
+        </div>
+        <div class="location-grid" id="locationGrid"></div>
+      </section>
+
+      <section class="section section-muted" id="blog">
+        <div class="section-heading">
+          <p class="eyebrow">Blog i novosti</p>
+          <h2>Savjeti, promocije i najave</h2>
+        </div>
+        <div class="blog-grid" id="blogGrid"></div>
+      </section>
+
+      <section class="section section-split" id="podrska">
+        <div class="section-heading">
+          <p class="eyebrow">FAQ</p>
+          <h2>Česta pitanja</h2>
+        </div>
+        <div class="faq-list" id="faqList"></div>
+      </section>
+
+      <section class="contact-band" id="kontakt">
+        <div>
+          <p class="eyebrow">Kontakt</p>
+          <h2>Pošaljite upit za proizvod</h2>
+          <p>Svaki proizvod ima dugme za upit sa već upisanim nazivom proizvoda.</p>
+        </div>
+        <div class="contact-actions">
+          <a class="btn btn-primary" id="whatsappBottom" href="#" target="_blank" rel="noreferrer">WhatsApp upit</a>
+          <a class="btn btn-secondary" id="viberBottom" href="#">Viber upit</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <img src="assets/ones-logo.webp" alt="oneS logo" />
+      <p>oneS katalog. Online narudžbe se trenutno obrađuju putem direktnog upita.</p>
+      <div>
+        <a href="#dostava">Dostava i povrat</a>
+        <a href="#manuali">Manuali</a>
+        <a href="#lokacije">Lokacije</a>
+        <a href="cart.html">Korpa</a>
+        <a href="login.html" id="footerAccountLink">Prijavi se</a>
+      </div>
+    </footer>
+
+    <div class="mobile-nav" hidden>
+      <a href="#proizvodi">Proizvodi</a>
+      <a href="#usporedba">Usporedba</a>
+      <a href="#lokacije">Lokacije</a>
+      <a href="#manuali">Manuali</a>
+      <a href="#podrska">Podrška</a>
+      <a href="cart.html">Korpa</a>
+      <a href="login.html" id="mobileAccountLink">Prijavi se</a>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+    </div>
+
+    <script src="theme.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

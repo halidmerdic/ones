@@ -1,0 +1,11 @@
+data/*.sqlite
+data/*.sqlite-*
+uploads/*
+!uploads/.htaccess
+
+.env
+.env.*
+
+*.log
+Thumbs.db
+.DS_Store

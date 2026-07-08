@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="bs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Proizvod | oneS</title>
+    <meta name="description" content="Detalji oneS proizvoda, specifikacije, slike, cijena i upit za dostupnost." />
+    <meta property="og:type" content="product" />
+    <meta property="og:site_name" content="oneS" />
+    <link rel="canonical" href="product.html" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="oneS početna">
+        <img src="assets/ones-logo.webp" alt="oneS logo" />
+      </a>
+      <nav class="nav" aria-label="Navigacija proizvoda">
+        <a href="index.html#proizvodi">Proizvodi</a>
+        <a href="cart.html">Korpa <span id="cartCount" class="nav-count">0</span></a>
+        <a href="login.html" id="accountLink">Prijavi se</a>
+      </nav>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+      <div class="account-menu" id="accountMenu" hidden>
+        <a href="profile.html">Moj profil</a>
+        <a href="cart.html">Moja korpa</a>
+        <button type="button" id="logoutBtn">Odjavi se</button>
+      </div>
+    </header>
+
+    <main class="product-detail-page">
+      <section class="product-detail" id="productDetail">
+        <div class="product-detail-loading">Učitavanje proizvoda...</div>
+      </section>
+    </main>
+
+    <script src="theme.js"></script>
+    <script src="product.js"></script>
+  </body>
+</html>

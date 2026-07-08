@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="bs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prijavi se | oneS</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body class="admin-body">
+    <main class="auth-page">
+      <a class="brand" href="index.html" aria-label="oneS početna">
+        <img src="assets/ones-logo.webp" alt="oneS logo" />
+      </a>
+      <button class="theme-toggle auth-theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+
+      <section class="auth-grid">
+        <article class="login-panel">
+          <p class="eyebrow">Kupac</p>
+          <h1>Prijavi se</h1>
+          <p>Profil će se koristiti za sačuvanu korpu, omiljene proizvode i buduće narudžbe.</p>
+          <label>
+            Email
+            <input id="loginEmail" type="email" autocomplete="email" />
+          </label>
+          <label>
+            Lozinka
+            <input id="loginPassword" type="password" autocomplete="current-password" />
+          </label>
+          <button class="btn btn-primary" type="button" id="customerLoginBtn">Prijava</button>
+        </article>
+
+        <article class="login-panel">
+          <p class="eyebrow">Novi profil</p>
+          <h2>Registracija</h2>
+          <p>Kreirajte profil da kasnije možete čuvati korpu i podatke za upit.</p>
+          <label>
+            Ime
+            <input id="registerName" type="text" autocomplete="name" />
+          </label>
+          <label>
+            Email
+            <input id="registerEmail" type="email" autocomplete="email" />
+          </label>
+          <label>
+            Lozinka
+            <input id="registerPassword" type="password" autocomplete="new-password" />
+          </label>
+          <button class="btn btn-secondary" type="button" id="customerRegisterBtn">Registruj se</button>
+        </article>
+      </section>
+
+      <section class="login-panel profile-panel" id="profilePanel" hidden>
+        <p class="eyebrow">Profil</p>
+        <h2 id="profileTitle">Dobrodošli</h2>
+        <p>Profil je povezan s bazom. Sljedeći korak je dodavanje korpe i omiljenih proizvoda.</p>
+        <div class="admin-actions">
+          <a class="btn btn-primary" href="index.html">Nastavi kupovinu</a>
+          <a class="btn btn-secondary" href="cart.html">Moja korpa</a>
+          <button class="btn btn-secondary" type="button" id="customerLogoutBtn">Odjavi se</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="theme.js"></script>
+    <script src="login.js"></script>
+  </body>
+</html>

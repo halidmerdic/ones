@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="bs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>oneS CMS</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body class="admin-body">
+    <main class="admin-shell">
+      <aside class="admin-sidebar">
+        <a class="brand" href="index.html" aria-label="oneS stranica">
+          <img src="assets/ones-logo.webp" alt="oneS logo" />
+        </a>
+        <nav class="admin-nav" id="adminNav" aria-label="CMS sekcije"></nav>
+        <a class="btn btn-secondary" href="index.html">Pogledaj stranicu</a>
+      </aside>
+
+      <section class="admin-main">
+        <div class="admin-topbar">
+          <div>
+            <p class="eyebrow">oneS CMS</p>
+            <h1>Upravljanje sadržajem</h1>
+            <p>Sačuvane izmjene se prikazuju na javnoj stranici nakon osvježavanja.</p>
+          </div>
+          <div class="admin-actions">
+            <input id="restoreBackupInput" type="file" accept="application/json,.json" hidden />
+            <button class="theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+            <button class="btn btn-primary" type="button" id="saveBtn">Sačuvaj CMS</button>
+          </div>
+        </div>
+
+        <div class="login-panel" id="loginPanel">
+          <h2>Admin prijava</h2>
+          <p>Privremena lokalna prijava za ovu prvu verziju CMS-a.</p>
+          <label>
+            Lozinka
+            <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Unesite lozinku" />
+          </label>
+          <button class="btn btn-primary" type="button" id="loginBtn">Prijava</button>
+        </div>
+
+        <div class="admin-editor" id="adminEditor" hidden>
+          <section class="admin-panel" data-panel="settings"></section>
+          <section class="admin-panel" data-panel="sections" hidden></section>
+          <section class="admin-panel" data-panel="categories" hidden></section>
+          <section class="admin-panel" data-panel="badges" hidden></section>
+          <section class="admin-panel" data-panel="products" hidden></section>
+          <section class="admin-panel" data-panel="orders" hidden></section>
+          <section class="admin-panel" data-panel="customers" hidden></section>
+          <section class="admin-panel" data-panel="comingSoon" hidden></section>
+          <section class="admin-panel" data-panel="parts" hidden></section>
+          <section class="admin-panel" data-panel="manuals" hidden></section>
+          <section class="admin-panel" data-panel="locations" hidden></section>
+          <section class="admin-panel" data-panel="blogs" hidden></section>
+          <section class="admin-panel" data-panel="faq" hidden></section>
+          <section class="admin-panel" data-panel="security" hidden></section>
+          <section class="admin-panel" data-panel="launch" hidden></section>
+        </div>
+      </section>
+    </main>
+
+    <script src="theme.js"></script>
+    <script src="admin.js"></script>
+  </body>
+</html>

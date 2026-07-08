@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="bs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Korpa | oneS</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body class="admin-body">
+    <main class="auth-page cart-page">
+      <header class="cart-header">
+        <a class="brand" href="index.html" aria-label="oneS pocetna">
+          <img src="assets/ones-logo.webp" alt="oneS logo" />
+        </a>
+        <div class="admin-actions">
+          <a class="btn btn-secondary" href="index.html">Nazad na proizvode</a>
+          <a class="btn btn-secondary" id="cartAccountLink" href="login.html">Prijavi se</a>
+          <button class="theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+        </div>
+      </header>
+
+      <section class="login-panel profile-panel">
+        <p class="eyebrow">Checkout</p>
+        <h1>Korpa</h1>
+        <p>Pregledajte artikle, unesite broj telefona i posaljite upit. Nakon slanja upit se sprema u CMS i mozemo vas kontaktirati za potvrdu dostupnosti.</p>
+      </section>
+
+      <section class="checkout-steps" aria-label="Koraci narudzbe">
+        <span class="active">1. Korpa</span>
+        <span>2. Kontakt</span>
+        <span>3. Potvrda</span>
+      </section>
+
+      <section class="order-success" id="orderSuccess" hidden></section>
+
+      <section class="cart-layout">
+        <div class="cart-list" id="cartList"></div>
+        <aside class="cart-summary">
+          <span class="badge red">Kontakt obavezan</span>
+          <h2>Podaci za upit</h2>
+          <p id="cartSummaryText">Ucitavanje korpe...</p>
+          <label>
+            Telefon
+            <input id="orderPhone" type="tel" placeholder="npr. 061 000 000" />
+          </label>
+          <label>
+            Napomena
+            <textarea id="orderNote" placeholder="Dodajte napomenu za prodavca"></textarea>
+          </label>
+          <div class="admin-actions">
+            <button class="btn btn-primary" id="submitOrderBtn" type="button">Posalji upit</button>
+            <a class="btn btn-primary" id="cartWhatsapp" href="#" target="_blank" rel="noreferrer">Posalji WhatsApp</a>
+            <a class="btn btn-secondary" id="cartViber" href="#">Posalji Viber</a>
+          </div>
+          <p class="checkout-note">Upit nije obavezujuca kupovina. Cijene i dostupnost potvrdjujemo prije finalne narudzbe.</p>
+        </aside>
+      </section>
+    </main>
+
+    <script src="theme.js"></script>
+    <script src="cart.js"></script>
+  </body>
+</html>

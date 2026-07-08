@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="bs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moj profil | oneS</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body class="admin-body">
+    <main class="auth-page profile-page">
+      <header class="cart-header">
+        <a class="brand" href="index.html" aria-label="oneS početna">
+          <img src="assets/ones-logo.webp" alt="oneS logo" />
+        </a>
+        <div class="admin-actions">
+          <a class="btn btn-secondary" href="index.html#proizvodi">Proizvodi</a>
+          <a class="btn btn-secondary" href="cart.html">Korpa</a>
+          <button class="btn btn-secondary" type="button" id="profileLogoutBtn">Odjavi se</button>
+          <button class="theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+        </div>
+      </header>
+
+      <section class="login-panel profile-panel">
+        <p class="eyebrow">Kupac</p>
+        <h1 id="profileName">Moj profil</h1>
+        <p id="profileEmail">Učitavanje profila...</p>
+      </section>
+
+      <section class="profile-layout">
+        <article class="profile-card">
+          <h2>Pregled</h2>
+          <div class="profile-stats">
+            <div>
+              <span>Aktivna korpa</span>
+              <strong id="profileCartCount">0</strong>
+            </div>
+            <div>
+              <span>Poslani upiti</span>
+              <strong id="profileOrderCount">0</strong>
+            </div>
+          </div>
+          <div class="admin-actions">
+            <a class="btn btn-primary" href="cart.html">Otvori korpu</a>
+            <a class="btn btn-secondary" href="index.html#proizvodi">Nastavi kupovinu</a>
+          </div>
+        </article>
+
+        <article class="profile-card">
+          <h2>Podaci profila</h2>
+          <label>
+            Ime
+            <input id="profileNameInput" type="text" autocomplete="name" />
+          </label>
+          <label>
+            Email
+            <input id="profileEmailInput" type="email" autocomplete="email" />
+          </label>
+          <label>
+            Telefon
+            <input id="profilePhoneInput" type="tel" autocomplete="tel" placeholder="npr. 061 000 000" />
+          </label>
+          <button class="btn btn-primary" type="button" id="saveProfileBtn">Sačuvaj podatke</button>
+        </article>
+
+        <article class="profile-card">
+          <h2>Lozinka</h2>
+          <label>
+            Trenutna lozinka
+            <input id="currentPasswordInput" type="password" autocomplete="current-password" />
+          </label>
+          <label>
+            Nova lozinka
+            <input id="newPasswordInput" type="password" autocomplete="new-password" />
+          </label>
+          <button class="btn btn-secondary" type="button" id="savePasswordBtn">Promijeni lozinku</button>
+        </article>
+
+        <article class="profile-card">
+          <h2>Historija upita</h2>
+          <div class="profile-orders" id="profileOrders"></div>
+        </article>
+      </section>
+    </main>
+
+    <script src="theme.js"></script>
+    <script src="profile.js"></script>
+  </body>
+</html>

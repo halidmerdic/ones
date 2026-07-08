@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /login.html
+Disallow: /cart.html
+Disallow: /profile.html
+Disallow: /api.php
+Disallow: /data/
+
+Sitemap: /sitemap.php
