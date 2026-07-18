@@ -1,4 +1,4 @@
-let cms = {
+﻿let cms = {
   contact: {
     whatsapp: "38761000000",
     viber: "38761000000",
@@ -232,12 +232,22 @@ async function loadCmsFromDatabase() {
 let activeCategory = "Sve";
 let cartCount = 0;
 let currentCustomer = null;
+let currentFavorites = new Set();
 let manualSearch = "";
 let manualCategory = "Sve";
 let manualType = "Sve";
 
 function qs(selector) {
   return document.querySelector(selector);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function moneyText(product) {
@@ -328,15 +338,22 @@ function blogUrl(post, index) {
   return `blog.html?id=${encodeURIComponent(id)}`;
 }
 
+function inquiryMessage(productName) {
+  return productName
+    ? `Pozdrav, zanima me ${productName}. Da li je dostupno i koja je cijena?`
+    : cms.contact.defaultMessage;
+}
+
 function inquiryUrl(productName, channel = "whatsapp") {
-  const text = encodeURIComponent(
-    productName
-      ? `Pozdrav, zanima me ${productName}. Da li je dostupno i koja je cijena?`
-      : cms.contact.defaultMessage
-  );
+  const message = inquiryMessage(productName);
+  const text = encodeURIComponent(message);
 
   if (channel === "viber") {
     return `viber://chat?number=%2B${cms.contact.viber}&text=${text}`;
+  }
+
+  if (channel === "email") {
+    return `mailto:?subject=${encodeURIComponent(`oneS upit${productName ? ` - ${productName}` : ""}`)}&body=${text}`;
   }
 
   return `https://wa.me/${cms.contact.whatsapp}?text=${text}`;
@@ -445,6 +462,7 @@ function updateAccountLinks() {
     .filter(Boolean);
 
   links.forEach((link) => {
+    link.hidden = false;
     if (currentCustomer) {
       link.href = "profile.html";
       link.textContent = `Prijavljen: ${currentCustomer.name}`;
@@ -465,8 +483,10 @@ async function logoutCustomer() {
   }
 
   currentCustomer = null;
+  currentFavorites = new Set();
   updateAccountLinks();
   updateCartCount(0);
+  if (sectionEnabled("products")) renderProducts();
   const menu = qs("#accountMenu");
   if (menu) menu.hidden = true;
   flash("Odjavljeni ste.");
@@ -505,8 +525,10 @@ async function loadCustomerStatus() {
   try {
     const data = await api("customer-status");
     currentCustomer = data.loggedIn ? data.user : null;
+    currentFavorites = new Set(Array.isArray(data.favorites) ? data.favorites : []);
   } catch {
     currentCustomer = null;
+    currentFavorites = new Set();
   }
   updateAccountLinks();
 }
@@ -523,6 +545,58 @@ async function addToCart(productId) {
     }
     flash(error.message);
   }
+}
+
+async function toggleFavorite(productId) {
+  if (!currentCustomer) {
+    window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;
+    return;
+  }
+
+  try {
+    const data = await api("favorite-toggle", { productId });
+    currentFavorites = new Set(data.favorites || []);
+    renderProducts();
+    flash(data.favorited ? "Proizvod je dodan u favorite." : "Proizvod je uklonjen iz favorita.");
+  } catch (error) {
+    flash(error.message);
+  }
+}
+
+function closeInquiryModal() {
+  qs("#inquiryModal")?.remove();
+  document.body.classList.remove("modal-open");
+}
+
+function openInquiryModal(productName) {
+  closeInquiryModal();
+  const modal = document.createElement("div");
+  modal.className = "inquiry-modal";
+  modal.id = "inquiryModal";
+  modal.innerHTML = `
+    <div class="inquiry-dialog" role="dialog" aria-modal="true" aria-label="Pošalji upit">
+      <div class="inquiry-head">
+        <div>
+          <span>Pošalji upit</span>
+          <h3>${escapeHtml(productName || "oneS proizvod")}</h3>
+        </div>
+        <button type="button" class="inquiry-close" aria-label="Zatvori">×</button>
+      </div>
+      <div class="inquiry-options">
+        <a href="${inquiryUrl(productName, "whatsapp")}" target="_blank" rel="noreferrer"><span>W</span><strong>WhatsApp</strong></a>
+        <a href="${inquiryUrl(productName, "viber")}"><span>V</span><strong>Viber</strong></a>
+        <a href="${inquiryUrl(productName, "email")}"><span>@</span><strong>Email</strong></a>
+      </div>
+    </div>
+  `;
+
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeInquiryModal();
+  });
+  modal.querySelector(".inquiry-close").addEventListener("click", closeInquiryModal);
+  modal.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeInquiryModal));
+  document.body.appendChild(modal);
+  document.body.classList.add("modal-open");
 }
 
 function renderCategories() {
@@ -591,51 +665,59 @@ function renderProducts() {
       : cms.products.filter((product) => product.category === activeCategory);
 
   qs("#productGrid").innerHTML = visible
-    .map(
-      (product) => `
-        <article class="product-card clickable-card" data-card-url="${productUrl(product)}" role="link" tabindex="0" aria-label="Otvori proizvod ${product.name}">
+    .map((product) => {
+      const favoriteActive = currentFavorites.has(product.id);
+      return `
+        <article class="product-card clickable-card" data-card-url="${productUrl(product)}" role="link" tabindex="0" aria-label="Otvori proizvod ${escapeHtml(product.name)}">
           <a class="product-visual ${product.tone === "red" ? "red" : "light"}" href="${productUrl(product)}">
             <div>
-              <span>${product.category}</span>
-              <h3>${product.name}</h3>
+              <span>${escapeHtml(product.category)}</span>
+              <h3>${escapeHtml(product.name)}</h3>
             </div>
             ${
               product.image
-                ? `<img class="product-card-image" src="${product.image}" alt="${product.name}" />`
+                ? `<img class="product-card-image" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />`
                 : `<div class="product-shape" aria-hidden="true"></div>`
             }
           </a>
           <div class="product-body">
             <div class="badge-row">
-              <span class="badge red">${product.status || "Dostupno"}</span>
-              ${visibleBadge(product) ? `<span class="badge">${visibleBadge(product)}</span>` : ""}
+              <span class="badge red">${escapeHtml(product.status || "Dostupno")}</span>
+              ${visibleBadge(product) ? `<span class="badge">${escapeHtml(visibleBadge(product))}</span>` : ""}
             </div>
-            <p>${product.summary}</p>
+            <p>${escapeHtml(product.summary)}</p>
             ${priceHtml(product)}
-            ${product.deliveryTime ? `<p class="delivery-note"><strong>Rok isporuke:</strong> ${product.deliveryTime}</p>` : ""}
+            ${product.deliveryTime ? `<p class="delivery-note"><strong>Rok isporuke:</strong> ${escapeHtml(product.deliveryTime)}</p>` : ""}
             <ul class="spec-list">
-              ${Object.entries(product.specs)
+              ${Object.entries(product.specs || {})
                 .slice(0, 4)
-                .map(([key, value]) => `<li><span>${key}</span><strong>${value}</strong></li>`)
+                .map(([key, value]) => `<li><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></li>`)
                 .join("")}
             </ul>
             <div class="product-actions">
-              <a class="btn btn-primary" href="${inquiryUrl(product.name)}" target="_blank" rel="noreferrer">Pošalji upit</a>
-              <button class="btn btn-secondary" type="button" data-add-cart="${product.id}">Dodaj u korpu</button>
-              <a class="btn btn-secondary" href="${inquiryUrl(product.name, "viber")}">Viber</a>
+              <button class="btn btn-primary" type="button" data-inquiry-product="${escapeHtml(product.name)}">Pošalji upit</button>
+              <button class="btn btn-secondary" type="button" data-add-cart="${escapeHtml(product.id)}">Dodaj u korpu</button>
+              <button class="favorite-btn ${favoriteActive ? "active" : ""}" type="button" data-favorite="${escapeHtml(product.id)}" aria-label="${favoriteActive ? "Ukloni iz favorita" : "Dodaj u favorite"}" aria-pressed="${favoriteActive}">
+                <span aria-hidden="true">${favoriteActive ? "♥" : "♡"}</span>
+              </button>
             </div>
           </div>
         </article>
-      `
-    )
+      `;
+    })
     .join("");
 
   document.querySelectorAll("[data-add-cart]").forEach((button) => {
     button.addEventListener("click", () => addToCart(button.dataset.addCart));
   });
+  document.querySelectorAll("[data-inquiry-product]").forEach((button) => {
+    button.addEventListener("click", () => openInquiryModal(button.dataset.inquiryProduct));
+  });
+  document.querySelectorAll("[data-favorite]").forEach((button) => {
+    button.addEventListener("click", () => toggleFavorite(button.dataset.favorite));
+  });
   setupClickableCards();
 }
-
 function renderComingSoon() {
   qs("#comingGrid").innerHTML = cms.comingSoon
     .map(
@@ -788,54 +870,82 @@ function renderFaq() {
 function setupComparison() {
   if (!sectionEnabled("comparison") || !cms.products.length) return;
   const options = cms.products
-    .map((product) => `<option value="${product.id}">${product.name}</option>`)
+    .map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.category)} - ${escapeHtml(product.name)}</option>`)
     .join("");
   qs("#compareA").innerHTML = options;
-  qs("#compareB").innerHTML = options;
-  qs("#compareB").selectedIndex = Math.min(1, cms.products.length - 1);
+  updateCompareBOptions();
 
-  qs("#compareA").addEventListener("change", renderComparison);
-  qs("#compareB").addEventListener("change", renderComparison);
+  qs("#compareA").onchange = () => {
+    updateCompareBOptions();
+    renderComparison();
+  };
+  qs("#compareB").onchange = renderComparison;
   renderComparison();
+}
+
+function updateCompareBOptions() {
+  const first = cms.products.find((product) => product.id === qs("#compareA").value) || cms.products[0];
+  if (!first) return;
+
+  const sameCategoryProducts = cms.products.filter((product) => product.category === first.category);
+  const secondChoices =
+    sameCategoryProducts.length > 1
+      ? sameCategoryProducts.filter((product) => product.id !== first.id)
+      : sameCategoryProducts;
+  const previousValue = qs("#compareB").value;
+
+  qs("#compareB").innerHTML = secondChoices
+    .map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}</option>`)
+    .join("");
+
+  if (secondChoices.some((product) => product.id === previousValue)) {
+    qs("#compareB").value = previousValue;
+  } else {
+    qs("#compareB").selectedIndex = 0;
+  }
 }
 
 function renderComparison() {
   const first = cms.products.find((product) => product.id === qs("#compareA").value);
   const second = cms.products.find((product) => product.id === qs("#compareB").value);
   if (!first || !second) return;
-  const keys = [...new Set([...Object.keys(first.specs), ...Object.keys(second.specs)])];
+  if (first.category !== second.category) {
+    updateCompareBOptions();
+    return renderComparison();
+  }
+  const keys = [...new Set([...Object.keys(first.specs || {}), ...Object.keys(second.specs || {})])];
 
   qs("#compareTable").innerHTML = `
     <thead>
       <tr>
         <th>Karakteristika</th>
-        <th>${first.name}</th>
-        <th>${second.name}</th>
+        <th>${escapeHtml(first.name)}</th>
+        <th>${escapeHtml(second.name)}</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td>Kategorija</td>
-        <td>${first.category}</td>
-        <td>${second.category}</td>
+        <td>${escapeHtml(first.category)}</td>
+        <td>${escapeHtml(second.category)}</td>
       </tr>
       <tr>
         <td>Cijena</td>
-        <td>${moneyText(first)}</td>
-        <td>${moneyText(second)}</td>
+        <td>${escapeHtml(moneyText(first))}</td>
+        <td>${escapeHtml(moneyText(second))}</td>
       </tr>
       <tr>
         <td>Status</td>
-        <td>${first.status}</td>
-        <td>${second.status}</td>
+        <td>${escapeHtml(first.status)}</td>
+        <td>${escapeHtml(second.status)}</td>
       </tr>
       ${keys
         .map(
           (key) => `
           <tr>
-            <td>${key}</td>
-            <td>${first.specs[key] || "-"}</td>
-            <td>${second.specs[key] || "-"}</td>
+            <td>${escapeHtml(key)}</td>
+            <td>${escapeHtml((first.specs || {})[key] || "-")}</td>
+            <td>${escapeHtml((second.specs || {})[key] || "-")}</td>
           </tr>
         `
         )
@@ -890,6 +1000,7 @@ async function init() {
   setupMobileNav();
   setupAccountMenu();
   await loadCustomerStatus();
+  if (sectionEnabled("products")) renderProducts();
   await loadCartCount();
 }
 
@@ -914,3 +1025,4 @@ window.addEventListener("storage", async (event) => {
 });
 
 init();
+

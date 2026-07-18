@@ -1,4 +1,4 @@
-const PASSWORD = "onesadmin";
+﻿const PASSWORD = "onesadmin";
 
 const defaultCms = {
   contact: {
@@ -112,6 +112,8 @@ let orders = [];
 let customers = [];
 let activePanel = "settings";
 let editingProductId = null;
+let editingCategoryIndex = null;
+let editingCategoryAttributeIndex = null;
 let productFilters = {
   search: "",
   category: "Sve",
@@ -148,6 +150,17 @@ const panels = [
   { id: "security", label: "Sigurnost" },
   { id: "launch", label: "Provjera" },
 ];
+
+function setAdminMenu(open) {
+  document.body.classList.toggle("admin-menu-open", open);
+  $("#adminMenuToggle")?.setAttribute("aria-expanded", String(open));
+  const backdrop = $("#adminMenuBackdrop");
+  if (backdrop) backdrop.hidden = !open;
+}
+
+function closeAdminMenu() {
+  setAdminMenu(false);
+}
 
 function $(selector) {
   return document.querySelector(selector);
@@ -374,12 +387,14 @@ async function saveCms() {
   }
 
   const removedEmptyCategories = pruneEmptyCategories();
+  (cms.categories || []).forEach((category) => ensureCategoryAttributes(category));
 
   (cms.products || []).forEach((product) => {
     product.mpcPrice = numericPrice(product.mpcPrice);
     product.discountPrice = numericPrice(product.discountPrice);
     product.salePrice = numericPrice(product.salePrice);
     if (product.tone === "dark") product.tone = "light";
+    syncProductAttributes(product);
   });
   (cms.blogs || []).forEach((post, index) => {
     post.id = slugify(post.id || post.title || `blog-${index + 1}`) || `blog-${index + 1}`;
@@ -626,18 +641,66 @@ function galleryField(item) {
   const list = document.createElement("div");
   list.className = "gallery-list";
 
+  function moveGalleryImage(fromIndex, toIndex) {
+    if (toIndex < 0 || toIndex >= item.gallery.length || fromIndex === toIndex) return;
+    const [moved] = item.gallery.splice(fromIndex, 1);
+    item.gallery.splice(toIndex, 0, moved);
+    renderGallery();
+  }
+
   function renderGallery() {
     item.gallery = Array.isArray(item.gallery) ? item.gallery : [];
     list.innerHTML = item.gallery
       .map(
         (path, index) => `
-          <div class="gallery-thumb">
+          <div class="gallery-thumb" draggable="true" data-gallery-index="${index}">
+            <span class="gallery-thumb-order">${index + 1}</span>
+            <button class="gallery-remove-btn" type="button" data-remove-gallery="${index}" aria-label="Ukloni sliku ${index + 1}">&times;</button>
             <img src="${path}" alt="Slika ${index + 1}" />
-            <button class="btn btn-secondary" type="button" data-remove-gallery="${index}">Ukloni</button>
+            <div class="gallery-reorder-controls" aria-label="Promijeni redoslijed slike ${index + 1}">
+              <button type="button" data-step-gallery="${index}" data-direction="-1" ${index === 0 ? "disabled" : ""} aria-label="Pomjeri sliku lijevo">&larr;</button>
+              <button type="button" data-step-gallery="${index}" data-direction="1" ${index === item.gallery.length - 1 ? "disabled" : ""} aria-label="Pomjeri sliku desno">&rarr;</button>
+            </div>
           </div>
         `
       )
       .join("");
+
+    list.querySelectorAll("[data-step-gallery]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const index = Number(button.dataset.stepGallery);
+        const direction = Number(button.dataset.direction);
+        moveGalleryImage(index, index + direction);
+      });
+    });
+
+    list.querySelectorAll("[data-gallery-index]").forEach((thumb) => {
+      thumb.addEventListener("dragstart", (event) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", thumb.dataset.galleryIndex);
+        thumb.classList.add("dragging");
+      });
+      thumb.addEventListener("dragend", () => {
+        thumb.classList.remove("dragging");
+      });
+      thumb.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        thumb.classList.add("drag-over");
+      });
+      thumb.addEventListener("dragleave", () => {
+        thumb.classList.remove("drag-over");
+      });
+      thumb.addEventListener("drop", (event) => {
+        event.preventDefault();
+        thumb.classList.remove("drag-over");
+        const fromIndex = Number(event.dataTransfer.getData("text/plain"));
+        const toIndex = Number(thumb.dataset.galleryIndex);
+        if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex === toIndex) return;
+        moveGalleryImage(fromIndex, toIndex);
+      });
+    });
 
     list.querySelectorAll("[data-remove-gallery]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -735,6 +798,48 @@ function textToSpecs(text) {
     if (key && rest.length) result[key.trim()] = rest.join(":").trim();
     return result;
   }, {});
+}
+
+function valuesToText(values) {
+  return (Array.isArray(values) ? values : []).join("\n");
+}
+
+function textToValues(text) {
+  return String(text || "")
+    .split("\n")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function ensureCategoryAttributes(category) {
+  category.attributes = Array.isArray(category.attributes) ? category.attributes : [];
+  category.attributes = category.attributes
+    .map((attribute) => ({
+      name: String(attribute.name || "").trim(),
+      values: Array.isArray(attribute.values) ? attribute.values.filter(Boolean) : textToValues(attribute.values || ""),
+    }))
+    .filter((attribute) => attribute.name);
+  return category.attributes;
+}
+
+function categoryByName(name) {
+  return (cms.categories || []).find((category) => category.name === name);
+}
+
+function syncProductAttributes(product) {
+  const category = categoryByName(product.category);
+  const attributes = category ? ensureCategoryAttributes(category) : [];
+  product.attributes = product.attributes && typeof product.attributes === "object" ? product.attributes : {};
+  product.specs = product.specs && typeof product.specs === "object" ? product.specs : {};
+
+  attributes.forEach((attribute) => {
+    const current = product.attributes[attribute.name] || product.specs[attribute.name] || "";
+    const value = current || "-";
+    product.attributes[attribute.name] = value;
+    product.specs[attribute.name] = value;
+  });
+
+  return attributes;
 }
 
 function card(title, onDelete) {
@@ -869,7 +974,10 @@ function renderProductEditorModal() {
       editingProductId = value;
     }),
     field("Naziv", editorProduct.name, (value) => (editorProduct.name = value)),
-    selectField("Kategorija", editorProduct.category, categories, (value) => (editorProduct.category = value)),
+    selectField("Kategorija", editorProduct.category, categories, (value) => {
+      editorProduct.category = value;
+      renderProductEditorModal();
+    }),
     selectField("Status", editorProduct.status, statusOptions.includes(editorProduct.status) ? statusOptions : [editorProduct.status, ...statusOptions], (value) => (editorProduct.status = value)),
     field("Rok isporuke", editorProduct.deliveryTime, (value) => (editorProduct.deliveryTime = value))
   );
@@ -898,8 +1006,45 @@ function renderProductEditorModal() {
     richTextField("Detaljan opis artikla", editorProduct.detailedDescription, (value) => (editorProduct.detailedDescription = value))
   );
 
+  let specsTextarea = null;
+  const refreshSpecsTextarea = () => {
+    if (specsTextarea) specsTextarea.value = specsToText(editorProduct.specs);
+  };
+  const categoryAttributes = syncProductAttributes(editorProduct);
+  const attributeSection = editorSection("Atributi kategorije", "product-edit-wide");
+  if (categoryAttributes.length) {
+    categoryAttributes.forEach((attribute) => {
+      const options = ["-", ...attribute.values.filter((value) => value !== "-")];
+      const current = editorProduct.attributes?.[attribute.name] || editorProduct.specs?.[attribute.name] || "-";
+      attributeSection.content.append(
+        selectField(attribute.name, current, options, (value) => {
+          const nextValue = value || "-";
+          editorProduct.attributes = editorProduct.attributes || {};
+          editorProduct.specs = editorProduct.specs || {};
+          editorProduct.attributes[attribute.name] = nextValue;
+          editorProduct.specs[attribute.name] = nextValue;
+          refreshSpecsTextarea();
+        })
+      );
+    });
+  } else {
+    const note = document.createElement("p");
+    note.className = "admin-note-text";
+    note.textContent = "Ova kategorija još nema definisane atribute. Dodajte ih u panelu Kategorije.";
+    attributeSection.content.append(note);
+  }
+
   const specs = editorSection("Specifikacije", "product-edit-wide");
-  specs.content.append(field("Jedna po redu: Naziv: vrijednost", specsToText(editorProduct.specs), (value) => (editorProduct.specs = textToSpecs(value)), "textarea"));
+  const specsField = field("Jedna po redu: Naziv: vrijednost", specsToText(editorProduct.specs), (value) => {
+    editorProduct.specs = textToSpecs(value);
+    editorProduct.attributes = editorProduct.attributes || {};
+    categoryAttributes.forEach((attribute) => {
+      editorProduct.attributes[attribute.name] = editorProduct.specs[attribute.name] || "-";
+      editorProduct.specs[attribute.name] = editorProduct.attributes[attribute.name];
+    });
+  }, "textarea");
+  specsTextarea = specsField.querySelector("textarea");
+  specs.content.append(specsField);
 
   const manual = editorSection("Uputstvo", "product-edit-wide");
   manual.content.append(productManualField(editorProduct));
@@ -910,7 +1055,7 @@ function renderProductEditorModal() {
     field("SEO opis", editorProduct.seoDescription, (value) => (editorProduct.seoDescription = value), "textarea")
   );
 
-  body.append(basic.section, prices.section, badge.section, media.section, description.section, specs.section, manual.section, seo.section);
+  body.append(basic.section, prices.section, badge.section, media.section, description.section, attributeSection.section, specs.section, manual.section, seo.section);
 }
 
 function renderNav() {
@@ -922,6 +1067,7 @@ function renderNav() {
     button.addEventListener("click", () => {
       activePanel = button.dataset.panelBtn;
       rememberActivePanel();
+      closeAdminMenu();
       renderAll();
     });
   });
@@ -1046,46 +1192,250 @@ function pruneEmptyCategories() {
   return before - cms.categories.length;
 }
 
-function renderCategories() {
+function closeCategoryEditor() {
+  $("#categoryEditModal")?.remove();
+  editingCategoryIndex = null;
+  editingCategoryAttributeIndex = null;
+  document.body.classList.remove("modal-open");
+  renderCategories();
+}
+
+function openCategoryEditor(index) {
+  editingCategoryIndex = index;
+  editingCategoryAttributeIndex = null;
+  renderCategoryEditorModal();
+}
+
+function renderCategoryEditorModal() {
+  const category = cms.categories[editingCategoryIndex];
+  if (!category) return;
+
+  category.enabled = category.enabled !== false;
+  category.badge = category.badge || "-";
+  category.badgeUntil = category.badgeUntil || "";
+  ensureCategoryAttributes(category);
   cms.badges = Array.isArray(cms.badges) ? cms.badges : structuredClone(defaultCms.badges);
+
   const badgeOptions = [
     { value: "-", label: "- (bez badgea)" },
     ...cms.badges
       .filter((badge) => badge.name && badge.name !== "-" && badge.enabled !== false)
       .map((badge) => ({ value: badge.name, label: badge.name })),
   ];
+  const productCount = (cms.products || []).filter((product) => product.category === category.name).length;
 
-  renderArrayPanel("categories", "Kategorije", cms.categories, { name: "Nova kategorija", text: "", enabled: true }, (itemCard, item) => {
-    item.enabled = item.enabled !== false;
-    item.badge = item.badge || "-";
-    item.badgeUntil = item.badgeUntil || "";
+  $("#categoryEditModal")?.remove();
+  const modal = document.createElement("div");
+  modal.className = "product-edit-modal";
+  modal.id = "categoryEditModal";
+  modal.innerHTML = `
+    <div class="product-edit-dialog category-edit-dialog" role="dialog" aria-modal="true" aria-label="Uredi kategoriju">
+      <div class="product-edit-header">
+        <div>
+          <span>Uredi kategoriju</span>
+          <h2>${escapeHtml(category.name || "Kategorija")}</h2>
+          <p>${productCount} proizvoda u ovoj kategoriji</p>
+        </div>
+        <div class="product-edit-actions">
+          <button class="btn btn-secondary" type="button" id="deleteCategoryBtn">Obriši</button>
+          <button class="btn btn-primary" type="button" id="closeCategoryEditorBtn">Zatvori</button>
+        </div>
+      </div>
+      <div class="product-edit-body" id="categoryEditBody"></div>
+    </div>
+  `;
 
-    itemCard.classList.add("category-admin-card");
-    itemCard.classList.toggle("category-disabled", !item.enabled);
-    const header = itemCard.querySelector(".admin-card-header");
-    const deleteButton = header?.querySelector("button");
-    const headerActions = document.createElement("div");
-    headerActions.className = "category-header-actions";
-    const filterToggle = checkboxField("Filter na stranici", item.enabled, (value) => {
-      item.enabled = value;
-      itemCard.classList.toggle("category-disabled", !value);
-    });
-    filterToggle.classList.add("category-filter-toggle");
-    if (deleteButton) {
-      headerActions.append(filterToggle, deleteButton);
-      header.appendChild(headerActions);
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeCategoryEditor();
+  });
+  document.body.appendChild(modal);
+  document.body.classList.add("modal-open");
+
+  $("#closeCategoryEditorBtn").addEventListener("click", closeCategoryEditor);
+  $("#deleteCategoryBtn").addEventListener("click", () => {
+    if (productCount > 0 && !confirm("Ova kategorija ima proizvode. Ako je obrišete, proizvodi će zadržati naziv kategorije dok ga ne promijenite. Nastaviti?")) return;
+    cms.categories.splice(editingCategoryIndex, 1);
+    closeCategoryEditor();
+  });
+
+  const body = $("#categoryEditBody");
+  const basic = editorSection("Osnovno");
+  basic.content.append(
+    field("Naziv", category.name, (value) => {
+      const oldName = category.name;
+      category.name = value;
+      (cms.products || []).forEach((product) => {
+        if (product.category === oldName) product.category = value;
+      });
+      (cms.manuals || []).forEach((manual) => {
+        if (manual.category === oldName) manual.category = value;
+      });
+      (cms.badges || []).forEach((badge) => {
+        if (badge.applyCategory === oldName) badge.applyCategory = value;
+      });
+    }),
+    field("Opis", category.text, (value) => (category.text = value), "textarea"),
+    checkboxField("Prikaži ovu kategoriju kao filter na stranici", category.enabled, (value) => (category.enabled = value))
+  );
+
+  const badge = editorSection("Badge kategorije");
+  badge.content.append(
+    selectField("Badge za kategoriju", category.badge, badgeOptions, (value) => (category.badge = value)),
+    field("Badge kategorije traje do", category.badgeUntil, (value) => (category.badgeUntil = value), "date")
+  );
+
+  const attributes = editorSection("Atributi kategorije", "product-edit-wide");
+  attributes.section.classList.add("category-attributes-section");
+  const helper = document.createElement("p");
+  helper.className = "admin-note-text";
+  helper.textContent = "Napravite atribute za ovu kategoriju. Vrijednosti pišite jednu po redu, npr. do 30 km, do 45 km, do 60 km.";
+  attributes.content.append(helper);
+
+  const list = document.createElement("div");
+  list.className = "attribute-builder-list";
+  if (!category.attributes.length) {
+    const empty = document.createElement("div");
+    empty.className = "product-admin-empty";
+    empty.textContent = "Nema atributa za ovu kategoriju.";
+    list.appendChild(empty);
+  }
+
+  category.attributes.forEach((attribute, attributeIndex) => {
+    const item = document.createElement("article");
+    item.className = `attribute-list-item ${editingCategoryAttributeIndex === attributeIndex ? "active" : ""}`;
+
+    const row = document.createElement("div");
+    row.className = "attribute-list-row";
+    row.innerHTML = `
+      <div>
+        <strong>${escapeHtml(attribute.name || "Novi atribut")}</strong>
+        <span>${Array.isArray(attribute.values) ? attribute.values.length : 0} vrijednosti</span>
+      </div>
+      <button class="btn btn-secondary" type="button" data-edit-attribute="${attributeIndex}">
+        ${editingCategoryAttributeIndex === attributeIndex ? "Zatvori" : "Uredi"}
+      </button>
+    `;
+    item.appendChild(row);
+
+    if (editingCategoryAttributeIndex === attributeIndex) {
+      const panel = document.createElement("div");
+      panel.className = "attribute-edit-panel";
+      panel.append(
+        field("Naziv atributa", attribute.name, (value) => {
+          const oldName = attribute.name;
+          attribute.name = value;
+          (cms.products || [])
+            .filter((product) => product.category === category.name)
+            .forEach((product) => {
+              if (product.attributes?.[oldName] && oldName !== value) {
+                product.attributes[value] = product.attributes[oldName];
+                delete product.attributes[oldName];
+              }
+              if (product.specs?.[oldName] && oldName !== value) {
+                product.specs[value] = product.specs[oldName];
+                delete product.specs[oldName];
+              }
+            });
+        }),
+        field("Vrijednosti, jedna po redu", valuesToText(Array.isArray(attribute.values) ? attribute.values : []), (value) => {
+          attribute.values = textToValues(value);
+        }, "textarea")
+      );
+
+      const actions = document.createElement("div");
+      actions.className = "attribute-edit-actions";
+      const remove = document.createElement("button");
+      remove.className = "btn btn-secondary";
+      remove.type = "button";
+      remove.textContent = "Ukloni atribut";
+      remove.addEventListener("click", () => {
+        category.attributes.splice(attributeIndex, 1);
+        editingCategoryAttributeIndex = null;
+        renderCategoryEditorModal();
+      });
+      actions.appendChild(remove);
+      panel.appendChild(actions);
+      item.appendChild(panel);
     }
 
-    const form = document.createElement("div");
-    form.className = "category-form-grid";
-    form.append(
-      field("Naziv", item.name, (value) => (item.name = value)),
-      selectField("Badge za kategoriju", item.badge, badgeOptions, (value) => (item.badge = value)),
-      field("Opis", item.text, (value) => (item.text = value), "textarea"),
-      field("Badge kategorije traje do", item.badgeUntil, (value) => (item.badgeUntil = value), "date")
-    );
+    list.appendChild(item);
+  });
+  attributes.content.appendChild(list);
 
-    itemCard.append(form);
+  list.querySelectorAll("[data-edit-attribute]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.editAttribute);
+      editingCategoryAttributeIndex = editingCategoryAttributeIndex === index ? null : index;
+      renderCategoryEditorModal();
+    });
+  });
+
+  const addAttribute = document.createElement("button");
+  addAttribute.className = "btn btn-secondary attribute-add-button";
+  addAttribute.type = "button";
+  addAttribute.textContent = "Dodaj atribut";
+  addAttribute.addEventListener("click", () => {
+    category.attributes.push({ name: "Novi atribut", values: [] });
+    editingCategoryAttributeIndex = category.attributes.length - 1;
+    renderCategoryEditorModal();
+  });
+  attributes.content.appendChild(addAttribute);
+
+  body.append(basic.section, badge.section, attributes.section);
+}
+
+function renderCategories() {
+  cms.badges = Array.isArray(cms.badges) ? cms.badges : structuredClone(defaultCms.badges);
+  const panel = $('[data-panel="categories"]');
+  panel.innerHTML = `
+    <div class="admin-panel-heading">
+      <div>
+        <h2>Kategorije</h2>
+        <p class="admin-note-text">Kategorije su sada prikazane kao lista. Detalje, filter status, badge i atribute uređujete klikom na Uredi.</p>
+      </div>
+      <button class="btn btn-primary" type="button" id="addCategoryBtn">Dodaj</button>
+    </div>
+    <div class="category-admin-list">
+      <div class="category-admin-row category-admin-head">
+        <span>Naziv</span>
+        <span>Proizvodi</span>
+        <span>Filter</span>
+        <span>Atributi</span>
+        <span>Badge</span>
+        <span></span>
+      </div>
+      ${
+        cms.categories.length
+          ? cms.categories
+              .map((category, index) => {
+                category.enabled = category.enabled !== false;
+                category.badge = category.badge || "-";
+                const count = (cms.products || []).filter((product) => product.category === category.name).length;
+                const attributes = ensureCategoryAttributes(category);
+                return `
+                  <div class="category-admin-row ${category.enabled ? "" : "category-disabled"}">
+                    <strong>${escapeHtml(category.name || "Nova kategorija")}</strong>
+                    <span>${count}</span>
+                    <span class="badge ${category.enabled ? "red" : ""}">${category.enabled ? "Filter na stranici" : "Sakriven filter"}</span>
+                    <span>${attributes.length}</span>
+                    <span>${escapeHtml(category.badge && category.badge !== "-" ? category.badge : "-")}</span>
+                    <button class="btn btn-secondary" type="button" data-edit-category="${index}">Uredi</button>
+                  </div>
+                `;
+              })
+              .join("")
+          : `<div class="product-admin-empty">Nema kategorija.</div>`
+      }
+    </div>
+  `;
+
+  $("#addCategoryBtn").addEventListener("click", () => {
+    cms.categories.unshift({ name: "Nova kategorija", text: "", enabled: true, badge: "-", badgeUntil: "", attributes: [] });
+    openCategoryEditor(0);
+  });
+
+  document.querySelectorAll("[data-edit-category]").forEach((button) => {
+    button.addEventListener("click", () => openCategoryEditor(Number(button.dataset.editCategory)));
   });
 }
 
@@ -1100,7 +1450,7 @@ function renderBadges() {
 }
 
 function renderProducts() {
-  const { categoryOptions: categoryOptionsBase } = productEditorConfig();
+  const { categoryOptions: categoryOptionsBase, badgeOptions } = productEditorConfig();
   const panel = $('[data-panel="products"]');
   const productCategories = ["Sve", ...categoryOptionsBase];
   const productBadges = ["Sve", "-", ...new Set(cms.badges.filter((badge) => badge.enabled !== false).map((badge) => badge.name).filter(Boolean))];
@@ -1128,7 +1478,7 @@ function renderProducts() {
     <div class="product-admin-list">
       <div class="product-admin-row product-admin-head">
         <span>Naziv</span>
-        <span>Prikaz cijene</span>
+        <span>Prikazane</span>
         <span>Kategorija</span>
         <span>Badge</span>
         <span></span>
@@ -1140,6 +1490,10 @@ function renderProducts() {
                 const index = cms.products.indexOf(product);
                 const categoryOptions = [...categoryOptionsBase];
                 if (!categoryOptions.includes(product.category)) categoryOptions.unshift(product.category || "Bez kategorije");
+                const rowBadgeOptions = [...badgeOptions];
+                if (product.badge && !rowBadgeOptions.some((badge) => badge.value === product.badge)) {
+                  rowBadgeOptions.unshift({ value: product.badge, label: product.badge });
+                }
                 return `
                   <div class="product-admin-row ${editingProductId === product.id ? "active" : ""}">
                     <input data-product-field="name" data-product-index="${index}" value="${escapeHtml(product.name)}" />
@@ -1147,10 +1501,11 @@ function renderProducts() {
                     <select data-product-field="category" data-product-index="${index}">
                       ${categoryOptions.map((category) => `<option value="${escapeHtml(category)}" ${category === product.category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}
                     </select>
-                    <span>${escapeHtml(product.badge && product.badge !== "-" ? product.badge : "-")}</span>
+                    <select data-product-field="badge" data-product-index="${index}" aria-label="Badge za ${escapeHtml(product.name)}">
+                      ${rowBadgeOptions.map((badge) => `<option value="${escapeHtml(badge.value)}" ${badge.value === (product.badge || "-") ? "selected" : ""}>${escapeHtml(badge.label)}</option>`).join("")}
+                    </select>
                     <div class="product-admin-actions">
-                      <button class="btn btn-secondary" type="button" data-edit-product="${escapeHtml(product.id)}">Uredi</button>
-                      <a class="btn btn-secondary" href="admin.html?panel=products&product=${encodeURIComponent(product.id)}" target="_blank" rel="noreferrer">Novi tab</a>
+                      <a class="btn btn-secondary" href="admin.html?panel=products&product=${encodeURIComponent(product.id)}" data-edit-product="${escapeHtml(product.id)}">Uredi</a>
                     </div>
                   </div>
                 `;
@@ -1192,7 +1547,11 @@ function renderProducts() {
   });
 
   document.querySelectorAll("[data-edit-product]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.button === 1) {
+        return;
+      }
+      event.preventDefault();
       openProductEditor(button.dataset.editProduct);
     });
   });
@@ -1927,7 +2286,34 @@ $("#loginBtn").addEventListener("click", async () => {
   }
 });
 
+$("#passwordInput").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    $("#loginBtn").click();
+  }
+});
+
+document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const input = document.getElementById(button.dataset.passwordToggle);
+    if (!input) return;
+    const visible = input.type === "text";
+    input.type = visible ? "password" : "text";
+    button.textContent = visible ? "Vidi" : "Sakrij";
+    button.setAttribute("aria-label", visible ? "Prikazi lozinku" : "Sakrij lozinku");
+  });
+});
+
 $("#saveBtn").addEventListener("click", saveCms);
+$("#adminMenuToggle")?.addEventListener("click", () => setAdminMenu(!document.body.classList.contains("admin-menu-open")));
+$("#adminMenuClose")?.addEventListener("click", closeAdminMenu);
+$("#adminMenuBackdrop")?.addEventListener("click", closeAdminMenu);
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeAdminMenu();
+  }
+});
 
 $("#restoreBackupInput")?.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
@@ -1968,11 +2354,16 @@ async function initAdmin() {
     await loadCms();
     if (status.loggedIn) {
       await showEditor();
+    } else {
+      $("#loginPanel").hidden = false;
+      $("#adminEditor").hidden = true;
     }
   } catch (error) {
+    $("#loginPanel").hidden = false;
     flash("Otvorite CMS preko lokalnog servera da se poveže s bazom.");
     console.error(error);
   }
 }
 
 initAdmin();
+

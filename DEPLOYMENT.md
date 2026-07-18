@@ -14,8 +14,14 @@ Use this before publishing the website to a real domain.
 
 ## Hosting requirements
 
+- GitHub Pages is not enough for this project because it does not run PHP, SQLite, sessions, uploads, or the CMS API.
+- Use PHP hosting, cPanel hosting, LiteSpeed/Apache hosting with PHP, or a VPS/container where PHP can write to `data/` and `uploads/`.
+- For test hosting with MySQL, edit `config.local.php`, set `driver` to `mysql`, and enter the database credentials from the hosting panel.
+- Do not overwrite `config.local.php` on hosting during normal code redeploys. The hosted file contains the live database connection.
+- If CMS content looks reset after redeploy, first check `htdocs/config.local.php`. It must exist on hosting and must use `driver => mysql`; otherwise the app is looking at the wrong database.
 - PHP 8.1 or newer.
-- PHP extensions: `pdo_sqlite`, `sqlite3`, `gd`, `fileinfo`, `json`, `session`.
+- PHP extensions for local SQLite: `pdo_sqlite`, `sqlite3`, `gd`, `fileinfo`, `json`, `session`.
+- PHP extensions for MySQL hosting: `pdo_mysql`, `gd`, `fileinfo`, `json`, `session`.
 - Writable folders on server:
   - `data/`
   - `data/backups/`

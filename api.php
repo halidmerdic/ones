@@ -1,12 +1,44 @@
 <?php
 declare(strict_types=1);
 
+ini_set('session.gc_maxlifetime', (string)(60 * 60 * 24 * 7));
+session_set_cookie_params([
+    'lifetime' => 60 * 60 * 24 * 7,
+    'path' => '/',
+    'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 session_start();
 
 header('Content-Type: application/json; charset=utf-8');
 
 $action = $_GET['action'] ?? '';
-$dbPath = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'ones.sqlite';
+$host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+$isLocalHost = $host === '' || strpos($host, '127.0.0.1') === 0 || strpos($host, 'localhost') === 0;
+$configPath = file_exists(__DIR__ . '/config.local.php')
+    ? __DIR__ . '/config.local.php'
+    : (file_exists(__DIR__ . '/config.php') ? __DIR__ . '/config.php' : '');
+
+if ($configPath === '' && !$isLocalHost) {
+    http_response_code(500);
+    echo json_encode([
+        'ok' => false,
+        'message' => 'Nedostaje config.local.php na hostingu. Aplikacija nije spojena na MySQL bazu.',
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
+
+$config = $configPath !== '' ? require $configPath : require __DIR__ . '/config.example.php';
+
+if (!$isLocalHost && strtolower((string)($config['database']['driver'] ?? '')) !== 'mysql') {
+    http_response_code(500);
+    echo json_encode([
+        'ok' => false,
+        'message' => 'Hosting config nije podešen na MySQL. Provjerite config.local.php i driver postavite na mysql.',
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
 
 function respond($data, int $status = 200): void
 {
@@ -153,41 +185,96 @@ function default_cms(): array
     ];
 }
 
-function database(string $dbPath): PDO
+function database_driver(PDO $pdo): string
 {
-    $dir = dirname($dbPath);
-    if (!is_dir($dir)) {
-        mkdir($dir, 0775, true);
+    return (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+}
+
+function quote_identifier(PDO $pdo, string $identifier): string
+{
+    $safe = str_replace(['`', '"'], '', $identifier);
+    return database_driver($pdo) === 'mysql' ? '`' . $safe . '`' : '"' . $safe . '"';
+}
+
+function has_column(PDO $pdo, string $table, string $column): bool
+{
+    if (database_driver($pdo) === 'mysql') {
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name AND COLUMN_NAME = :column_name');
+        $stmt->execute([
+            ':table_name' => $table,
+            ':column_name' => $column,
+        ]);
+        return (int)$stmt->fetchColumn() > 0;
     }
 
-    $pdo = new PDO('sqlite:' . $dbPath);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->exec('CREATE TABLE IF NOT EXISTS cms_store (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "customer", created_at TEXT NOT NULL)');
-    $userColumns = $pdo->query('PRAGMA table_info(users)')->fetchAll(PDO::FETCH_ASSOC);
-    $hasUserPhone = false;
-    foreach ($userColumns as $column) {
-        if (($column['name'] ?? '') === 'phone') {
-            $hasUserPhone = true;
-            break;
+    $columns = $pdo->query('PRAGMA table_info(' . quote_identifier($pdo, $table) . ')')->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($columns as $existingColumn) {
+        if (($existingColumn['name'] ?? '') === $column) {
+            return true;
         }
     }
-    if (!$hasUserPhone) {
-        $pdo->exec('ALTER TABLE users ADD COLUMN phone TEXT NOT NULL DEFAULT ""');
-    }
-    $pdo->exec('CREATE TABLE IF NOT EXISTS carts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, status TEXT NOT NULL DEFAULT "active", created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS cart_items (id INTEGER PRIMARY KEY AUTOINCREMENT, cart_id INTEGER NOT NULL, product_id TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, FOREIGN KEY(cart_id) REFERENCES carts(id))');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, customer_name TEXT NOT NULL, customer_email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT "", note TEXT NOT NULL DEFAULT "", status TEXT NOT NULL DEFAULT "Novo", items_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))');
-    $columns = $pdo->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
-    $hasAdminNote = false;
-    foreach ($columns as $column) {
-        if (($column['name'] ?? '') === 'admin_note') {
-            $hasAdminNote = true;
-            break;
+
+    return false;
+}
+
+function database(array $config): PDO
+{
+    $databaseConfig = is_array($config['database'] ?? null) ? $config['database'] : [];
+    $driver = strtolower((string)($databaseConfig['driver'] ?? 'sqlite'));
+
+    if ($driver === 'mysql') {
+        $host = (string)($databaseConfig['host'] ?? '');
+        $port = (string)($databaseConfig['port'] ?? '3306');
+        $name = (string)($databaseConfig['name'] ?? '');
+        $user = (string)($databaseConfig['user'] ?? '');
+        $password = (string)($databaseConfig['password'] ?? '');
+
+        if ($host === '' || $name === '' || $user === '') {
+            respond(['ok' => false, 'message' => 'MySQL config nije popunjen. Provjerite config.local.php.'], 500);
         }
+
+        $dsn = 'mysql:host=' . $host . ';port=' . $port . ';dbname=' . $name . ';charset=utf8mb4';
+        $pdo = new PDO($dsn, $user, $password, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+        $pdo->exec('CREATE TABLE IF NOT EXISTS cms_store (`key` VARCHAR(64) PRIMARY KEY, `value` LONGTEXT NOT NULL, updated_at VARCHAR(64) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS users (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, name VARCHAR(190) NOT NULL, email VARCHAR(190) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, role VARCHAR(40) NOT NULL DEFAULT "customer", created_at VARCHAR(64) NOT NULL, phone VARCHAR(80) NOT NULL DEFAULT "") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS carts (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, status VARCHAR(40) NOT NULL DEFAULT "active", created_at VARCHAR(64) NOT NULL, updated_at VARCHAR(64) NOT NULL, INDEX(user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS cart_items (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, cart_id INT UNSIGNED NOT NULL, product_id VARCHAR(190) NOT NULL, quantity INT UNSIGNED NOT NULL DEFAULT 1, created_at VARCHAR(64) NOT NULL, INDEX(cart_id), INDEX(product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS product_favorites (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, product_id VARCHAR(190) NOT NULL, created_at VARCHAR(64) NOT NULL, UNIQUE KEY user_product (user_id, product_id), INDEX(user_id), INDEX(product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS orders (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, customer_name VARCHAR(190) NOT NULL, customer_email VARCHAR(190) NOT NULL, phone VARCHAR(80) NOT NULL DEFAULT "", note TEXT NOT NULL, status VARCHAR(40) NOT NULL DEFAULT "Novo", items_json LONGTEXT NOT NULL, created_at VARCHAR(64) NOT NULL, updated_at VARCHAR(64) NOT NULL, admin_note VARCHAR(1000) NOT NULL DEFAULT "", INDEX(user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+    } else {
+        $dbPath = (string)($databaseConfig['sqlite_path'] ?? (__DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'ones.sqlite'));
+        $dir = dirname($dbPath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        $pdo = new PDO('sqlite:' . $dbPath);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        $pdo->exec('CREATE TABLE IF NOT EXISTS cms_store (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "customer", created_at TEXT NOT NULL)');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS carts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, status TEXT NOT NULL DEFAULT "active", created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS cart_items (id INTEGER PRIMARY KEY AUTOINCREMENT, cart_id INTEGER NOT NULL, product_id TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, FOREIGN KEY(cart_id) REFERENCES carts(id))');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS product_favorites (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, product_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(user_id, product_id), FOREIGN KEY(user_id) REFERENCES users(id))');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, customer_name TEXT NOT NULL, customer_email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT "", note TEXT NOT NULL DEFAULT "", status TEXT NOT NULL DEFAULT "Novo", items_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))');
     }
-    if (!$hasAdminNote) {
-        $pdo->exec('ALTER TABLE orders ADD COLUMN admin_note TEXT NOT NULL DEFAULT ""');
+
+    if (!has_column($pdo, 'users', 'phone')) {
+        $pdo->exec(database_driver($pdo) === 'mysql'
+            ? 'ALTER TABLE users ADD COLUMN phone VARCHAR(80) NOT NULL DEFAULT ""'
+            : 'ALTER TABLE users ADD COLUMN phone TEXT NOT NULL DEFAULT ""');
+    }
+    if (!has_column($pdo, 'orders', 'admin_note')) {
+        $pdo->exec(database_driver($pdo) === 'mysql'
+            ? 'ALTER TABLE orders ADD COLUMN admin_note VARCHAR(1000) NOT NULL DEFAULT ""'
+            : 'ALTER TABLE orders ADD COLUMN admin_note TEXT NOT NULL DEFAULT ""');
+    }
+    if (database_driver($pdo) === 'mysql') {
+        $pdo->exec('ALTER TABLE users MODIFY password_hash VARCHAR(255) NOT NULL');
     }
 
     seed_database($pdo);
@@ -196,18 +283,20 @@ function database(string $dbPath): PDO
 
 function seed_database(PDO $pdo): void
 {
-    $count = (int)$pdo->query('SELECT COUNT(*) FROM cms_store WHERE key = "cms"')->fetchColumn();
+    $keyColumn = quote_identifier($pdo, 'key');
+    $count = (int)$pdo->query('SELECT COUNT(*) FROM cms_store WHERE ' . $keyColumn . ' = "cms"')->fetchColumn();
     if ($count === 0) {
-        $stmt = $pdo->prepare('INSERT INTO cms_store (key, value, updated_at) VALUES ("cms", :value, :updated_at)');
+        $stmt = $pdo->prepare('INSERT INTO cms_store (' . $keyColumn . ', value, updated_at) VALUES ("cms", :value, :updated_at)');
         $stmt->execute([
             ':value' => json_encode(default_cms(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
             ':updated_at' => date('c'),
         ]);
     }
 
-    $admin = $pdo->prepare('SELECT COUNT(*) FROM users WHERE role = "admin"');
-    $admin->execute();
-    if ((int)$admin->fetchColumn() === 0) {
+    $admin = $pdo->prepare('SELECT id, password_hash FROM users WHERE email = :email AND role = "admin" LIMIT 1');
+    $admin->execute([':email' => 'admin@ones.local']);
+    $adminUser = $admin->fetch(PDO::FETCH_ASSOC);
+    if (!$adminUser) {
         $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role, created_at) VALUES (:name, :email, :password_hash, "admin", :created_at)');
         $stmt->execute([
             ':name' => 'oneS Admin',
@@ -215,12 +304,18 @@ function seed_database(PDO $pdo): void
             ':password_hash' => password_hash('onesadmin', PASSWORD_DEFAULT),
             ':created_at' => date('c'),
         ]);
+    } elseif (!password_verify('onesadmin', (string)$adminUser['password_hash'])) {
+        $stmt = $pdo->prepare('UPDATE users SET password_hash = :password_hash WHERE id = :id');
+        $stmt->execute([
+            ':password_hash' => password_hash('onesadmin', PASSWORD_DEFAULT),
+            ':id' => (int)$adminUser['id'],
+        ]);
     }
 }
 
 function get_cms(PDO $pdo): array
 {
-    $stmt = $pdo->prepare('SELECT value FROM cms_store WHERE key = "cms"');
+    $stmt = $pdo->prepare('SELECT value FROM cms_store WHERE ' . quote_identifier($pdo, 'key') . ' = "cms"');
     $stmt->execute();
     $data = json_decode((string)$stmt->fetchColumn(), true);
 
@@ -229,7 +324,7 @@ function get_cms(PDO $pdo): array
 
 function save_cms(PDO $pdo, array $cms): void
 {
-    $stmt = $pdo->prepare('UPDATE cms_store SET value = :value, updated_at = :updated_at WHERE key = "cms"');
+    $stmt = $pdo->prepare('UPDATE cms_store SET value = :value, updated_at = :updated_at WHERE ' . quote_identifier($pdo, 'key') . ' = "cms"');
     $stmt->execute([
         ':value' => json_encode($cms, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
         ':updated_at' => date('c'),
@@ -518,6 +613,38 @@ function cart_payload(PDO $pdo, int $userId): array
     return ['cartId' => $cartId, 'items' => $items, 'count' => array_sum(array_column($items, 'quantity'))];
 }
 
+function favorites_payload(PDO $pdo, int $userId): array
+{
+    $stmt = $pdo->prepare('SELECT product_id FROM product_favorites WHERE user_id = :user_id ORDER BY id DESC');
+    $stmt->execute([':user_id' => $userId]);
+    return array_map(static fn(array $row): string => (string)$row['product_id'], $stmt->fetchAll(PDO::FETCH_ASSOC));
+}
+
+function favorite_products_payload(PDO $pdo, int $userId): array
+{
+    $favoriteIds = favorites_payload($pdo, $userId);
+    $products = products_by_id($pdo);
+    $favoriteProducts = [];
+
+    foreach ($favoriteIds as $productId) {
+        if (!isset($products[$productId])) {
+            continue;
+        }
+
+        $product = $products[$productId];
+        $favoriteProducts[] = [
+            'id' => $productId,
+            'name' => $product['name'] ?? '',
+            'category' => $product['category'] ?? '',
+            'summary' => $product['summary'] ?? '',
+            'image' => $product['image'] ?? '',
+            'price' => product_price_label($product),
+        ];
+    }
+
+    return $favoriteProducts;
+}
+
 function orders_payload(PDO $pdo): array
 {
     $stmt = $pdo->query('SELECT id, user_id, customer_name, customer_email, phone, note, admin_note, status, items_json, created_at, updated_at FROM orders ORDER BY id DESC');
@@ -621,6 +748,7 @@ function backup_payload(PDO $pdo): array
             'users' => table_rows($pdo, 'users'),
             'carts' => table_rows($pdo, 'carts'),
             'cart_items' => table_rows($pdo, 'cart_items'),
+            'product_favorites' => table_rows($pdo, 'product_favorites'),
             'orders' => table_rows($pdo, 'orders'),
         ],
     ];
@@ -658,8 +786,12 @@ function insert_rows(PDO $pdo, string $table, array $rows): void
         }
 
         $columns = array_keys($row);
-        $columnSql = implode(', ', array_map(static fn(string $column): string => '"' . str_replace('"', '""', $column) . '"', $columns));
-        $placeholderSql = implode(', ', array_map(static fn(string $column): string => ':' . $column, $columns));
+        $columnSql = implode(', ', array_map(static function (string $column) use ($pdo): string {
+            return quote_identifier($pdo, $column);
+        }, $columns));
+        $placeholderSql = implode(', ', array_map(static function (string $column): string {
+            return ':' . $column;
+        }, $columns));
         $stmt = $pdo->prepare('INSERT INTO ' . $table . ' (' . $columnSql . ') VALUES (' . $placeholderSql . ')');
         $params = [];
 
@@ -695,12 +827,14 @@ function restore_backup_payload(PDO $pdo, array $backup): void
         $pdo->beginTransaction();
         save_cms($pdo, $backup['cms']);
         $pdo->exec('DELETE FROM cart_items');
+        $pdo->exec('DELETE FROM product_favorites');
         $pdo->exec('DELETE FROM orders');
         $pdo->exec('DELETE FROM carts');
         $pdo->exec('DELETE FROM users');
         insert_rows($pdo, 'users', $users);
         insert_rows($pdo, 'carts', $backup['tables']['carts']);
         insert_rows($pdo, 'cart_items', $backup['tables']['cart_items']);
+        insert_rows($pdo, 'product_favorites', $backup['tables']['product_favorites'] ?? []);
         insert_rows($pdo, 'orders', $backup['tables']['orders']);
         $pdo->commit();
     } catch (Throwable $error) {
@@ -713,9 +847,9 @@ function restore_backup_payload(PDO $pdo, array $backup): void
     seed_database($pdo);
 }
 
-$pdo = database($dbPath);
-
 try {
+    $pdo = database(is_array($config) ? $config : []);
+
     if ($action === 'cms') {
         respond(['ok' => true, 'cms' => get_cms($pdo)]);
     }
@@ -753,6 +887,7 @@ try {
             'ok' => true,
             'loggedIn' => $loggedIn,
             'user' => $user,
+            'favorites' => $loggedIn ? favorites_payload($pdo, (int)$_SESSION['customer_id']) : [],
         ]);
     }
 
@@ -776,6 +911,8 @@ try {
             ],
             'orders' => customer_orders_payload($pdo, $userId),
             'cart' => cart_payload($pdo, $userId),
+            'favorites' => favorites_payload($pdo, $userId),
+            'favoriteProducts' => favorite_products_payload($pdo, $userId),
         ]);
     }
 
@@ -879,6 +1016,38 @@ try {
     if ($action === 'cart') {
         $userId = require_customer();
         respond(['ok' => true, 'cart' => cart_payload($pdo, $userId)]);
+    }
+
+    if ($action === 'favorites') {
+        $userId = require_customer();
+        respond(['ok' => true, 'favorites' => favorites_payload($pdo, $userId)]);
+    }
+
+    if ($action === 'favorite-toggle') {
+        $userId = require_customer();
+        $body = body_json();
+        $productId = trim((string)($body['productId'] ?? ''));
+        $products = products_by_id($pdo);
+
+        if ($productId === '' || !isset($products[$productId])) {
+            respond(['ok' => false, 'message' => 'Proizvod nije pronađen.'], 404);
+        }
+
+        $existing = $pdo->prepare('SELECT id FROM product_favorites WHERE user_id = :user_id AND product_id = :product_id LIMIT 1');
+        $existing->execute([':user_id' => $userId, ':product_id' => $productId]);
+        $favoriteId = $existing->fetchColumn();
+
+        if ($favoriteId) {
+            $delete = $pdo->prepare('DELETE FROM product_favorites WHERE id = :id AND user_id = :user_id');
+            $delete->execute([':id' => (int)$favoriteId, ':user_id' => $userId]);
+            $favorited = false;
+        } else {
+            $insert = $pdo->prepare('INSERT INTO product_favorites (user_id, product_id, created_at) VALUES (:user_id, :product_id, :created_at)');
+            $insert->execute([':user_id' => $userId, ':product_id' => $productId, ':created_at' => date('c')]);
+            $favorited = true;
+        }
+
+        respond(['ok' => true, 'favorited' => $favorited, 'favorites' => favorites_payload($pdo, $userId)]);
     }
 
     if ($action === 'cart-add') {

@@ -5,6 +5,11 @@ uploads/*
 
 .env
 .env.*
+config.local.php
+
+deployment-package-*/
+*.zip
+*-restore-backup.json
 
 *.log
 Thumbs.db

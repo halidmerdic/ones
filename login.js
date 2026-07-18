@@ -1,4 +1,4 @@
-function $(selector) {
+﻿function $(selector) {
   return document.querySelector(selector);
 }
 
@@ -36,12 +36,12 @@ function showProfile(user) {
 
 function redirectAfterLogin() {
   const next = new URLSearchParams(window.location.search).get("next");
-  window.location.href = next || "profile.html";
+  window.location.href = next || "index.html";
 }
 
-$("#customerLoginBtn").addEventListener("click", async () => {
+async function customerLogin() {
   try {
-    const data = await api("customer-login", {
+    await api("customer-login", {
       email: $("#loginEmail").value,
       password: $("#loginPassword").value,
     });
@@ -49,11 +49,11 @@ $("#customerLoginBtn").addEventListener("click", async () => {
   } catch (error) {
     flash(error.message);
   }
-});
+}
 
-$("#customerRegisterBtn").addEventListener("click", async () => {
+async function customerRegister() {
   try {
-    const data = await api("customer-register", {
+    await api("customer-register", {
       name: $("#registerName").value,
       email: $("#registerEmail").value,
       password: $("#registerPassword").value,
@@ -62,7 +62,39 @@ $("#customerRegisterBtn").addEventListener("click", async () => {
   } catch (error) {
     flash(error.message);
   }
-});
+}
+
+function submitOnEnter(fields, callback) {
+  fields.forEach((selector) => {
+    $(selector)?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        callback();
+      }
+    });
+  });
+}
+
+function setupPasswordToggles() {
+  document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = document.getElementById(button.dataset.passwordToggle);
+      if (!input) return;
+      const visible = input.type === "text";
+      input.type = visible ? "password" : "text";
+      button.textContent = visible ? "Vidi" : "Sakrij";
+      button.setAttribute("aria-label", visible ? "Prikazi lozinku" : "Sakrij lozinku");
+    });
+  });
+}
+
+$("#customerLoginBtn").addEventListener("click", customerLogin);
+$("#customerRegisterBtn").addEventListener("click", customerRegister);
+
+submitOnEnter(["#loginEmail", "#loginPassword"], customerLogin);
+submitOnEnter(["#registerName", "#registerEmail", "#registerPassword"], customerRegister);
+
+setupPasswordToggles();
 
 $("#customerLogoutBtn").addEventListener("click", async () => {
   try {
@@ -86,3 +118,4 @@ async function initLogin() {
 }
 
 initLogin();
+

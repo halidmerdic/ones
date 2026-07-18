@@ -18,6 +18,16 @@ The SQLite database is created automatically at `data/ones.sqlite`.
 
 Deployment preparation notes are in `DEPLOYMENT.md`.
 
+Important: GitHub Pages is static hosting only. Registration, cart, CMS, uploads, and admin login require PHP hosting because they use `api.php`, SQLite, and sessions.
+
+For PHP hosting with MySQL, fill in `config.local.php` and set:
+
+```php
+'driver' => 'mysql',
+```
+
+Then enter the MySQL host, database name, username, and password from the hosting panel. Keep this file private and upload it manually to the hosting account with the rest of the site files.
+
 ## CMS
 
 Open `http://127.0.0.1:8000/admin.html` to manage the website content.

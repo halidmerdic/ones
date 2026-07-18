@@ -8,6 +8,15 @@ function $(selector) {
   return document.querySelector(selector);
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 async function api(action, payload) {
   const options = payload
     ? {
@@ -45,6 +54,7 @@ function updateAccountLink() {
   const link = $("#accountLink");
   if (!link) return;
 
+  link.hidden = false;
   if (currentCustomer) {
     link.href = "profile.html";
     link.textContent = `Prijavljen: ${currentCustomer.name}`;
@@ -121,7 +131,47 @@ function inquiryUrl(channel = "whatsapp") {
     return `viber://chat?number=%2B${cms.contact.viber}&text=${text}`;
   }
 
+  if (channel === "email") {
+    return `mailto:?subject=${encodeURIComponent(`oneS upit - ${product.name}`)}&body=${text}`;
+  }
+
   return `https://wa.me/${cms.contact.whatsapp}?text=${text}`;
+}
+
+function closeInquiryModal() {
+  $("#inquiryModal")?.remove();
+  document.body.classList.remove("modal-open");
+}
+
+function openInquiryModal() {
+  closeInquiryModal();
+  const modal = document.createElement("div");
+  modal.className = "inquiry-modal";
+  modal.id = "inquiryModal";
+  modal.innerHTML = `
+    <div class="inquiry-dialog" role="dialog" aria-modal="true" aria-label="Pošalji upit">
+      <div class="inquiry-head">
+        <div>
+          <span>Pošalji upit</span>
+          <h3>${escapeHtml(product.name || "oneS proizvod")}</h3>
+        </div>
+        <button type="button" class="inquiry-close" aria-label="Zatvori">×</button>
+      </div>
+      <div class="inquiry-options">
+        <a href="${inquiryUrl("whatsapp")}" target="_blank" rel="noreferrer"><span>W</span><strong>WhatsApp</strong></a>
+        <a href="${inquiryUrl("viber")}"><span>V</span><strong>Viber</strong></a>
+        <a href="${inquiryUrl("email")}"><span>@</span><strong>Email</strong></a>
+      </div>
+    </div>
+  `;
+
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeInquiryModal();
+  });
+  modal.querySelector(".inquiry-close").addEventListener("click", closeInquiryModal);
+  modal.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeInquiryModal));
+  document.body.appendChild(modal);
+  document.body.classList.add("modal-open");
 }
 
 function visibleBadge(product) {
@@ -322,16 +372,28 @@ function renderProduct() {
             : `<span>Nema slike proizvoda</span>`
         }
       </div>
-      <div class="product-thumbs">
-        ${images
-          .map(
-            (image, index) => `
-              <button type="button" class="${index === 0 ? "active" : ""}" data-image="${image}">
-                <img src="${image}" alt="${product.name} ${index + 1}" />
-              </button>
-            `
-          )
-          .join("")}
+      <div class="product-thumbs-wrap ${images.length > 6 ? "has-slider" : ""}">
+        ${
+          images.length > 6
+            ? `<button class="thumb-slider-btn thumb-slider-prev" type="button" data-thumb-slide="-1" aria-label="Prethodne slike">‹</button>`
+            : ""
+        }
+        <div class="product-thumbs" id="productThumbs">
+          ${images
+            .map(
+              (image, index) => `
+                <button type="button" class="${index === 0 ? "active" : ""}" data-image="${image}">
+                  <img src="${image}" alt="${product.name} ${index + 1}" />
+                </button>
+              `
+            )
+            .join("")}
+        </div>
+        ${
+          images.length > 6
+            ? `<button class="thumb-slider-btn thumb-slider-next" type="button" data-thumb-slide="1" aria-label="Sljedeće slike">›</button>`
+            : ""
+        }
       </div>
       ${images.length ? `<p class="gallery-hint">Kliknite glavnu sliku za full preview. Dvoklik na thumbnail također otvara pregled.</p>` : ""}
     </div>
@@ -346,10 +408,9 @@ function renderProduct() {
       <p>${product.summary || ""}</p>
       ${priceHtml(product)}
       ${product.deliveryTime ? `<p class="delivery-note"><strong>Rok isporuke:</strong> ${product.deliveryTime}</p>` : ""}
-      <div class="product-actions">
+      <div class="product-actions product-detail-actions">
         <button class="btn btn-primary" type="button" id="detailAddCart">Dodaj u korpu</button>
-        <a class="btn btn-secondary" href="${inquiryUrl("whatsapp")}" target="_blank" rel="noreferrer">WhatsApp upit</a>
-        <a class="btn btn-secondary" href="${inquiryUrl("viber")}">Viber upit</a>
+        <button class="btn btn-secondary" type="button" id="detailInquiryBtn">Pošalji upit</button>
       </div>
       <div class="detail-specs">
         <h2>Specifikacije</h2>
@@ -407,8 +468,18 @@ function renderProduct() {
     });
   });
 
+  document.querySelectorAll("[data-thumb-slide]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const thumbs = $("#productThumbs");
+      const direction = Number(button.dataset.thumbSlide);
+      const step = thumbs ? thumbs.clientWidth : 0;
+      thumbs?.scrollBy({ left: direction * step, behavior: "smooth" });
+    });
+  });
+
   $("#mainImageButton")?.addEventListener("click", () => openLightbox(Math.max(activeImageIndex, 0)));
   $("#detailAddCart").addEventListener("click", addToCart);
+  $("#detailInquiryBtn").addEventListener("click", openInquiryModal);
   setupLightbox();
 }
 

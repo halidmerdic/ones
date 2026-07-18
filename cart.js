@@ -18,7 +18,7 @@ async function api(action, payload) {
   const response = await fetch(`api.php?action=${action}`, options);
   const data = await response.json();
   if (!response.ok || !data.ok) {
-    throw new Error(data.message || "API greska.");
+    throw new Error(data.message || "API greška.");
   }
   return data;
 }
@@ -80,7 +80,7 @@ function inquiryMessage() {
   }
 
   const lines = cart.items.map((item) => `- ${item.product.name} x${item.quantity}`);
-  return `Pozdrav, zelim poslati upit za:\n${lines.join("\n")}\n\nUkupno okvirno: ${money(cartTotal())}`;
+  return `Pozdrav, želim poslati upit za:\n${lines.join("\n")}\n\nUkupno okvirno: ${money(cartTotal())}`;
 }
 
 function contactUrl(channel) {
@@ -104,6 +104,7 @@ function updateAccountLink() {
   const link = $("#cartAccountLink");
   if (!link) return;
 
+  link.hidden = false;
   if (currentCustomer) {
     link.href = "profile.html";
     link.textContent = `Prijavljen: ${currentCustomer.name}`;
@@ -126,7 +127,7 @@ function renderCart() {
     $("#cartList").innerHTML = `
       <article class="login-panel profile-panel">
         <h2>Korpa je prazna</h2>
-        <p>Dodajte proizvod iz kataloga da ga sacuvate za upit.</p>
+        <p>Dodajte proizvod iz kataloga da ga sačuvate za upit.</p>
         <a class="btn btn-primary" href="index.html#proizvodi">Pogledaj proizvode</a>
       </article>
     `;
@@ -193,8 +194,8 @@ async function submitOrder() {
   if (phone && phone !== savedPhone) {
     updateProfilePhone = confirm(
       savedPhone
-        ? "Unijeli ste drugi broj telefona. Zelite li promijeniti broj telefona na svom profilu?"
-        : "Zelite li sacuvati ovaj broj telefona na svom profilu za iduci put?"
+        ? "Unijeli ste drugi broj telefona. Želite li promijeniti broj telefona na svom profilu?"
+        : "Želite li sačuvati ovaj broj telefona na svom profilu za idući put?"
     );
   }
 
@@ -214,7 +215,7 @@ async function submitOrder() {
       $("#orderSuccess").innerHTML = `
         <span class="badge red">Upit poslan</span>
         <h2>Broj upita: #${data.order.id}</h2>
-        <p>Upit je sacuvan u CMS-u. Kontaktirat cemo vas na broj ${phone} za potvrdu dostupnosti i sljedece korake.</p>
+        <p>Upit je sačuvan u CMS-u. Kontaktirat ćemo vas na broj ${phone} za potvrdu dostupnosti i sljedeće korake.</p>
         <a class="btn btn-secondary" href="profile.html">Pogledaj profil</a>
       `;
     }

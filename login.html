@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Prijavi se | oneS</title>
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="admin.css" />
+    <link rel="stylesheet" href="styles.css?v=20260715-login-2" />
+    <link rel="stylesheet" href="admin.css?v=20260715-login-2" />
   </head>
   <body class="admin-body">
     <main class="auth-page">
@@ -25,7 +25,10 @@
           </label>
           <label>
             Lozinka
-            <input id="loginPassword" type="password" autocomplete="current-password" />
+            <span class="password-field">
+              <input id="loginPassword" type="password" autocomplete="current-password" />
+              <button type="button" class="password-toggle" data-password-toggle="loginPassword" aria-label="Prikazi lozinku">Vidi</button>
+            </span>
           </label>
           <button class="btn btn-primary" type="button" id="customerLoginBtn">Prijava</button>
         </article>
@@ -44,7 +47,10 @@
           </label>
           <label>
             Lozinka
-            <input id="registerPassword" type="password" autocomplete="new-password" />
+            <span class="password-field">
+              <input id="registerPassword" type="password" autocomplete="new-password" />
+              <button type="button" class="password-toggle" data-password-toggle="registerPassword" aria-label="Prikazi lozinku">Vidi</button>
+            </span>
           </label>
           <button class="btn btn-secondary" type="button" id="customerRegisterBtn">Registruj se</button>
         </article>
@@ -62,7 +68,7 @@
       </section>
     </main>
 
-    <script src="theme.js"></script>
-    <script src="login.js"></script>
+    <script src="theme.js?v=20260715-login-2"></script>
+    <script src="login.js?v=20260715-login-2"></script>
   </body>
 </html>

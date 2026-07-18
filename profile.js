@@ -56,7 +56,7 @@ function statusInfo(status) {
       text: "Pokušali smo vas kontaktirati ili je komunikacija već u toku.",
       className: "dark",
     },
-    "Završeno": {
+    Završeno: {
       label: "Upit je završen",
       text: "Upit je završen. Ako trebate još nešto, možete poslati novi upit.",
       className: "light",
@@ -80,6 +80,44 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function productUrl(product) {
+  return `product.html?id=${encodeURIComponent(product.id)}`;
+}
+
+function renderFavorites(products) {
+  const list = $("#profileFavorites");
+
+  if (!products.length) {
+    list.innerHTML = `
+      <div class="product-admin-empty">
+        Još nemate omiljenih proizvoda.
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = products
+    .map(
+      (product) => `
+        <a class="profile-favorite" href="${productUrl(product)}">
+          <span class="profile-favorite-image">
+            ${
+              product.image
+                ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />`
+                : `<span aria-hidden="true"></span>`
+            }
+          </span>
+          <span>
+            <small>${escapeHtml(product.category || "oneS")}</small>
+            <strong>${escapeHtml(product.name)}</strong>
+            <b>${escapeHtml(product.price || "0")} KM</b>
+          </span>
+        </a>
+      `
+    )
+    .join("");
 }
 
 function renderOrders(orders) {
@@ -190,6 +228,8 @@ async function initProfile() {
     fillProfileForm(data.user);
     $("#profileCartCount").textContent = data.cart.count || 0;
     $("#profileOrderCount").textContent = data.orders.length || 0;
+    $("#profileFavoriteCount").textContent = (data.favoriteProducts || []).length || 0;
+    renderFavorites(data.favoriteProducts || []);
     renderOrders(data.orders || []);
   } catch (error) {
     if (error.message.includes("Prijavite se")) {

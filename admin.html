@@ -4,12 +4,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>oneS CMS</title>
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="admin.css" />
+    <link rel="stylesheet" href="styles.css?v=20260715-flicker-1" />
+    <link rel="stylesheet" href="admin.css?v=20260715-flicker-1" />
   </head>
   <body class="admin-body">
+    <button class="admin-menu-toggle" type="button" id="adminMenuToggle" aria-label="Otvori CMS meni" aria-expanded="false">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <div class="admin-menu-backdrop" id="adminMenuBackdrop" hidden></div>
     <main class="admin-shell">
       <aside class="admin-sidebar">
+        <div class="admin-sidebar-head">
+          <span>CMS meni</span>
+          <button type="button" id="adminMenuClose" aria-label="Zatvori CMS meni">&times;</button>
+        </div>
         <a class="brand" href="index.html" aria-label="oneS stranica">
           <img src="assets/ones-logo.webp" alt="oneS logo" />
         </a>
@@ -31,12 +41,15 @@
           </div>
         </div>
 
-        <div class="login-panel" id="loginPanel">
+        <div class="login-panel" id="loginPanel" hidden>
           <h2>Admin prijava</h2>
           <p>Privremena lokalna prijava za ovu prvu verziju CMS-a.</p>
           <label>
             Lozinka
-            <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Unesite lozinku" />
+            <span class="password-field">
+              <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Unesite lozinku" />
+              <button type="button" class="password-toggle" data-password-toggle="passwordInput" aria-label="Prikazi lozinku">Vidi</button>
+            </span>
           </label>
           <button class="btn btn-primary" type="button" id="loginBtn">Prijava</button>
         </div>
@@ -61,7 +74,7 @@
       </section>
     </main>
 
-    <script src="theme.js"></script>
-    <script src="admin.js"></script>
+    <script src="theme.js?v=20260715-flicker-1"></script>
+    <script src="admin.js?v=20260715-flicker-1"></script>
   </body>
 </html>
