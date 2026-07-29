@@ -2,28 +2,17 @@
   return document.querySelector(selector);
 }
 
+const customerPreviewKey = "onesCustomerPreview";
+
 async function api(action, payload) {
-  const options = payload
-    ? {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
-    : { cache: "no-store" };
-
-  const response = await fetch(`api.php?action=${action}`, options);
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    throw new Error(data.message || "API greška.");
-  }
-
-  return data;
+  return window.onesApi(action, payload);
 }
 
 function flash(message) {
   const note = document.createElement("div");
   note.className = "admin-toast";
+  note.setAttribute("role", "status");
+  note.setAttribute("aria-live", "polite");
   note.textContent = message;
   document.body.appendChild(note);
   setTimeout(() => note.remove(), 2800);
@@ -36,15 +25,27 @@ function showProfile(user) {
 
 function redirectAfterLogin() {
   const next = new URLSearchParams(window.location.search).get("next");
-  window.location.href = next || "index.html";
+  if (!next) {
+    window.location.href = "index.html";
+    return;
+  }
+
+  try {
+    const target = new URL(next, window.location.href);
+    window.location.href = target.origin === window.location.origin ? `${target.pathname}${target.search}${target.hash}` : "index.html";
+  } catch (error) {
+    window.location.href = "index.html";
+  }
 }
 
 async function customerLogin() {
   try {
-    await api("customer-login", {
+    const data = await api("customer-login", {
       email: $("#loginEmail").value,
       password: $("#loginPassword").value,
     });
+    const user = data.user || { name: $("#loginEmail").value, email: $("#loginEmail").value };
+    localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
     redirectAfterLogin();
   } catch (error) {
     flash(error.message);
@@ -52,12 +53,21 @@ async function customerLogin() {
 }
 
 async function customerRegister() {
+  if (!$("#registerConsent").checked) {
+    flash("Potvrdite privatnost i uslove korištenja prije registracije.");
+    $("#registerConsent").focus();
+    return;
+  }
+
   try {
-    await api("customer-register", {
+    const data = await api("customer-register", {
       name: $("#registerName").value,
       email: $("#registerEmail").value,
       password: $("#registerPassword").value,
+      acceptedPrivacy: $("#registerConsent").checked,
     });
+    const user = data.user || { name: $("#registerName").value, email: $("#registerEmail").value };
+    localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
     redirectAfterLogin();
   } catch (error) {
     flash(error.message);
@@ -99,6 +109,7 @@ setupPasswordToggles();
 $("#customerLogoutBtn").addEventListener("click", async () => {
   try {
     await api("customer-logout", {});
+    localStorage.removeItem(customerPreviewKey);
     $("#profilePanel").hidden = true;
     flash("Odjavljeni ste.");
   } catch (error) {

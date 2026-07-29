@@ -4,10 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>oneS CMS</title>
-    <link rel="stylesheet" href="styles.css?v=20260715-flicker-1" />
-    <link rel="stylesheet" href="admin.css?v=20260715-flicker-1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#111216" />
+    <link rel="stylesheet" href="styles.css?v=20260723-priority-2" />
+    <link rel="stylesheet" href="admin.css?v=20260723-sale-date-1" />
   </head>
-  <body class="admin-body">
+  <body class="admin-body cms-page">
     <button class="admin-menu-toggle" type="button" id="adminMenuToggle" aria-label="Otvori CMS meni" aria-expanded="false">
       <span></span>
       <span></span>
@@ -41,13 +43,15 @@
           </div>
         </div>
 
+        <section class="cms-validation-banner" id="cmsValidationBanner" role="alert" aria-live="assertive" hidden></section>
+
         <div class="login-panel" id="loginPanel" hidden>
           <h2>Admin prijava</h2>
-          <p>Privremena lokalna prijava za ovu prvu verziju CMS-a.</p>
+          <p>Prijavite se za upravljanje proizvodima, sadržajem i upitima kupaca.</p>
           <label>
             Lozinka
             <span class="password-field">
-              <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Unesite lozinku" />
+              <input id="passwordInput" type="password" autocomplete="current-password" maxlength="4096" placeholder="Unesite lozinku" required />
               <button type="button" class="password-toggle" data-password-toggle="passwordInput" aria-label="Prikazi lozinku">Vidi</button>
             </span>
           </label>
@@ -74,7 +78,8 @@
       </section>
     </main>
 
-    <script src="theme.js?v=20260715-flicker-1"></script>
-    <script src="admin.js?v=20260715-flicker-1"></script>
+    <script src="theme.js?v=20260723-priority-2"></script>
+    <script src="api-client.js?v=20260723-priority-2"></script>
+    <script src="admin.js?v=20260723-sale-date-1"></script>
   </body>
 </html>

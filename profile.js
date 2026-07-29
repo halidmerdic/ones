@@ -1,29 +1,19 @@
+const customerPreviewKey = "onesCustomerPreview";
+const cartCountPreviewKey = "onesCartCountPreview";
+
 function $(selector) {
   return document.querySelector(selector);
 }
 
 async function api(action, payload) {
-  const options = payload
-    ? {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
-    : { cache: "no-store" };
-
-  const response = await fetch(`api.php?action=${action}`, options);
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    throw new Error(data.message || "API greška.");
-  }
-
-  return data;
+  return window.onesApi(action, payload);
 }
 
 function flash(message) {
   const note = document.createElement("div");
   note.className = "admin-toast";
+  note.setAttribute("role", "status");
+  note.setAttribute("aria-live", "polite");
   note.textContent = message;
   document.body.appendChild(note);
   setTimeout(() => note.remove(), 2600);
@@ -86,6 +76,17 @@ function productUrl(product) {
   return `product.html?id=${encodeURIComponent(product.id)}`;
 }
 
+function profilePrice(product) {
+  const saleEnd = product.saleUntil ? new Date(`${String(product.saleUntil).slice(0, 10)}T23:59:59`) : null;
+  const activeSale = saleEnd && !Number.isNaN(saleEnd.getTime()) && saleEnd >= new Date() ? product.salePrice : null;
+  const values = [activeSale, product.discountPrice, product.mpcPrice, product.price];
+  const value = values.find((candidate) => Number(String(candidate ?? "").replace(",", ".").replace(/[^\d.]/g, "")) > 0);
+  if (!value) return "Cijena na upit";
+  const number = Number(String(value).replace(",", ".").replace(/[^\d.]/g, ""));
+  const label = Number.isInteger(number) ? String(number) : String(number.toFixed(2)).replace(/\.?0+$/, "");
+  return `${label} KM`;
+}
+
 function renderFavorites(products) {
   const list = $("#profileFavorites");
 
@@ -105,14 +106,14 @@ function renderFavorites(products) {
           <span class="profile-favorite-image">
             ${
               product.image
-                ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />`
+                ? `<img src="${escapeHtml(window.onesSafeUrl(product.image))}" alt="${escapeHtml(product.name)}" loading="lazy" />`
                 : `<span aria-hidden="true"></span>`
             }
           </span>
           <span>
             <small>${escapeHtml(product.category || "oneS")}</small>
             <strong>${escapeHtml(product.name)}</strong>
-            <b>${escapeHtml(product.price || "0")} KM</b>
+            <b>${escapeHtml(profilePrice(product))}</b>
           </span>
         </a>
       `
@@ -143,7 +144,7 @@ function renderOrders(orders) {
         <article class="profile-order">
           <div class="profile-order-head">
             <div>
-              <span>Upit #${order.id}</span>
+              <span>Upit #${Number(order.id)}</span>
               <h3>${escapeHtml(status.label)}</h3>
             </div>
             <span class="status-badge profile-status ${status.className}">${escapeHtml(order.status || "Novo")}</span>
@@ -178,11 +179,24 @@ function renderOrders(orders) {
 }
 
 function fillProfileForm(user) {
+  localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
   $("#profileName").textContent = user.name;
   $("#profileEmail").textContent = [user.email, user.phone].filter(Boolean).join(" · ");
   $("#profileNameInput").value = user.name || "";
   $("#profileEmailInput").value = user.email || "";
   $("#profilePhoneInput").value = user.phone || "";
+}
+
+function setupMobileNav() {
+  window.onesSetupMobileNav();
+}
+
+function updateBottomCartCount(count) {
+  localStorage.setItem(cartCountPreviewKey, String(count || 0));
+  document.querySelectorAll(".cart-count-sync").forEach((badge) => {
+    badge.textContent = String(count || 0);
+    badge.hidden = !count;
+  });
 }
 
 async function saveProfile() {
@@ -216,6 +230,7 @@ async function savePassword() {
 async function logout() {
   try {
     await api("customer-logout", {});
+    localStorage.removeItem(customerPreviewKey);
     window.location.href = "login.html";
   } catch (error) {
     flash(error.message);
@@ -227,6 +242,7 @@ async function initProfile() {
     const data = await api("customer-profile");
     fillProfileForm(data.user);
     $("#profileCartCount").textContent = data.cart.count || 0;
+    updateBottomCartCount(data.cart.count || 0);
     $("#profileOrderCount").textContent = data.orders.length || 0;
     $("#profileFavoriteCount").textContent = (data.favoriteProducts || []).length || 0;
     renderFavorites(data.favoriteProducts || []);
@@ -241,7 +257,9 @@ async function initProfile() {
 }
 
 $("#profileLogoutBtn").addEventListener("click", logout);
+$("#profileMobileLogoutBtn")?.addEventListener("click", logout);
 $("#saveProfileBtn").addEventListener("click", saveProfile);
 $("#savePasswordBtn").addEventListener("click", savePassword);
+setupMobileNav();
 
 initProfile();

@@ -3,6 +3,10 @@ let product = null;
 let currentCustomer = null;
 let galleryImages = [];
 let activeImageIndex = 0;
+let inquiryReturnFocus = null;
+const bottomProfileIcon = '<span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span><strong>Profil</strong>';
+const customerPreviewKey = "onesCustomerPreview";
+const cartCountPreviewKey = "onesCartCountPreview";
 
 function $(selector) {
   return document.querySelector(selector);
@@ -18,51 +22,63 @@ function escapeHtml(value) {
 }
 
 async function api(action, payload) {
-  const options = payload
-    ? {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
-    : { cache: "no-store" };
-
-  const response = await fetch(`api.php?action=${action}`, options);
-  const data = await response.json();
-  if (!response.ok || !data.ok) {
-    throw new Error(data.message || "API greška.");
-  }
-  return data;
+  return window.onesApi(action, payload);
 }
 
 function flash(message) {
   const note = document.createElement("div");
   note.className = "admin-toast";
+  note.setAttribute("role", "status");
+  note.setAttribute("aria-live", "polite");
   note.textContent = message;
   document.body.appendChild(note);
   setTimeout(() => note.remove(), 2600);
 }
 
 function updateCartCount(count) {
-  const badge = $("#cartCount");
-  if (badge) {
+  localStorage.setItem(cartCountPreviewKey, String(count || 0));
+  document.querySelectorAll(".cart-count-sync").forEach((badge) => {
     badge.textContent = String(count || 0);
     badge.hidden = !count;
-  }
+  });
+}
+
+function restoreCartCountPreview() {
+  const count = Number(window.__onesCartPreview || localStorage.getItem(cartCountPreviewKey) || 0);
+  if (count > 0) updateCartCount(count);
 }
 
 function updateAccountLink() {
-  const link = $("#accountLink");
-  if (!link) return;
+  ["#accountLink", "#mobileAccountLink", "#bottomAccountLink"]
+    .map((selector) => $(selector))
+    .filter(Boolean)
+    .forEach((link) => {
+      link.hidden = false;
+      if (currentCustomer) {
+        link.href = "profile.html";
+        if (link.id === "bottomAccountLink") {
+          link.innerHTML = bottomProfileIcon;
+        } else {
+          link.textContent = `Prijavljen: ${currentCustomer.name}`;
+        }
+        if (link.id !== "bottomAccountLink") link.classList.add("account-active");
+      } else {
+        link.href = "login.html";
+        if (link.id === "bottomAccountLink") {
+          link.innerHTML = bottomProfileIcon;
+        } else {
+          link.textContent = "Prijavi se";
+        }
+        link.classList.remove("account-active");
+      }
+    });
+}
 
-  link.hidden = false;
-  if (currentCustomer) {
-    link.href = "profile.html";
-    link.textContent = `Prijavljen: ${currentCustomer.name}`;
-    link.classList.add("account-active");
+function rememberCustomerPreview(user) {
+  if (user) {
+    localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
   } else {
-    link.href = "login.html";
-    link.textContent = "Prijavi se";
-    link.classList.remove("account-active");
+    localStorage.removeItem(customerPreviewKey);
   }
 }
 
@@ -70,6 +86,7 @@ async function loadCustomerStatus() {
   try {
     const data = await api("customer-status");
     currentCustomer = data.loggedIn ? data.user : null;
+    rememberCustomerPreview(currentCustomer);
   } catch {
     currentCustomer = null;
   }
@@ -98,6 +115,7 @@ async function logoutCustomer() {
   }
 
   currentCustomer = null;
+  rememberCustomerPreview(null);
   updateAccountLink();
   updateCartCount(0);
   $("#accountMenu").hidden = true;
@@ -124,27 +142,39 @@ function setupAccountMenu() {
   });
 }
 
+function setupMobileNav() {
+  window.onesSetupMobileNav();
+}
+
+function contactPhone(value) {
+  const digits = String(value || "").replace(/[^\d]/g, "");
+  return digits.startsWith("0") ? `387${digits.slice(1)}` : digits;
+}
+
 function inquiryUrl(channel = "whatsapp") {
   const text = encodeURIComponent(`Pozdrav, zanima me ${product.name}. Da li je dostupno i koja je cijena?`);
 
   if (channel === "viber") {
-    return `viber://chat?number=%2B${cms.contact.viber}&text=${text}`;
+    return `viber://chat?number=%2B${contactPhone(cms.contact.viber)}&text=${text}`;
   }
 
   if (channel === "email") {
-    return `mailto:?subject=${encodeURIComponent(`oneS upit - ${product.name}`)}&body=${text}`;
+    return `mailto:${encodeURIComponent(cms.contact.email || "info@fontele.ba")}?subject=${encodeURIComponent(`oneS upit - ${product.name}`)}&body=${text}`;
   }
 
-  return `https://wa.me/${cms.contact.whatsapp}?text=${text}`;
+  return `https://wa.me/${contactPhone(cms.contact.whatsapp)}?text=${text}`;
 }
 
 function closeInquiryModal() {
   $("#inquiryModal")?.remove();
   document.body.classList.remove("modal-open");
+  inquiryReturnFocus?.focus();
+  inquiryReturnFocus = null;
 }
 
 function openInquiryModal() {
   closeInquiryModal();
+  inquiryReturnFocus = document.activeElement;
   const modal = document.createElement("div");
   modal.className = "inquiry-modal";
   modal.id = "inquiryModal";
@@ -159,7 +189,7 @@ function openInquiryModal() {
       </div>
       <div class="inquiry-options">
         <a href="${inquiryUrl("whatsapp")}" target="_blank" rel="noreferrer"><span>W</span><strong>WhatsApp</strong></a>
-        <a href="${inquiryUrl("viber")}"><span>V</span><strong>Viber</strong></a>
+        <a href="${inquiryUrl("viber")}" data-viber-link><span>V</span><strong>Viber</strong></a>
         <a href="${inquiryUrl("email")}"><span>@</span><strong>Email</strong></a>
       </div>
     </div>
@@ -169,9 +199,17 @@ function openInquiryModal() {
     if (event.target === modal) closeInquiryModal();
   });
   modal.querySelector(".inquiry-close").addEventListener("click", closeInquiryModal);
+  modal.querySelector("[data-viber-link]").addEventListener("click", () => {
+    const message = `Pozdrav, zanima me ${product.name}. Da li je dostupno i koja je cijena?`;
+    navigator.clipboard?.writeText(message).then(
+      () => flash("Poruka za Viber je kopirana. Zalijepite je u razgovor."),
+      () => {}
+    );
+  });
   modal.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeInquiryModal));
   document.body.appendChild(modal);
   document.body.classList.add("modal-open");
+  modal.querySelector(".inquiry-close").focus();
 }
 
 function visibleBadge(product) {
@@ -224,18 +262,75 @@ function activePrice(product) {
     return { label: formatPrice(product.discountPrice), type: "discount" };
   }
 
-  return { label: "0", type: "regular" };
+  if (numericPrice(product.mpcPrice) > 0) {
+    return { label: formatPrice(product.mpcPrice), type: "regular" };
+  }
+
+  if (numericPrice(product.price) > 0) {
+    return { label: formatPrice(product.price), type: "regular" };
+  }
+
+  return { label: "Cijena na upit", type: "inquiry" };
 }
 
 function priceHtml(product) {
   const current = activePrice(product);
-  const mpc = numericPrice(product.mpcPrice) > 0 && formatPrice(product.mpcPrice) !== current.label ? formatPrice(product.mpcPrice) : "";
+  const mpc = ["sale", "discount"].includes(current.type) && numericPrice(product.mpcPrice) > 0 && formatPrice(product.mpcPrice) !== current.label ? formatPrice(product.mpcPrice) : "";
+  const currentLabel = current.type === "inquiry" ? current.label : `${current.label} KM`;
   return `
     <div class="price-stack product-price">
-      <strong class="${current.type === "sale" ? "sale-price" : ""}">${current.label}</strong>
-      ${mpc ? `<span class="mpc-price">MPC: ${mpc}</span>` : ""}
+      <strong class="${current.type === "sale" ? "sale-price" : ""}">${currentLabel}</strong>
+      ${mpc ? `<span class="mpc-price">MPC: ${mpc} KM</span>` : ""}
       ${current.type === "sale" && product.saleUntil ? `<small>Akcija traje do ${formatDateOnly(product.saleUntil)}</small>` : ""}
     </div>
+  `;
+}
+
+function productUrl(item) {
+  return `product.html?id=${encodeURIComponent(item.id)}`;
+}
+
+function productIsPublic(item) {
+  return item && item.enabled !== false;
+}
+
+function relatedProductsHtml() {
+  const related = (cms.products || [])
+    .filter((item) => productIsPublic(item) && item.id !== product.id && item.category === product.category)
+    .slice(0, 3);
+
+  if (!related.length) return "";
+
+  return `
+    <section class="product-long-description related-products-section">
+      <div class="section-heading compact-heading">
+        <div>
+          <p class="eyebrow">Povezano</p>
+          <h2>Slični proizvodi</h2>
+        </div>
+      </div>
+      <div class="related-product-grid">
+        ${related
+          .map(
+            (item) => `
+              <a class="related-product-card" href="${productUrl(item)}">
+                <span class="related-product-image">
+                  ${
+                    item.image
+                      ? `<img src="${escapeHtml(window.onesSafeUrl(item.image))}" alt="${escapeHtml(item.name)}" loading="lazy" />`
+                      : `<span aria-hidden="true"></span>`
+                  }
+                </span>
+                <span>
+                  <small>${escapeHtml(item.category || "oneS")}</small>
+                  <strong>${escapeHtml(item.name)}</strong>
+                </span>
+              </a>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
   `;
 }
 
@@ -270,7 +365,7 @@ function applyProductSeo() {
   const title = product.seoTitle || `${product.name} | oneS`;
   const description = product.seoDescription || product.summary || `${product.name} u oneS katalogu.`;
   const canonical = absoluteUrl(`product.html?id=${encodeURIComponent(product.id)}`);
-  const image = product.image || "assets/ones-logo.webp";
+  const image = window.onesSafeUrl(product.image) || "assets/ones-logo.webp";
 
   document.title = title;
   setMeta('meta[name="description"]', description);
@@ -306,6 +401,34 @@ function renderLightboxImage() {
   $("#lightboxCounter").textContent = `${activeImageIndex + 1} / ${galleryImages.length}`;
 }
 
+function thumbnailButtonsHtml(images) {
+  return images
+    .map((image) => {
+      const index = galleryImages.indexOf(image);
+      return `
+        <button type="button" class="${index === activeImageIndex ? "active" : ""}" data-image="${escapeHtml(image)}">
+          <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} ${index + 1}" loading="lazy" />
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function bindThumbnailButtons() {
+  document.querySelectorAll("[data-image]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("[data-image]").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      $("#mainProductImage").src = button.dataset.image;
+      activeImageIndex = galleryImages.indexOf(button.dataset.image);
+    });
+
+    button.addEventListener("dblclick", () => {
+      openLightbox(galleryImages.indexOf(button.dataset.image));
+    });
+  });
+}
+
 function setupLightbox() {
   if ($("#imageLightbox")) return;
 
@@ -316,7 +439,7 @@ function setupLightbox() {
   lightbox.innerHTML = `
     <button class="lightbox-close" type="button" aria-label="Zatvori pregled">×</button>
     <button class="lightbox-arrow lightbox-prev" type="button" aria-label="Prethodna slika">‹</button>
-    <img id="lightboxImage" src="" alt="${product?.name || "Slika proizvoda"}" />
+    <img id="lightboxImage" src="" alt="${escapeHtml(product?.name || "Slika proizvoda")}" />
     <button class="lightbox-arrow lightbox-next" type="button" aria-label="Sljedeća slika">›</button>
     <div class="lightbox-counter" id="lightboxCounter"></div>
   `;
@@ -352,8 +475,11 @@ async function addToCart() {
 }
 
 function renderProduct() {
-  const images = [product.image, ...(Array.isArray(product.gallery) ? product.gallery : [])].filter(Boolean);
+  const images = [product.image, ...(Array.isArray(product.gallery) ? product.gallery : [])]
+    .map((image) => window.onesSafeUrl(image))
+    .filter(Boolean);
   galleryImages = images;
+  activeImageIndex = 0;
   const mainImage = images[0] || "";
   const specs = Object.entries(product.specs || {});
   const relatedManuals = (cms.manuals || []).filter((manual) => {
@@ -368,7 +494,7 @@ function renderProduct() {
       <div class="product-main-image ${mainImage ? "" : "empty"}">
         ${
           mainImage
-            ? `<button class="main-image-button" type="button" id="mainImageButton"><img id="mainProductImage" src="${mainImage}" alt="${product.name}" /></button>`
+            ? `<button class="main-image-button" type="button" id="mainImageButton"><img id="mainProductImage" src="${escapeHtml(mainImage)}" alt="${escapeHtml(product.name)}" /></button>`
             : `<span>Nema slike proizvoda</span>`
         }
       </div>
@@ -379,15 +505,7 @@ function renderProduct() {
             : ""
         }
         <div class="product-thumbs" id="productThumbs">
-          ${images
-            .map(
-              (image, index) => `
-                <button type="button" class="${index === 0 ? "active" : ""}" data-image="${image}">
-                  <img src="${image}" alt="${product.name} ${index + 1}" />
-                </button>
-              `
-            )
-            .join("")}
+          ${thumbnailButtonsHtml(images.slice(0, 8))}
         </div>
         ${
           images.length > 6
@@ -395,19 +513,20 @@ function renderProduct() {
             : ""
         }
       </div>
+      ${images.length > 8 ? `<button class="btn btn-secondary gallery-more-btn" type="button" id="showAllThumbs">Prikaži sve fotografije (${images.length})</button>` : ""}
       ${images.length ? `<p class="gallery-hint">Kliknite glavnu sliku za full preview. Dvoklik na thumbnail također otvara pregled.</p>` : ""}
     </div>
 
     <div class="product-detail-copy">
-      <p class="eyebrow">${product.category}</p>
-      <h1>${product.name}</h1>
+      <p class="eyebrow">${escapeHtml(product.category)}</p>
+      <h1>${escapeHtml(product.name)}</h1>
       <div class="badge-row">
-        <span class="badge red">${product.status || "Dostupno"}</span>
-        ${visibleBadge(product) ? `<span class="badge">${visibleBadge(product)}</span>` : ""}
+        <span class="badge red">${escapeHtml(product.status || "Dostupno")}</span>
+        ${visibleBadge(product) ? `<span class="badge">${escapeHtml(visibleBadge(product))}</span>` : ""}
       </div>
-      <p>${product.summary || ""}</p>
+      <p>${escapeHtml(product.summary || "")}</p>
       ${priceHtml(product)}
-      ${product.deliveryTime ? `<p class="delivery-note"><strong>Rok isporuke:</strong> ${product.deliveryTime}</p>` : ""}
+      ${product.deliveryTime ? `<p class="delivery-note"><strong>Rok isporuke:</strong> ${escapeHtml(product.deliveryTime)}</p>` : ""}
       <div class="product-actions product-detail-actions">
         <button class="btn btn-primary" type="button" id="detailAddCart">Dodaj u korpu</button>
         <button class="btn btn-secondary" type="button" id="detailInquiryBtn">Pošalji upit</button>
@@ -415,7 +534,7 @@ function renderProduct() {
       <div class="detail-specs">
         <h2>Specifikacije</h2>
         <ul class="spec-list">
-          ${specs.map(([key, value]) => `<li><span>${key}</span><strong>${value}</strong></li>`).join("")}
+          ${specs.map(([key, value]) => `<li><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></li>`).join("")}
         </ul>
       </div>
     </div>
@@ -424,7 +543,7 @@ function renderProduct() {
         ? `
           <section class="product-long-description">
             <h2>Detaljan opis</h2>
-            <div class="rich-content">${product.detailedDescription}</div>
+            <div class="rich-content">${window.onesSanitizeRichHtml(product.detailedDescription)}</div>
           </section>
         `
         : ""
@@ -440,10 +559,10 @@ function renderProduct() {
                   (manual) => `
                     <article class="product-manual-item">
                       <div>
-                        <strong>${manual.title}</strong>
-                        <span>${manual.type || "PDF"} · ${manual.status || "Dostupno"}</span>
+                        <strong>${escapeHtml(manual.title)}</strong>
+                        <span>${escapeHtml(manual.type || "PDF")} · ${escapeHtml(manual.status || "Dostupno")}</span>
                       </div>
-                      <a class="btn btn-primary" href="${manual.file}" target="_blank" rel="noreferrer">Preuzmi PDF</a>
+                      <a class="btn btn-primary" href="${escapeHtml(window.onesSafeUrl(manual.file))}" target="_blank" rel="noreferrer">Preuzmi PDF</a>
                     </article>
                   `
                 )
@@ -453,19 +572,14 @@ function renderProduct() {
         `
         : ""
     }
+    ${relatedProductsHtml()}
   `;
 
-  document.querySelectorAll("[data-image]").forEach((button) => {
-    button.addEventListener("click", () => {
-      document.querySelectorAll("[data-image]").forEach((item) => item.classList.remove("active"));
-      button.classList.add("active");
-      $("#mainProductImage").src = button.dataset.image;
-      activeImageIndex = galleryImages.indexOf(button.dataset.image);
-    });
-
-    button.addEventListener("dblclick", () => {
-      openLightbox(galleryImages.indexOf(button.dataset.image));
-    });
+  bindThumbnailButtons();
+  $("#showAllThumbs")?.addEventListener("click", (event) => {
+    $("#productThumbs").innerHTML = thumbnailButtonsHtml(images);
+    event.currentTarget.remove();
+    bindThumbnailButtons();
   });
 
   document.querySelectorAll("[data-thumb-slide]").forEach((button) => {
@@ -486,13 +600,15 @@ function renderProduct() {
 async function init() {
   try {
     setupAccountMenu();
+    setupMobileNav();
+    restoreCartCountPreview();
     await loadCustomerStatus();
     await loadCartCount();
 
     const id = new URLSearchParams(window.location.search).get("id");
     const data = await api("cms");
     cms = data.cms;
-    product = cms.products.find((item) => item.id === id);
+    product = cms.products.find((item) => item.id === id && productIsPublic(item));
 
     if (!product) {
       $("#productDetail").innerHTML = `
@@ -511,7 +627,7 @@ async function init() {
     $("#productDetail").innerHTML = `
       <div class="login-panel profile-panel">
         <h1>Greška</h1>
-        <p>${error.message}</p>
+        <p>${escapeHtml(error.message)}</p>
       </div>
     `;
   }
@@ -523,7 +639,7 @@ window.addEventListener("storage", async (event) => {
   try {
     const data = await api("cms");
     cms = data.cms;
-    product = cms.products.find((item) => item.id === product.id);
+    product = cms.products.find((item) => item.id === product.id && productIsPublic(item));
     if (product) renderProduct();
   } catch (error) {
     console.warn("CMS refresh failed.", error);

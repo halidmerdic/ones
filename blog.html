@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Blog | oneS</title>
     <meta name="description" content="oneS blog, savjeti i novosti." />
+    <meta name="theme-color" content="#111216" />
     <meta property="og:type" content="article" />
     <meta property="og:site_name" content="oneS" />
     <link rel="canonical" href="blog.html" />
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="admin.css" />
+    <link rel="stylesheet" href="styles.css?v=20260723-priority-2" />
+    <link rel="stylesheet" href="admin.css?v=20260723-priority-2" />
   </head>
   <body>
     <header class="site-header">
@@ -28,6 +29,7 @@
         <a href="cart.html">Moja korpa</a>
         <button type="button" id="logoutBtn">Odjavi se</button>
       </div>
+      <button class="menu-button" type="button" aria-label="Otvori meni" aria-controls="blogMobileNav" aria-expanded="false">☰</button>
     </header>
 
     <main class="blog-detail-page">
@@ -36,7 +38,26 @@
       </section>
     </main>
 
-    <script src="theme.js"></script>
-    <script src="blog.js"></script>
+    <div class="mobile-nav" id="blogMobileNav" hidden>
+      <a href="index.html#proizvodi">Proizvodi</a>
+      <a href="index.html#usporedba">Usporedba</a>
+      <a href="index.html#lokacije">Lokacije</a>
+      <a href="index.html#manuali">Manuali</a>
+      <a href="index.html#podrska">Podrška</a>
+      <a href="cart.html">Korpa</a>
+      <a href="login.html" id="mobileAccountLink">Prijavi se</a>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">●</span></button>
+    </div>
+
+    <nav class="bottom-mobile-nav" aria-label="Brza mobilna navigacija">
+      <a href="index.html#pocetna"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8"></path><path d="M5.5 9.8V21h13V9.8"></path><path d="M9.5 21v-6h5v6"></path></svg></span><strong>Početna</strong></a>
+      <a href="index.html#proizvodi"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4z"></path><path d="M13 4h7v7h-7z"></path><path d="M4 13h7v7H4z"></path><path d="M13 13h7v7h-7z"></path></svg></span><strong>Proizvodi</strong></a>
+      <a href="cart.html"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 11h10l2-8H7"></path><path d="M9 20h.1"></path><path d="M17 20h.1"></path></svg></span><strong>Korpa</strong><em class="nav-count cart-count-sync" hidden>0</em></a>
+      <a href="login.html" id="bottomAccountLink"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span><strong>Profil</strong></a>
+    </nav>
+
+    <script src="theme.js?v=20260723-priority-2"></script>
+    <script src="api-client.js?v=20260723-priority-2"></script>
+    <script src="blog.js?v=20260723-priority-2"></script>
   </body>
 </html>

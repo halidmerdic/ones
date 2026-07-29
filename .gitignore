@@ -8,6 +8,8 @@ uploads/*
 config.local.php
 
 deployment-package-*/
+deployment-*/
+tmp-upload-check*/
 *.zip
 *-restore-backup.json
 

@@ -1,9 +1,8 @@
-﻿const PASSWORD = "onesadmin";
-
 const defaultCms = {
   contact: {
-    whatsapp: "38761000000",
-    viber: "38761000000",
+    whatsapp: "062455779",
+    viber: "062455779",
+    email: "info@fontele.ba",
     defaultMessage: "Pozdrav, zanima me oneS proizvod.",
     orderMessageTemplate: "Pozdrav {ime}, javljamo se povodom oneS upita #{broj_upita}.\n\nStatus: {status}\nArtikli:\n{artikli}",
     viberMessageTemplate: "Pozdrav {ime}, javljamo se povodom oneS upita #{broj_upita}. Status: {status}.",
@@ -44,10 +43,7 @@ const defaultCms = {
     { id: "backup", label: "Finalni backup preuzet", done: false },
   ],
   categories: [
-    { name: "Električni skuteri", text: "Modeli za gradsku vožnju, svakodnevne relacije i praktično kretanje." },
-    { name: "Kuhinjski aparati", text: "Multicookeri i pametni uređaji za bržu pripremu obroka." },
-    { name: "Mobitel dodaci", text: "Adapteri, zaštitna stakla i dodaci za najtraženije telefone." },
-    { name: "Dom i ured", text: "Multi utičnice i korisni električni dodaci za radni prostor." },
+    { name: "Električni romobili", text: "oneS F3 modeli za gradsku vožnju, svakodnevne relacije i praktično kretanje." },
     { name: "Rezervni dijelovi", text: "Dijelovi i dodaci za servisnu podršku. Ponuda stiže uskoro." },
     { name: "Proizvodi uskoro", text: "Najave novih kategorija i artikala koji dolaze u oneS katalog." },
   ],
@@ -55,51 +51,37 @@ const defaultCms = {
     { name: "-" },
     { name: "Novo" },
     { name: "Popularno" },
-    { name: "Brzo punjenje" },
     { name: "Uskoro" },
     { name: "Akcija" },
   ],
   products: [
     {
       id: "scooter-f3",
-      name: "oneS F3 električni skuter",
-      category: "Električni skuteri",
+      name: "oneS F3 električni romobil",
+      category: "Električni romobili",
       status: "Dostupno",
       badge: "Popularno",
       tone: "red",
       specs: { Domet: "do 30 km", Brzina: "do 25 km/h", Baterija: "36 V", Garancija: "preko prodavnice" },
-      summary: "Praktičan gradski skuter za svakodnevne relacije, posao i kratke vožnje.",
-    },
-    {
-      id: "multicooker",
-      name: "oneS električni multicooker",
-      category: "Kuhinjski aparati",
-      status: "Dostupno",
-      badge: "Novo",
-      tone: "light",
-      specs: { Programi: "više režima kuhanja", Posuda: "neljepljiva", Upotreba: "kuhanje, dinstanje, zagrijavanje", Garancija: "preko prodavnice" },
-      summary: "Jednostavan uređaj za brzu pripremu jela u kući, stanu ili kancelariji.",
+      summary: "Praktičan gradski romobil za svakodnevne relacije, posao i kratke vožnje.",
     },
   ],
   comingSoon: [
-    { name: "Zaštitna stakla za telefone", text: "Dolaze modeli za najtraženije telefone." },
-    { name: "oneS multi utičnice", text: "Nova kategorija za dom, ured i sigurnije organizovanje kablova." },
+    { name: "Rezervni dijelovi za romobile", text: "Gume, punjači, kočioni dijelovi i drugi servisni dodaci biće prikazani kao posebna ponuda." },
   ],
   parts: [
-    { name: "Punjači za skutere", text: "U pripremi za servisnu i dodatnu prodaju." },
-    { name: "Gume i potrošni dijelovi", text: "Planirano za oneS električne skutere." },
+    { name: "Punjači za romobile", text: "U pripremi za servisnu i dodatnu prodaju." },
+    { name: "Gume i potrošni dijelovi", text: "Planirano za oneS električne romobile." },
   ],
   manuals: [
-    { title: "oneS F3 električni skuter", type: "PDF manual", status: "Dodati dokument" },
-    { title: "oneS električni multicooker", type: "PDF uputstvo", status: "Dodati dokument" },
+    { title: "oneS F3 električni romobil", type: "PDF manual", status: "Dodati dokument" },
   ],
   locations: [
     { name: "oneS partner Sarajevo", address: "Adresa prodavnice se dodaje u CMS", hours: "Pon - Sub, radno vrijeme dodati" },
     { name: "Online upit", address: "WhatsApp i Viber podrška za dostupnost", hours: "Odgovor u radnom vremenu" },
   ],
   blogs: [
-    { title: "Kako odabrati električni skuter za gradsku vožnju", text: "Savjeti o dometu, brzini, bateriji, težini i održavanju.", tag: "Skuteri" },
-    { title: "Zašto koristiti provjeren adapter za telefon", text: "Sigurnost punjenja, zaštita uređaja i kompatibilnost.", tag: "Mobiteli" },
+    { title: "Kako odabrati električni romobil za gradsku vožnju", text: "Savjeti o dometu, brzini, bateriji, težini i održavanju.", tag: "Romobili" },
   ],
   faq: [
     { q: "Da li mogu kupiti direktno na stranici?", a: "Trenutno ne. Stranica radi kao katalog, a narudžbe i dostupnost se potvrđuju putem WhatsAppa, Vibera ili prodavnice." },
@@ -118,6 +100,7 @@ let productFilters = {
   search: "",
   category: "Sve",
   badge: "Sve",
+  visibility: "Sve",
 };
 let orderFilters = {
   search: "",
@@ -132,6 +115,8 @@ let customerFilters = {
 let productSearchTimer = null;
 let orderSearchTimer = null;
 let customerSearchTimer = null;
+let passwordNeedsChange = false;
+let cmsBaseline = "";
 
 const panels = [
   { id: "settings", label: "Postavke" },
@@ -175,11 +160,37 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function cmsSnapshot() {
+  return JSON.stringify(cms);
+}
+
+function updateSaveState() {
+  const saveButton = $("#saveBtn");
+  if (!saveButton) return;
+  const dirty = Boolean(cmsBaseline) && cmsSnapshot() !== cmsBaseline;
+  saveButton.classList.toggle("has-unsaved", dirty);
+  saveButton.textContent = dirty ? "Sačuvaj izmjene" : "Sačuvaj CMS";
+  saveButton.title = dirty ? "Postoje nesačuvane izmjene" : "Sve izmjene su sačuvane";
+}
+
+function captureCmsBaseline() {
+  cmsBaseline = cmsSnapshot();
+  updateSaveState();
+}
+
 function numericPrice(value) {
   if (value === null || value === undefined || value === "") return "0";
   const cleaned = String(value).replace(",", ".").replace(/[^\d.]/g, "");
   const number = Number(cleaned);
   return Number.isFinite(number) ? String(number) : "0";
+}
+
+function productMissingSaleDate(product) {
+  return Number(numericPrice(product?.salePrice)) > 0 && !String(product?.saleUntil || "").trim();
+}
+
+function productsMissingSaleEndDate() {
+  return (cms.products || []).filter(productMissingSaleDate);
 }
 
 function slugify(value) {
@@ -190,6 +201,11 @@ function slugify(value) {
     .replace(/đ/g, "dj")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function blogPreviewUrl(item) {
+  const id = slugify(item.id || item.title || "blog") || "blog";
+  return `blog.html?id=${encodeURIComponent(id)}`;
 }
 
 function formatPrice(value) {
@@ -228,12 +244,14 @@ function adminPriceHtml(product) {
   const discount = Number(numericPrice(product.discountPrice));
   const sale = Number(numericPrice(product.salePrice));
   const hasSale = sale > 0 && product.saleUntil && isDateActive(product.saleUntil);
+  const missingSaleDate = productMissingSaleDate(product);
   const mainPrice = discount > 0 ? formatPrice(product.discountPrice) : "0";
 
   return `
     <div class="product-admin-price">
       <strong>${mainPrice}</strong>
       ${hasSale ? `<span>Akcija: ${formatPrice(product.salePrice)} do ${formatDateOnly(product.saleUntil)}</span>` : ""}
+      ${missingSaleDate ? `<span class="sale-date-warning">Nedostaje kraj akcije</span>` : ""}
     </div>
   `;
 }
@@ -252,22 +270,7 @@ function numberField(label, value, onInput) {
 }
 
 async function api(action, payload) {
-  const options = payload
-    ? {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
-    : { cache: "no-store" };
-
-  const response = await fetch(`api.php?action=${action}`, options);
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    throw new Error(data.message || "API greška.");
-  }
-
-  return data;
+  return window.onesApi(action, payload);
 }
 
 async function uploadProductImage(file) {
@@ -276,6 +279,7 @@ async function uploadProductImage(file) {
 
   const response = await fetch("api.php?action=upload-product-image", {
     method: "POST",
+    headers: await window.onesCsrfHeaders(),
     body: formData,
   });
   const data = await response.json();
@@ -293,6 +297,7 @@ async function uploadBlogImage(file) {
 
   const response = await fetch("api.php?action=upload-blog-image", {
     method: "POST",
+    headers: await window.onesCsrfHeaders(),
     body: formData,
   });
   const data = await response.json();
@@ -310,6 +315,7 @@ async function uploadManualFile(file) {
 
   const response = await fetch("api.php?action=upload-manual", {
     method: "POST",
+    headers: await window.onesCsrfHeaders(),
     body: formData,
   });
   const data = await response.json();
@@ -327,6 +333,7 @@ async function restoreBackupFile(file) {
 
   const response = await fetch("api.php?action=backup-restore", {
     method: "POST",
+    headers: await window.onesCsrfHeaders(),
     body: formData,
   });
   const data = await response.json();
@@ -355,6 +362,7 @@ async function loadCms() {
     cms.sections = { ...structuredClone(defaultCms.sections), ...(data.cms?.sections || {}) };
     delete cms.sections.productFilters;
     cms.launchChecklist = mergeLaunchChecklist(data.cms?.launchChecklist);
+    captureCmsBaseline();
   } catch (error) {
     flash("Baza nije dostupna. Pokrenite lokalni server.");
     console.error(error);
@@ -382,6 +390,8 @@ async function loadCustomers() {
 }
 
 async function saveCms() {
+  syncOpenProductSpecs();
+
   if (cms.sections) {
     delete cms.sections.productFilters;
   }
@@ -390,6 +400,7 @@ async function saveCms() {
   (cms.categories || []).forEach((category) => ensureCategoryAttributes(category));
 
   (cms.products || []).forEach((product) => {
+    product.enabled = product.enabled !== false;
     product.mpcPrice = numericPrice(product.mpcPrice);
     product.discountPrice = numericPrice(product.discountPrice);
     product.salePrice = numericPrice(product.salePrice);
@@ -400,18 +411,32 @@ async function saveCms() {
     post.id = slugify(post.id || post.title || `blog-${index + 1}`) || `blog-${index + 1}`;
   });
 
-  const productsMissingSaleDate = (cms.products || []).filter((product) => Number(numericPrice(product.salePrice)) > 0 && !product.saleUntil);
+  const productsMissingSaleDate = productsMissingSaleEndDate();
   if (productsMissingSaleDate.length) {
-    flash("Ako proizvod ima akcijsku cijenu, obavezno unesite rok trajanja akcije.");
     activePanel = "products";
-    renderAll();
+    rememberActivePanel();
+    renderProducts();
+    showPanel();
+    renderCmsValidationBanner();
+    const currentProductIsMissing = productsMissingSaleDate.some((product) => product.id === editingProductId);
+    if (!currentProductIsMissing) {
+      openProductEditor(productsMissingSaleDate[0].id);
+    }
+    flash("CMS nije sačuvan. Unesite završni datum za svaku akcijsku cijenu.");
     return;
   }
 
   try {
+    const editedProductId = editingProductId;
     const data = await api("save-cms", { cms });
     cms = data.cms;
+    captureCmsBaseline();
     renderAll();
+    if (editedProductId && (cms.products || []).some((product) => product.id === editedProductId)) {
+      editingProductId = editedProductId;
+      renderProductEditorModal();
+    }
+    captureCmsBaseline();
     localStorage.setItem("onesCmsUpdatedAt", String(Date.now()));
     flash(removedEmptyCategories ? `CMS je sacuvan. Uklonjeno praznih kategorija: ${removedEmptyCategories}.` : "CMS je sacuvan u bazi.");
   } catch (error) {
@@ -422,9 +447,42 @@ async function saveCms() {
 function flash(message) {
   const note = document.createElement("div");
   note.className = "admin-toast";
+  note.setAttribute("role", "status");
+  note.setAttribute("aria-live", "polite");
   note.textContent = message;
   document.body.appendChild(note);
   setTimeout(() => note.remove(), 2800);
+}
+
+function renderCmsValidationBanner() {
+  const banner = $("#cmsValidationBanner");
+  if (!banner) return;
+
+  const missingProducts = productsMissingSaleEndDate();
+  if (!missingProducts.length || $("#adminEditor")?.hidden) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+    return;
+  }
+
+  const names = missingProducts.map((product) => product.name || product.id || "Proizvod");
+  banner.hidden = false;
+  banner.innerHTML = `
+    <div>
+      <strong>Nedostaje završni datum akcije</strong>
+      <p>${escapeHtml(names.join(", "))}</p>
+      <span>CMS se neće sačuvati dok svaki navedeni proizvod ne dobije datum završetka akcijske cijene.</span>
+    </div>
+    <button class="btn btn-secondary" type="button" id="reviewMissingSaleDateBtn">Otvori proizvod</button>
+  `;
+
+  $("#reviewMissingSaleDateBtn").addEventListener("click", () => {
+    activePanel = "products";
+    rememberActivePanel();
+    renderProducts();
+    showPanel();
+    openProductEditor(missingProducts[0].id);
+  });
 }
 
 function field(label, value, onInput, type = "text") {
@@ -842,6 +900,37 @@ function syncProductAttributes(product) {
   return attributes;
 }
 
+function applyProductSpecsText(product, text) {
+  const category = categoryByName(product.category);
+  const categoryAttributes = category ? ensureCategoryAttributes(category) : [];
+  const activeAttributeNames = new Set(categoryAttributes.map((attribute) => attribute.name));
+
+  product.specs = textToSpecs(text);
+  product.attributes = product.attributes && typeof product.attributes === "object" ? product.attributes : {};
+
+  Object.keys(product.attributes).forEach((name) => {
+    if (!activeAttributeNames.has(name)) delete product.attributes[name];
+  });
+
+  categoryAttributes.forEach((attribute) => {
+    const value = product.specs[attribute.name] || product.attributes[attribute.name] || "-";
+    product.attributes[attribute.name] = value;
+    product.specs[attribute.name] = value;
+  });
+
+  return categoryAttributes;
+}
+
+function syncOpenProductSpecs() {
+  if (!editingProductId) return;
+
+  const textarea = document.querySelector("#productEditModal [data-product-specs]");
+  const product = (cms.products || []).find((item) => item.id === editingProductId);
+  if (!textarea || !product) return;
+
+  applyProductSpecsText(product, textarea.value);
+}
+
 function card(title, onDelete) {
   const item = document.createElement("article");
   item.className = "admin-card";
@@ -885,6 +974,7 @@ function createDefaultProduct() {
     salePrice: "0",
     saleUntil: "",
     badgeUntil: "",
+    enabled: true,
     deliveryTime: "Po dogovoru",
     image: "",
     gallery: [],
@@ -908,6 +998,7 @@ function editorSection(title, className = "") {
 }
 
 function closeProductEditor() {
+  syncOpenProductSpecs();
   const modal = $("#productEditModal");
   if (modal) modal.remove();
   editingProductId = null;
@@ -943,7 +1034,8 @@ function renderProductEditorModal() {
         </div>
         <div class="product-edit-actions">
           <button class="btn btn-secondary" type="button" id="deleteProductBtn">Obrisi</button>
-          <button class="btn btn-primary" type="button" id="closeProductEditorBtn">Zatvori</button>
+          <button class="btn btn-primary" type="button" id="saveProductCmsBtn">Sačuvaj izmjene</button>
+          <button class="btn btn-secondary" type="button" id="closeProductEditorBtn">Zatvori</button>
         </div>
       </div>
       <div class="product-edit-body" id="productEditBody"></div>
@@ -958,6 +1050,7 @@ function renderProductEditorModal() {
   document.body.classList.add("modal-open");
 
   $("#closeProductEditorBtn").addEventListener("click", closeProductEditor);
+  $("#saveProductCmsBtn").addEventListener("click", saveCms);
   $("#deleteProductBtn").addEventListener("click", () => {
     const index = cms.products.indexOf(editorProduct);
     cms.products.splice(index, 1);
@@ -979,16 +1072,35 @@ function renderProductEditorModal() {
       renderProductEditorModal();
     }),
     selectField("Status", editorProduct.status, statusOptions.includes(editorProduct.status) ? statusOptions : [editorProduct.status, ...statusOptions], (value) => (editorProduct.status = value)),
+    selectField("Vidljivost na stranici", editorProduct.enabled !== false ? "Aktivan" : "Neaktivan", ["Aktivan", "Neaktivan"], (value) => (editorProduct.enabled = value === "Aktivan")),
     field("Rok isporuke", editorProduct.deliveryTime, (value) => (editorProduct.deliveryTime = value))
   );
 
   const prices = editorSection("Cijene");
+  const saleDateWarning = document.createElement("p");
+  saleDateWarning.className = "product-sale-date-warning";
+  saleDateWarning.setAttribute("role", "alert");
+  const refreshSaleDateWarning = () => {
+    const missingDate = productMissingSaleDate(editorProduct);
+    saleDateWarning.hidden = !missingDate;
+    saleDateWarning.textContent = missingDate
+      ? "Akcijska cijena nema završni datum. CMS se neće sačuvati dok ne unesete datum."
+      : "";
+  };
   prices.content.append(
     numberField("MPC - maloprodajna cijena", editorProduct.mpcPrice, (value) => (editorProduct.mpcPrice = value)),
     numberField("Cijena s popustom", editorProduct.discountPrice, (value) => (editorProduct.discountPrice = value)),
-    numberField("Akcijska cijena", editorProduct.salePrice, (value) => (editorProduct.salePrice = value)),
-    field("Akcija traje do", editorProduct.saleUntil, (value) => (editorProduct.saleUntil = value), "date")
+    numberField("Akcijska cijena", editorProduct.salePrice, (value) => {
+      editorProduct.salePrice = value;
+      refreshSaleDateWarning();
+    }),
+    field("Akcija traje do", editorProduct.saleUntil, (value) => {
+      editorProduct.saleUntil = value;
+      refreshSaleDateWarning();
+    }, "date"),
+    saleDateWarning
   );
+  refreshSaleDateWarning();
 
   const badge = editorSection("Badge i izgled");
   badge.content.append(
@@ -1036,14 +1148,10 @@ function renderProductEditorModal() {
 
   const specs = editorSection("Specifikacije", "product-edit-wide");
   const specsField = field("Jedna po redu: Naziv: vrijednost", specsToText(editorProduct.specs), (value) => {
-    editorProduct.specs = textToSpecs(value);
-    editorProduct.attributes = editorProduct.attributes || {};
-    categoryAttributes.forEach((attribute) => {
-      editorProduct.attributes[attribute.name] = editorProduct.specs[attribute.name] || "-";
-      editorProduct.specs[attribute.name] = editorProduct.attributes[attribute.name];
-    });
+    applyProductSpecsText(editorProduct, value);
   }, "textarea");
   specsTextarea = specsField.querySelector("textarea");
+  specsTextarea.dataset.productSpecs = "true";
   specs.content.append(specsField);
 
   const manual = editorSection("Uputstvo", "product-edit-wide");
@@ -1090,6 +1198,7 @@ function renderSettings() {
   panel.append(
     field("WhatsApp broj bez plusa", cms.contact.whatsapp, (value) => (cms.contact.whatsapp = value)),
     field("Viber broj bez plusa", cms.contact.viber, (value) => (cms.contact.viber = value)),
+    field("Kontakt email", cms.contact.email, (value) => (cms.contact.email = value)),
     field("Zadana poruka za proizvode", cms.contact.defaultMessage, (value) => (cms.contact.defaultMessage = value), "textarea"),
     field("WhatsApp template za upit", cms.contact.orderMessageTemplate, (value) => (cms.contact.orderMessageTemplate = value), "textarea"),
     field("Viber template za upit", cms.contact.viberMessageTemplate, (value) => (cms.contact.viberMessageTemplate = value), "textarea"),
@@ -1349,7 +1458,18 @@ function renderCategoryEditorModal() {
       remove.type = "button";
       remove.textContent = "Ukloni atribut";
       remove.addEventListener("click", () => {
+        const removedAttributeName = attribute.name;
         category.attributes.splice(attributeIndex, 1);
+        (cms.products || [])
+          .filter((product) => product.category === category.name)
+          .forEach((product) => {
+            if (product.attributes && typeof product.attributes === "object") {
+              delete product.attributes[removedAttributeName];
+            }
+            if (product.specs && typeof product.specs === "object") {
+              delete product.specs[removedAttributeName];
+            }
+          });
         editingCategoryAttributeIndex = null;
         renderCategoryEditorModal();
       });
@@ -1458,7 +1578,9 @@ function renderProducts() {
     const matchesName = (product.name || "").toLowerCase().includes(productFilters.search.toLowerCase());
     const matchesCategory = productFilters.category === "Sve" || product.category === productFilters.category;
     const matchesBadge = productFilters.badge === "Sve" || (product.badge || "-") === productFilters.badge;
-    return matchesName && matchesCategory && matchesBadge;
+    const visibility = product.enabled !== false ? "Aktivan" : "Neaktivan";
+    const matchesVisibility = productFilters.visibility === "Sve" || visibility === productFilters.visibility;
+    return matchesName && matchesCategory && matchesBadge && matchesVisibility;
   });
 
   panel.innerHTML = `
@@ -1474,13 +1596,17 @@ function renderProducts() {
       <select id="productBadgeFilter">
         ${productBadges.map((badge) => `<option value="${escapeHtml(badge)}" ${badge === productFilters.badge ? "selected" : ""}>${escapeHtml(badge === "-" ? "- (bez badgea)" : badge)}</option>`).join("")}
       </select>
+      <select id="productVisibilityFilter">
+        ${["Sve", "Aktivan", "Neaktivan"].map((visibility) => `<option value="${visibility}" ${visibility === productFilters.visibility ? "selected" : ""}>${visibility === "Sve" ? "Svi proizvodi" : visibility}</option>`).join("")}
+      </select>
     </div>
     <div class="product-admin-list">
       <div class="product-admin-row product-admin-head">
         <span>Naziv</span>
-        <span>Prikazane</span>
+        <span>Prikaz cijene</span>
         <span>Kategorija</span>
         <span>Badge</span>
+        <span>Vidljivost</span>
         <span></span>
       </div>
       ${
@@ -1495,7 +1621,7 @@ function renderProducts() {
                   rowBadgeOptions.unshift({ value: product.badge, label: product.badge });
                 }
                 return `
-                  <div class="product-admin-row ${editingProductId === product.id ? "active" : ""}">
+                  <div class="product-admin-row ${editingProductId === product.id ? "active" : ""} ${product.enabled === false ? "product-disabled" : ""} ${productMissingSaleDate(product) ? "product-missing-sale-date" : ""}">
                     <input data-product-field="name" data-product-index="${index}" value="${escapeHtml(product.name)}" />
                     ${adminPriceHtml(product)}
                     <select data-product-field="category" data-product-index="${index}">
@@ -1504,6 +1630,10 @@ function renderProducts() {
                     <select data-product-field="badge" data-product-index="${index}" aria-label="Badge za ${escapeHtml(product.name)}">
                       ${rowBadgeOptions.map((badge) => `<option value="${escapeHtml(badge.value)}" ${badge.value === (product.badge || "-") ? "selected" : ""}>${escapeHtml(badge.label)}</option>`).join("")}
                     </select>
+                    <label class="product-active-toggle">
+                      <input type="checkbox" data-product-enabled="${index}" ${product.enabled !== false ? "checked" : ""} />
+                      <span>${product.enabled !== false ? "Aktivan" : "Neaktivan"}</span>
+                    </label>
                     <div class="product-admin-actions">
                       <a class="btn btn-secondary" href="admin.html?panel=products&product=${encodeURIComponent(product.id)}" data-edit-product="${escapeHtml(product.id)}">Uredi</a>
                     </div>
@@ -1536,6 +1666,10 @@ function renderProducts() {
     productFilters.badge = event.target.value;
     renderProducts();
   });
+  $("#productVisibilityFilter").addEventListener("change", (event) => {
+    productFilters.visibility = event.target.value;
+    renderProducts();
+  });
 
   document.querySelectorAll("[data-product-field]").forEach((input) => {
     input.addEventListener("input", () => {
@@ -1543,6 +1677,13 @@ function renderProducts() {
     });
     input.addEventListener("change", () => {
       cms.products[Number(input.dataset.productIndex)][input.dataset.productField] = input.value;
+    });
+  });
+
+  document.querySelectorAll("[data-product-enabled]").forEach((input) => {
+    input.addEventListener("change", () => {
+      cms.products[Number(input.dataset.productEnabled)].enabled = input.checked;
+      renderProducts();
     });
   });
 
@@ -2038,16 +2179,18 @@ function renderCustomers() {
 }
 
 function renderComingSoon() {
-  renderArrayPanel("comingSoon", "Proizvodi uskoro", cms.comingSoon, { name: "Novi proizvod uskoro", text: "" }, (itemCard, item) => {
+  renderArrayPanel("comingSoon", "Proizvodi uskoro", cms.comingSoon, { name: "Novi proizvod uskoro", text: "", enabled: true }, (itemCard, item) => {
     itemCard.append(field("Naziv", item.name, (value) => (item.name = value)));
     itemCard.append(field("Opis", item.text, (value) => (item.text = value), "textarea"));
+    itemCard.append(selectField("Vidljivost", item.enabled === false ? "Sakriveno" : "Javno", ["Javno", "Sakriveno"], (value) => (item.enabled = value === "Javno")));
   });
 }
 
 function renderParts() {
-  renderArrayPanel("parts", "Rezervni dijelovi", cms.parts, { name: "Novi dio", text: "" }, (itemCard, item) => {
+  renderArrayPanel("parts", "Rezervni dijelovi", cms.parts, { name: "Novi dio", text: "", enabled: true }, (itemCard, item) => {
     itemCard.append(field("Naziv", item.name, (value) => (item.name = value)));
     itemCard.append(field("Opis", item.text, (value) => (item.text = value), "textarea"));
+    itemCard.append(selectField("Vidljivost", item.enabled === false ? "Sakriveno" : "Javno", ["Javno", "Sakriveno"], (value) => (item.enabled = value === "Javno")));
   });
 }
 
@@ -2072,30 +2215,75 @@ function renderManuals() {
 }
 
 function renderLocations() {
-  renderArrayPanel("locations", "Lokacije", cms.locations, { name: "Nova lokacija", address: "", hours: "" }, (itemCard, item) => {
+  renderArrayPanel("locations", "Lokacije", cms.locations, { name: "Nova lokacija", address: "", hours: "", enabled: true }, (itemCard, item) => {
     itemCard.append(field("Naziv", item.name, (value) => (item.name = value)));
     itemCard.append(field("Adresa", item.address, (value) => (item.address = value), "textarea"));
     itemCard.append(field("Radno vrijeme", item.hours, (value) => (item.hours = value)));
+    itemCard.append(selectField("Vidljivost", item.enabled === false ? "Sakriveno" : "Javno", ["Javno", "Sakriveno"], (value) => (item.enabled = value === "Javno")));
   });
 }
 
 function renderBlogs() {
-  renderArrayPanel("blogs", "Blog i novosti", cms.blogs, { id: `blog-${Date.now()}`, title: "Novi blog", text: "", tag: "Novosti", image: "", seoTitle: "", seoDescription: "" }, (itemCard, item) => {
+  renderArrayPanel("blogs", "Blog i novosti", cms.blogs, { id: `blog-${Date.now()}`, title: "Novi blog", text: "", tag: "Novosti", image: "", seoTitle: "", seoDescription: "", enabled: true }, (itemCard, item) => {
+    itemCard.classList.add("blog-admin-card");
     item.id = item.id || slugify(item.title || "novi-blog");
-    itemCard.append(field("Slug / URL", item.id, (value) => (item.id = slugify(value))));
-    itemCard.append(field("Naslov", item.title, (value) => (item.title = value)));
-    itemCard.append(field("Tag", item.tag, (value) => (item.tag = value)));
-    itemCard.append(blogImageUploadField(item));
-    itemCard.append(richTextField("Tekst bloga", item.text, (value) => (item.text = value)));
-    itemCard.append(field("SEO naslov", item.seoTitle, (value) => (item.seoTitle = value)));
-    itemCard.append(field("SEO opis", item.seoDescription, (value) => (item.seoDescription = value), "textarea"));
+
+    const previewRow = document.createElement("div");
+    previewRow.className = "blog-preview-row";
+    previewRow.innerHTML = `
+      <div>
+        <strong>Pregled bloga</strong>
+        <span>Otvorite javnu stranicu bloga u novom tabu.</span>
+      </div>
+      <a class="btn btn-secondary" href="${blogPreviewUrl(item)}" target="_blank" rel="noreferrer">Otvori blog</a>
+    `;
+    itemCard.append(previewRow);
+
+    const intro = document.createElement("div");
+    intro.className = "blog-editor-layout";
+
+    const meta = document.createElement("section");
+    meta.className = "blog-editor-section blog-editor-meta";
+    meta.innerHTML = "<h4>Osnovne informacije</h4>";
+    meta.append(
+      field("Naslov", item.title, (value) => (item.title = value)),
+      field("Slug / URL", item.id, (value) => (item.id = slugify(value))),
+      field("Tag", item.tag, (value) => (item.tag = value)),
+      selectField("Vidljivost", item.enabled === false ? "Sakriveno" : "Javno", ["Javno", "Sakriveno"], (value) => (item.enabled = value === "Javno"))
+    );
+
+    const media = document.createElement("section");
+    media.className = "blog-editor-section blog-editor-media";
+    media.innerHTML = "<h4>Slika bloga</h4>";
+    media.append(blogImageUploadField(item));
+
+    intro.append(meta, media);
+    itemCard.append(intro);
+
+    const content = document.createElement("section");
+    content.className = "blog-editor-section blog-editor-content";
+    content.append(richTextField("Tekst bloga", item.text, (value) => (item.text = value)));
+    itemCard.append(content);
+
+    const seo = document.createElement("section");
+    seo.className = "blog-editor-section blog-editor-seo";
+    seo.innerHTML = "<h4>SEO postavke</h4>";
+    const seoFields = document.createElement("div");
+    seoFields.className = "blog-editor-seo-fields";
+    seoFields.append(
+      field("SEO naslov", item.seoTitle, (value) => (item.seoTitle = value)),
+      field("SEO opis", item.seoDescription, (value) => (item.seoDescription = value), "textarea")
+    );
+    seo.append(seoFields);
+    itemCard.append(seo);
   });
 }
 
 function renderFaq() {
-  renderArrayPanel("faq", "FAQ", cms.faq, { q: "Novo pitanje", a: "" }, (itemCard, item) => {
+  renderArrayPanel("faq", "FAQ", cms.faq, { q: "Novo pitanje", a: "", enabled: true }, (itemCard, item) => {
     itemCard.append(field("Pitanje", item.q, (value) => (item.q = value)));
     itemCard.append(field("Odgovor", item.a, (value) => (item.a = value), "textarea"));
+    itemCard.append(selectField("Vidljivost", item.enabled === false ? "Sakriveno" : "Javno", ["Javno", "Sakriveno"], (value) => (item.enabled = value === "Javno")));
   });
 }
 
@@ -2111,11 +2299,28 @@ function renderSecurity() {
         <button class="btn btn-secondary" type="button" id="securityLogoutBtn">Odjavi se</button>
       </div>
     </div>
+    ${
+      passwordNeedsChange
+        ? `<div class="admin-security-warning" role="alert"><strong>Promijenite početnu admin lozinku prije objave stranice.</strong></div>`
+        : ""
+    }
     <div class="security-grid">
       <article class="security-card">
-        <span class="badge red">Razvoj</span>
-        <h3>Admin lozinka</h3>
-        <p>Admin lozinka trenutno ostaje ista dok razvijamo projekat. Prije deploymenta ćemo je promijeniti i skloniti osjetljive postavke u sigurnije okruženje.</p>
+        <span class="badge red">Admin</span>
+        <h3>Promjena lozinke</h3>
+        <label>
+          Trenutna lozinka
+          <input id="adminCurrentPassword" type="password" autocomplete="current-password" />
+        </label>
+        <label>
+          Nova lozinka
+          <input id="adminNewPassword" type="password" autocomplete="new-password" minlength="12" />
+        </label>
+        <label>
+          Ponovite novu lozinku
+          <input id="adminConfirmPassword" type="password" autocomplete="new-password" minlength="12" />
+        </label>
+        <button class="btn btn-primary" type="button" id="adminPasswordUpdateBtn">Promijeni lozinku</button>
       </article>
       <article class="security-card">
         <span class="badge dark">Backup</span>
@@ -2130,7 +2335,7 @@ function renderSecurity() {
       <article class="security-card">
         <span class="badge red">Deployment</span>
         <h3>Prije objave</h3>
-        <p>Provjeriti hosting zastitu za data folder, sitemap domen, robots.txt i finalni backup. Admin lozinku mijenjamo tek kada krenemo na stvarni deployment.</p>
+        <p>Provjerite zaštitu data foldera, sitemap domen, robots.txt, HTTPS i finalni backup.</p>
       </article>
     </div>
   `;
@@ -2139,6 +2344,29 @@ function renderSecurity() {
   $("#securityRestoreBackupBtn").addEventListener("click", () => $("#restoreBackupInput")?.click());
   $("#securityResetBtn").addEventListener("click", resetCmsDemo);
   $("#securityLogoutBtn").addEventListener("click", adminLogout);
+  $("#adminPasswordUpdateBtn").addEventListener("click", async () => {
+    const currentPassword = $("#adminCurrentPassword").value;
+    const newPassword = $("#adminNewPassword").value;
+    const confirmPassword = $("#adminConfirmPassword").value;
+
+    if (newPassword.length < 12) {
+      flash("Nova admin lozinka mora imati najmanje 12 znakova.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      flash("Nove lozinke se ne podudaraju.");
+      return;
+    }
+
+    try {
+      await api("admin-password-update", { currentPassword, newPassword });
+      passwordNeedsChange = false;
+      renderSecurity();
+      flash("Admin lozinka je promijenjena.");
+    } catch (error) {
+      flash(error.message);
+    }
+  });
 }
 
 function renderLaunchChecklist() {
@@ -2212,6 +2440,7 @@ function renderAll() {
   renderSecurity();
   renderLaunchChecklist();
   showPanel();
+  renderCmsValidationBanner();
 }
 
 function applyAdminUrlContext() {
@@ -2241,6 +2470,7 @@ async function showEditor() {
   await loadOrders();
   await loadCustomers();
   renderAll();
+  captureCmsBaseline();
   if (requestedProduct && cms.products.some((product) => product.id === requestedProduct)) {
     openProductEditor(requestedProduct);
   }
@@ -2264,7 +2494,9 @@ async function resetCmsDemo() {
     const data = await api("reset-cms", {});
     cms = data.cms;
     await loadCustomers();
+    captureCmsBaseline();
     renderAll();
+    captureCmsBaseline();
     flash("Demo sadržaj je vraćen u bazu.");
   } catch (error) {
     flash(error.message);
@@ -2305,14 +2537,36 @@ document.querySelectorAll("[data-password-toggle]").forEach((button) => {
 });
 
 $("#saveBtn").addEventListener("click", saveCms);
+["input", "change", "click"].forEach((eventName) => {
+  document.addEventListener(eventName, (event) => {
+    if (!event.target.closest?.("#adminEditor, .product-edit-modal")) return;
+    setTimeout(() => {
+      updateSaveState();
+      renderCmsValidationBanner();
+    }, 0);
+  });
+});
 $("#adminMenuToggle")?.addEventListener("click", () => setAdminMenu(!document.body.classList.contains("admin-menu-open")));
 $("#adminMenuClose")?.addEventListener("click", closeAdminMenu);
 $("#adminMenuBackdrop")?.addEventListener("click", closeAdminMenu);
 
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    const modalClose = document.querySelector(
+      "#customerDetailModal #closeCustomerDetailBtn, #orderDetailModal #closeOrderDetailBtn, #categoryEditModal #closeCategoryEditorBtn, #productEditModal #closeProductEditorBtn"
+    );
+    if (modalClose) {
+      modalClose.click();
+      return;
+    }
     closeAdminMenu();
   }
+});
+
+window.addEventListener("beforeunload", (event) => {
+  if (!cmsBaseline || cmsSnapshot() === cmsBaseline || $("#adminEditor").hidden) return;
+  event.preventDefault();
+  event.returnValue = "";
 });
 
 $("#restoreBackupInput")?.addEventListener("change", async (event) => {
@@ -2331,7 +2585,9 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
     cms = { ...structuredClone(defaultCms), ...data.cms };
     orders = data.orders || [];
     await loadCustomers();
+    captureCmsBaseline();
     renderAll();
+    captureCmsBaseline();
     localStorage.setItem("onesCmsUpdatedAt", String(Date.now()));
     flash("Backup je vraćen u bazu.");
   } catch (error) {
@@ -2346,11 +2602,13 @@ window.addEventListener("storage", async (event) => {
   await loadOrders();
   await loadCustomers();
   renderAll();
+  captureCmsBaseline();
 });
 
 async function initAdmin() {
   try {
     const status = await api("admin-status");
+    passwordNeedsChange = Boolean(status.passwordNeedsChange);
     await loadCms();
     if (status.loggedIn) {
       await showEditor();

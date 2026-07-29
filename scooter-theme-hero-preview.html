@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="bs" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>oneS romobili | Hero preview</title>
+    <script>
+      (() => {
+        try {
+          const savedTheme = localStorage.getItem("onesHeroPreviewTheme");
+          const preferredTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          document.documentElement.dataset.theme = savedTheme || preferredTheme;
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <style>
+      :root {
+        --red: #ef0015;
+        --red-bright: #ff2336;
+        --page-bg: #ecebea;
+        --hero-bg: #fffdfb;
+        --text: #18181b;
+        --muted: #66666b;
+        --line: rgba(24, 24, 27, 0.1);
+        --tool-bg: rgba(255, 255, 255, 0.72);
+        --tool-hover: #ffffff;
+        --wall-bg: rgba(255, 249, 249, 0.82);
+        --wall-line: rgba(239, 0, 21, 0.3);
+        --wall-inner-line: rgba(239, 0, 21, 0.13);
+        --floor-bg: #fffefe;
+        --floor-line: rgba(24, 24, 27, 0.1);
+        --floor-shadow: rgba(52, 31, 31, 0.22);
+        --platform-side-top: #f5f2f1;
+        --platform-side-bottom: #e6e1df;
+        --wall-glow: rgba(239, 0, 21, 0.1);
+        --floor-glow: rgba(239, 0, 21, 0.16);
+        --contact-shadow: rgba(45, 35, 35, 0.24);
+        --neon-core: #ffb3ba;
+        --neon-hot: #fff8f8;
+        --neon-glow: rgba(239, 0, 21, 0.22);
+        --neon-bloom: rgba(239, 0, 21, 0.14);
+        --wall-neon-shadow: rgba(239, 0, 21, 0.1);
+        --soft-red: rgba(239, 0, 21, 0.045);
+        --brand-ghost: rgba(239, 0, 21, 0.035);
+        --scooter-filter: brightness(1.01) contrast(1.03) saturate(1.03);
+      }
+
+      html[data-theme="dark"] {
+        --page-bg: #09090b;
+        --hero-bg: #111316;
+        --text: #f5f5f6;
+        --muted: #b7b7bb;
+        --line: rgba(255, 255, 255, 0.12);
+        --tool-bg: rgba(20, 21, 24, 0.78);
+        --tool-hover: #202126;
+        --wall-bg: rgba(39, 40, 44, 0.9);
+        --wall-line: rgba(255, 35, 54, 0.92);
+        --wall-inner-line: rgba(255, 35, 54, 0.28);
+        --floor-bg: #202125;
+        --floor-line: rgba(255, 255, 255, 0.15);
+        --floor-shadow: rgba(0, 0, 0, 0.7);
+        --platform-side-top: #1b1c20;
+        --platform-side-bottom: #0f1013;
+        --wall-glow: rgba(239, 0, 21, 0.2);
+        --floor-glow: rgba(239, 0, 21, 0.44);
+        --contact-shadow: rgba(0, 0, 0, 0.72);
+        --neon-core: #ff2a3e;
+        --neon-hot: #ffb6bd;
+        --neon-glow: rgba(255, 24, 49, 0.88);
+        --neon-bloom: rgba(239, 0, 21, 0.62);
+        --wall-neon-shadow: rgba(255, 35, 54, 0.42);
+        --soft-red: rgba(239, 0, 21, 0.12);
+        --brand-ghost: rgba(239, 0, 21, 0.12);
+        --scooter-filter: brightness(1.11) contrast(1.04) saturate(1.06);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--page-bg);
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        overflow-x: hidden;
+        color: var(--text);
+        font-family: Arial, Helvetica, sans-serif;
+        background: var(--page-bg);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      button {
+        color: inherit;
+        font: inherit;
+      }
+
+      svg {
+        display: block;
+      }
+
+      .preview-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 14px;
+      }
+
+      .hero {
+        position: relative;
+        width: min(1680px, 100%);
+        min-height: calc(100vh - 28px);
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background:
+          linear-gradient(148deg, transparent 0 58%, var(--soft-red) 58.2% 72%, transparent 72.2%),
+          radial-gradient(ellipse at 76% 49%, var(--soft-red), transparent 44%),
+          var(--hero-bg);
+        box-shadow: 0 26px 72px rgba(18, 14, 15, 0.13);
+        isolation: isolate;
+      }
+
+      html[data-theme="dark"] .hero {
+        box-shadow: 0 34px 88px rgba(0, 0, 0, 0.48);
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        left: -92px;
+        bottom: -120px;
+        width: 410px;
+        height: 410px;
+        border: 50px solid var(--brand-ghost);
+        border-radius: 28%;
+        transform: rotate(-28deg);
+        pointer-events: none;
+      }
+
+      .topbar {
+        position: relative;
+        z-index: 20;
+        min-height: 94px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 32px;
+        padding: 20px 34px 16px;
+      }
+
+      .brand {
+        flex: 0 0 auto;
+      }
+
+      .brand img {
+        width: 188px;
+        height: auto;
+        display: block;
+      }
+
+      .desktop-navigation {
+        display: flex;
+        align-items: center;
+        gap: 34px;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 34px;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .nav-links a {
+        padding-block: 12px;
+        transition: color 160ms ease;
+      }
+
+      .nav-links a:hover,
+      .nav-links a:focus-visible {
+        color: var(--red);
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .icon-button {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        display: inline-grid;
+        place-items: center;
+        flex: 0 0 44px;
+        border: 1px solid transparent;
+        border-radius: 50%;
+        background: transparent;
+        cursor: pointer;
+        transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+      }
+
+      .icon-button:hover,
+      .icon-button:focus-visible {
+        color: var(--red);
+        border-color: var(--line);
+        background: var(--tool-bg);
+        outline: 0;
+      }
+
+      .icon-button svg {
+        width: 23px;
+        height: 23px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .cart-count {
+        position: absolute;
+        top: 0;
+        right: 0;
+        min-width: 19px;
+        height: 19px;
+        display: grid;
+        place-items: center;
+        padding-inline: 4px;
+        border: 2px solid var(--hero-bg);
+        border-radius: 999px;
+        color: #ffffff;
+        background: var(--red);
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .moon-icon,
+      html[data-theme="dark"] .sun-icon {
+        display: none;
+      }
+
+      html[data-theme="dark"] .moon-icon {
+        display: block;
+      }
+
+      .menu-toggle {
+        display: none;
+      }
+
+      .hero-grid {
+        position: relative;
+        z-index: 2;
+        min-height: calc(100vh - 124px);
+        display: grid;
+        grid-template-columns: minmax(520px, 0.95fr) minmax(540px, 1.05fr);
+        align-items: center;
+        gap: 26px;
+        padding: 4px 34px 34px;
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 6;
+        max-width: 690px;
+        align-self: start;
+        padding: 110px 0 40px;
+      }
+
+      .eyebrow {
+        margin: 0 0 22px;
+        color: var(--red);
+        font-size: 14px;
+        font-weight: 900;
+        line-height: 1.3;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 680px;
+        margin: 0;
+        font-size: 64px;
+        font-weight: 800;
+        line-height: 0.98;
+        letter-spacing: 0;
+      }
+
+      .headline-line {
+        display: block;
+      }
+
+      .headline-dot {
+        color: var(--red);
+      }
+
+      .hero-description {
+        max-width: 590px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 19px;
+        line-height: 1.58;
+      }
+
+      .cta-row {
+        margin-top: 32px;
+      }
+
+      .primary-cta {
+        min-height: 58px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 0 28px;
+        border-radius: 8px;
+        color: #ffffff;
+        background: linear-gradient(135deg, var(--red), var(--red-bright));
+        font-size: 17px;
+        font-weight: 900;
+        box-shadow: 0 18px 38px rgba(239, 0, 21, 0.22);
+        transition: transform 160ms ease, box-shadow 160ms ease;
+      }
+
+      .primary-cta:hover,
+      .primary-cta:focus-visible {
+        transform: translateY(-2px);
+        box-shadow: 0 22px 44px rgba(239, 0, 21, 0.3);
+        outline: 0;
+      }
+
+      .primary-cta svg {
+        width: 19px;
+        height: 19px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .product-visual {
+        position: relative;
+        min-height: 710px;
+        align-self: stretch;
+        isolation: isolate;
+      }
+
+      .product-visual::after {
+        content: "";
+        position: absolute;
+        z-index: 0;
+        right: 8%;
+        bottom: 9%;
+        width: 53%;
+        height: 68px;
+        border-radius: 50%;
+        background:
+          radial-gradient(ellipse at 18% 66%, var(--contact-shadow) 0 8%, transparent 31%),
+          radial-gradient(ellipse at 78% 48%, var(--contact-shadow) 0 7%, transparent 27%),
+          radial-gradient(
+            ellipse at 51% 58%,
+            color-mix(in srgb, var(--contact-shadow) 62%, transparent) 0 18%,
+            transparent 68%
+          );
+        filter: blur(7px);
+        opacity: 0.68;
+        pointer-events: none;
+      }
+
+      .stage-wall {
+        position: absolute;
+        z-index: -2;
+        top: 7%;
+        right: -4%;
+        bottom: 14%;
+        left: 15%;
+        overflow: hidden;
+        border: 1px solid var(--wall-line);
+        border-radius: 72px 112px 22px 22px;
+        background:
+          linear-gradient(135deg, var(--wall-glow), transparent 46%),
+          radial-gradient(circle at 73% 26%, var(--wall-glow), transparent 33%),
+          var(--wall-bg);
+        box-shadow:
+          inset 0 0 60px color-mix(in srgb, var(--wall-glow) 72%, transparent),
+          0 0 20px var(--wall-neon-shadow),
+          0 28px 62px rgba(0, 0, 0, 0.11);
+        transform: rotate(-4.4deg);
+        transform-origin: 50% 100%;
+      }
+
+      .stage-wall::before {
+        content: "";
+        position: absolute;
+        inset: 28px 30px 28px 28px;
+        border: 1px solid var(--wall-inner-line);
+        border-radius: 54px 88px 16px 16px;
+      }
+
+      .stage-floor {
+        --platform-top-height: clamp(104px, 11vh, 110px);
+        position: absolute;
+        z-index: -1;
+        right: -2%;
+        bottom: 28px;
+        width: 84%;
+        height: clamp(160px, 18vh, 175px);
+        isolation: isolate;
+        filter: drop-shadow(0 28px 28px var(--floor-shadow));
+      }
+
+      .stage-floor::before {
+        content: "";
+        position: absolute;
+        z-index: 2;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: var(--platform-top-height);
+        border: 1px solid var(--floor-line);
+        border-radius: 50%;
+        background:
+          radial-gradient(
+            ellipse at 50% 34%,
+            color-mix(in srgb, var(--floor-bg) 84%, white 16%),
+            var(--floor-bg) 74%
+          ),
+          var(--floor-bg);
+        box-shadow:
+          inset 0 -12px 22px color-mix(in srgb, var(--platform-side-top) 28%, transparent),
+          0 8px 18px rgba(0, 0, 0, 0.08);
+      }
+
+      .stage-floor::after {
+        content: "";
+        position: absolute;
+        z-index: 1;
+        top: calc(var(--platform-top-height) / 2);
+        right: 0;
+        bottom: 0;
+        left: 0;
+        border: 1px solid var(--floor-line);
+        border-top: 0;
+        border-radius: 0 0 50% 50% / 0 0 58% 58%;
+        background: linear-gradient(180deg, var(--platform-side-top), var(--platform-side-bottom));
+        box-shadow:
+          inset 0 -18px 16px -14px var(--floor-glow),
+          0 7px 14px color-mix(in srgb, var(--floor-glow) 72%, transparent),
+          0 30px 42px var(--floor-shadow);
+      }
+
+      .stage-neon {
+        position: absolute;
+        z-index: 4;
+        right: 0;
+        bottom: 5px;
+        left: 0;
+        height: 44%;
+        border-bottom: 3px solid var(--neon-core);
+        border-radius: 0 0 50% 50% / 0 0 100% 100%;
+        filter:
+          drop-shadow(0 0 2px var(--neon-core))
+          drop-shadow(0 0 9px var(--neon-glow))
+          drop-shadow(0 0 17px var(--neon-bloom));
+        pointer-events: none;
+      }
+
+      .stage-neon::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-bottom: 1px solid var(--neon-hot);
+        border-radius: inherit;
+        opacity: 0.9;
+      }
+
+      .stage-neon::after {
+        content: "";
+        position: absolute;
+        right: 6%;
+        bottom: -18px;
+        left: 6%;
+        height: 30px;
+        border-radius: 50%;
+        background: radial-gradient(ellipse, var(--neon-bloom) 0, transparent 72%);
+        filter: blur(10px);
+        opacity: 0.9;
+      }
+
+      .scooter {
+        position: absolute;
+        z-index: 3;
+        right: -10%;
+        bottom: 9%;
+        width: min(700px, 96%);
+        max-height: 680px;
+        display: block;
+        object-fit: contain;
+        object-position: center bottom;
+        filter: var(--scooter-filter) drop-shadow(0 32px 36px rgba(0, 0, 0, 0.31));
+        pointer-events: none;
+        user-select: none;
+      }
+
+      html[data-theme="dark"] .scooter {
+        filter: var(--scooter-filter) drop-shadow(0 34px 46px rgba(0, 0, 0, 0.64));
+      }
+
+      @media (min-width: 1500px) {
+        .topbar {
+          padding-inline: 42px;
+        }
+
+        .hero-grid {
+          grid-template-columns: minmax(600px, 0.94fr) minmax(660px, 1.06fr);
+          padding-inline: 42px;
+        }
+
+        .hero-copy {
+          padding-left: 8px;
+        }
+
+        h1 {
+          font-size: 72px;
+        }
+
+        .product-visual {
+          min-height: 760px;
+        }
+
+        .stage-floor {
+          right: -2%;
+          bottom: 28px;
+          width: 84%;
+          height: 170px;
+          --platform-top-height: 110px;
+        }
+
+        .scooter {
+          width: min(800px, 96%);
+          max-height: 740px;
+        }
+      }
+
+      @media (min-width: 1181px) and (max-width: 1279px) {
+        h1 {
+          font-size: 58px;
+        }
+      }
+
+      @media (max-width: 1180px) {
+        .preview-shell {
+          padding: 8px;
+        }
+
+        .hero {
+          min-height: calc(100vh - 16px);
+        }
+
+        .topbar {
+          min-height: 80px;
+          padding: 14px 20px;
+        }
+
+        .brand img {
+          width: 156px;
+        }
+
+        .desktop-navigation {
+          gap: 10px;
+        }
+
+        .nav-links {
+          position: absolute;
+          top: calc(100% - 4px);
+          right: 20px;
+          min-width: 210px;
+          display: none;
+          align-items: stretch;
+          gap: 0;
+          padding: 8px;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          background: var(--hero-bg);
+          box-shadow: 0 18px 36px rgba(0, 0, 0, 0.18);
+        }
+
+        .nav-links.is-open {
+          display: grid;
+        }
+
+        .nav-links a {
+          padding: 13px 14px;
+          border-radius: 6px;
+        }
+
+        .nav-links a:hover {
+          background: var(--tool-bg);
+        }
+
+        .menu-toggle {
+          display: inline-grid;
+        }
+
+        .hero-grid {
+          min-height: auto;
+          grid-template-columns: 1fr;
+          gap: 4px;
+          padding: 18px clamp(18px, 3vw, 28px) 40px;
+        }
+
+        .hero-copy {
+          max-width: 760px;
+          padding: 34px 0 8px;
+        }
+
+        h1 {
+          max-width: 720px;
+          font-size: 58px;
+        }
+
+        .hero-description {
+          font-size: 17px;
+        }
+
+        .product-visual {
+          width: min(860px, calc(100% + clamp(36px, 6vw, 56px)));
+          min-height: clamp(520px, 100vw, 650px);
+          justify-self: center;
+          overflow: hidden;
+        }
+
+        .stage-wall {
+          top: 12%;
+          right: 4%;
+          bottom: 14%;
+          left: 10%;
+        }
+
+        .stage-floor {
+          right: auto;
+          bottom: clamp(12px, 2vw, 18px);
+          left: 50%;
+          width: min(94%, 740px);
+          height: clamp(150px, 26vw, 200px);
+          --platform-top-height: clamp(92px, 16vw, 104px);
+          transform: translateX(-50%);
+        }
+
+        .scooter {
+          right: auto;
+          bottom: 8%;
+          left: 50%;
+          width: clamp(380px, 88%, 640px);
+          max-height: 620px;
+          transform: translateX(-50%);
+        }
+
+        .product-visual::after {
+          right: auto;
+          left: 50%;
+          width: 64%;
+          transform: translateX(-50%);
+        }
+      }
+
+      @media (max-width: 620px) {
+        .preview-shell {
+          padding: 0;
+        }
+
+        .hero {
+          min-height: 100vh;
+          border: 0;
+          border-radius: 0;
+        }
+
+        .topbar {
+          padding-inline: 16px;
+        }
+
+        .brand img {
+          width: 142px;
+        }
+
+        .header-actions {
+          gap: 2px;
+        }
+
+        .icon-button {
+          width: 40px;
+          height: 40px;
+          flex-basis: 40px;
+        }
+
+        .search-action {
+          display: none;
+        }
+
+        .nav-links {
+          right: 16px;
+        }
+
+        .hero-grid {
+          padding: 14px clamp(18px, 3vw, 28px) 32px;
+        }
+
+        .hero-copy {
+          padding-top: 26px;
+        }
+
+        .eyebrow {
+          margin-bottom: 16px;
+          font-size: 11px;
+        }
+
+        h1 {
+          font-size: 42px;
+          line-height: 1;
+        }
+
+        .hero-description {
+          margin-top: 20px;
+          font-size: 16px;
+          line-height: 1.52;
+        }
+
+        .cta-row {
+          margin-top: 24px;
+        }
+
+        .primary-cta {
+          width: 100%;
+          min-height: 56px;
+        }
+
+      }
+
+      @media (max-width: 390px) {
+        .profile-action {
+          display: none;
+        }
+
+        h1 {
+          font-size: 38px;
+        }
+
+        .product-visual {
+          min-height: clamp(500px, 135vw, 520px);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="preview-shell">
+      <section class="hero">
+        <header class="topbar">
+          <a class="brand" href="index.html" aria-label="oneS početna stranica">
+            <img src="assets/ones-logo.webp" alt="oneS" />
+          </a>
+
+          <div class="desktop-navigation">
+            <nav class="nav-links" id="previewNavigation" aria-label="Glavna navigacija">
+              <a href="index.html#proizvodi">Romobili</a>
+              <a href="index.html#o-nama">O nama</a>
+              <a href="index.html#podrska">Podrška</a>
+            </nav>
+
+            <div class="header-actions">
+              <button class="icon-button search-action" type="button" aria-label="Pretraži" title="Pretraži">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7"></circle>
+                  <path d="m20 20-3.7-3.7"></path>
+                </svg>
+              </button>
+
+              <a class="icon-button profile-action" href="login.html" aria-label="Profil" title="Profil">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="7.5" r="3.5"></circle>
+                  <path d="M5 21v-2a7 7 0 0 1 14 0v2"></path>
+                </svg>
+              </a>
+
+              <a class="icon-button" href="cart.html" aria-label="Korpa" title="Korpa">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 4h2l2.2 10.2a2 2 0 0 0 2 1.6h6.9a2 2 0 0 0 2-1.6L20.5 8H7"></path>
+                  <circle cx="10" cy="20" r="1"></circle>
+                  <circle cx="18" cy="20" r="1"></circle>
+                </svg>
+                <span class="cart-count">0</span>
+              </a>
+
+              <button class="icon-button" id="themeToggle" type="button" aria-label="Promijeni temu" title="Promijeni temu">
+                <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4"></circle>
+                  <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path>
+                </svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.5 6.5 0 0 0 21 12.8Z"></path>
+                </svg>
+              </button>
+
+              <button class="icon-button menu-toggle" id="menuToggle" type="button" aria-label="Otvori meni" aria-controls="previewNavigation" aria-expanded="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M4 12h16M4 17h16"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Električni romobili | oneS F-serija</p>
+            <h1>
+              <span class="headline-line">oneS električni</span>
+              <span class="headline-line">romobili za</span>
+              <span class="headline-line">gradsku vožnju<span class="headline-dot">.</span></span>
+            </h1>
+            <p class="hero-description">
+              Praktični modeli za svakodnevne relacije, posao, školu i brže kretanje kroz grad.
+              Pregledajte dostupne modele i pošaljite upit za cijenu ili dostupnost.
+            </p>
+            <div class="cta-row">
+              <a class="primary-cta" href="index.html#proizvodi">
+                Pogledaj romobile
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6"></path>
+                </svg>
+              </a>
+            </div>
+          </div>
+
+          <div class="product-visual" aria-label="oneS F-serija električni romobil">
+            <div class="stage-wall" aria-hidden="true"></div>
+            <div class="stage-floor" aria-hidden="true">
+              <span class="stage-neon"></span>
+            </div>
+            <img
+              class="scooter"
+              src="assets/f3-promax-cutout.png"
+              alt="oneS F-serija električni romobil"
+              draggable="false"
+            />
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const root = document.documentElement;
+      const themeToggle = document.getElementById("themeToggle");
+      const menuToggle = document.getElementById("menuToggle");
+      const navigation = document.getElementById("previewNavigation");
+
+      function setTheme(theme) {
+        root.dataset.theme = theme;
+        themeToggle.setAttribute(
+          "aria-label",
+          theme === "dark" ? "Uključi svijetlu temu" : "Uključi tamnu temu"
+        );
+
+        try {
+          localStorage.setItem("onesHeroPreviewTheme", theme);
+        } catch {
+          // Preview remains functional if browser storage is unavailable.
+        }
+      }
+
+      themeToggle.addEventListener("click", () => {
+        setTheme(root.dataset.theme === "dark" ? "light" : "dark");
+      });
+
+      menuToggle.addEventListener("click", () => {
+        const isOpen = navigation.classList.toggle("is-open");
+        menuToggle.setAttribute("aria-expanded", String(isOpen));
+        menuToggle.setAttribute("aria-label", isOpen ? "Zatvori meni" : "Otvori meni");
+      });
+
+      navigation.addEventListener("click", () => {
+        navigation.classList.remove("is-open");
+        menuToggle.setAttribute("aria-expanded", "false");
+        menuToggle.setAttribute("aria-label", "Otvori meni");
+      });
+
+      setTheme(root.dataset.theme || "light");
+    </script>
+  </body>
+</html>

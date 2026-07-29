@@ -1,5 +1,6 @@
 (function () {
   const baseKey = "onesTheme";
+  const storeFallbackKey = `${baseKey}:store:last`;
   let storageKey = resolveStorageKey();
 
   const icons = {
@@ -42,6 +43,17 @@
   function preferredTheme() {
     const saved = localStorage.getItem(storageKey);
     if (saved === "dark" || saved === "light") return saved;
+    if (pageScope() === "store") {
+      const lastStoreTheme = localStorage.getItem(storeFallbackKey);
+      if (lastStoreTheme === "dark" || lastStoreTheme === "light") return lastStoreTheme;
+
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (!key || !key.startsWith(`${baseKey}:customer:`)) continue;
+        const customerTheme = localStorage.getItem(key);
+        if (customerTheme === "dark" || customerTheme === "light") return customerTheme;
+      }
+    }
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
 
@@ -57,7 +69,9 @@
       if (nextKey === storageKey) return;
 
       storageKey = nextKey;
-      applyTheme(preferredTheme());
+      const theme = preferredTheme();
+      if (pageScope() === "store") localStorage.setItem(storeFallbackKey, theme);
+      applyTheme(theme);
     } catch {
       // Theme still works with the guest key if the server is not reachable.
     }
@@ -68,6 +82,7 @@
       const current = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
       const next = current === "dark" ? "light" : "dark";
       localStorage.setItem(storageKey, next);
+      if (pageScope() === "store") localStorage.setItem(storeFallbackKey, next);
       applyTheme(next);
     },
     apply: applyTheme,

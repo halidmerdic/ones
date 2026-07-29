@@ -4,8 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Prijavi se | oneS</title>
-    <link rel="stylesheet" href="styles.css?v=20260715-login-2" />
-    <link rel="stylesheet" href="admin.css?v=20260715-login-2" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#111216" />
+    <link rel="stylesheet" href="styles.css?v=20260723-priority-2" />
+    <link rel="stylesheet" href="admin.css?v=20260723-priority-2" />
   </head>
   <body class="admin-body">
     <main class="auth-page">
@@ -21,12 +23,12 @@
           <p>Profil će se koristiti za sačuvanu korpu, omiljene proizvode i buduće narudžbe.</p>
           <label>
             Email
-            <input id="loginEmail" type="email" autocomplete="email" />
+            <input id="loginEmail" type="email" autocomplete="email" maxlength="190" required />
           </label>
           <label>
             Lozinka
             <span class="password-field">
-              <input id="loginPassword" type="password" autocomplete="current-password" />
+              <input id="loginPassword" type="password" autocomplete="current-password" maxlength="4096" required />
               <button type="button" class="password-toggle" data-password-toggle="loginPassword" aria-label="Prikazi lozinku">Vidi</button>
             </span>
           </label>
@@ -39,18 +41,22 @@
           <p>Kreirajte profil da kasnije možete čuvati korpu i podatke za upit.</p>
           <label>
             Ime
-            <input id="registerName" type="text" autocomplete="name" />
+            <input id="registerName" type="text" autocomplete="name" minlength="2" maxlength="120" required />
           </label>
           <label>
             Email
-            <input id="registerEmail" type="email" autocomplete="email" />
+            <input id="registerEmail" type="email" autocomplete="email" maxlength="190" required />
           </label>
           <label>
             Lozinka
             <span class="password-field">
-              <input id="registerPassword" type="password" autocomplete="new-password" />
+              <input id="registerPassword" type="password" autocomplete="new-password" minlength="8" maxlength="4096" required />
               <button type="button" class="password-toggle" data-password-toggle="registerPassword" aria-label="Prikazi lozinku">Vidi</button>
             </span>
+          </label>
+          <label class="consent-field">
+            <input id="registerConsent" type="checkbox" required />
+            <span>Pročitao/la sam <a href="privacy.html" target="_blank" rel="noreferrer">obavijest o privatnosti</a> i prihvatam <a href="terms.html" target="_blank" rel="noreferrer">uslove korištenja</a>.</span>
           </label>
           <button class="btn btn-secondary" type="button" id="customerRegisterBtn">Registruj se</button>
         </article>
@@ -59,7 +65,7 @@
       <section class="login-panel profile-panel" id="profilePanel" hidden>
         <p class="eyebrow">Profil</p>
         <h2 id="profileTitle">Dobrodošli</h2>
-        <p>Profil je povezan s bazom. Sljedeći korak je dodavanje korpe i omiljenih proizvoda.</p>
+        <p>Na profilu možete pregledati favorite, korpu i status poslanih upita.</p>
         <div class="admin-actions">
           <a class="btn btn-primary" href="index.html">Nastavi kupovinu</a>
           <a class="btn btn-secondary" href="cart.html">Moja korpa</a>
@@ -68,7 +74,8 @@
       </section>
     </main>
 
-    <script src="theme.js?v=20260715-login-2"></script>
-    <script src="login.js?v=20260715-login-2"></script>
+    <script src="theme.js?v=20260723-priority-2"></script>
+    <script src="api-client.js?v=20260723-priority-2"></script>
+    <script src="login.js?v=20260723-priority-2"></script>
   </body>
 </html>

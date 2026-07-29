@@ -16,7 +16,7 @@ Use this before publishing the website to a real domain.
 
 - GitHub Pages is not enough for this project because it does not run PHP, SQLite, sessions, uploads, or the CMS API.
 - Use PHP hosting, cPanel hosting, LiteSpeed/Apache hosting with PHP, or a VPS/container where PHP can write to `data/` and `uploads/`.
-- For test hosting with MySQL, edit `config.local.php`, set `driver` to `mysql`, and enter the database credentials from the hosting panel.
+- For test hosting with MySQL, edit `config.local.php`, set `driver` to `mysql`, enter the database credentials, and set a strong `security.initial_admin_password` before the first run.
 - Do not overwrite `config.local.php` on hosting during normal code redeploys. The hosted file contains the live database connection.
 - If CMS content looks reset after redeploy, first check `htdocs/config.local.php`. It must exist on hosting and must use `driver => mysql`; otherwise the app is looking at the wrong database.
 - PHP 8.1 or newer.
@@ -51,6 +51,7 @@ Use this before publishing the website to a real domain.
   - `/.env`
 - [ ] Confirm admin page is not indexed:
   - `/robots.txt` disallows `/admin.html`, `/api.php`, `/data/`.
+- [ ] Confirm `privacy.html` and `terms.html` contain the final legal/business details approved by the site owner.
 - [ ] Do not keep backup JSON files in public downloads or email inboxes longer than needed.
 
 ## Final QA

@@ -1,6 +1,6 @@
 # oneS website
 
-First static version of the oneS ecommerce catalog.
+Database-backed oneS electric scooter catalog and CMS.
 
 Run the local PHP server first:
 
@@ -26,25 +26,25 @@ For PHP hosting with MySQL, fill in `config.local.php` and set:
 'driver' => 'mysql',
 ```
 
-Then enter the MySQL host, database name, username, and password from the hosting panel. Keep this file private and upload it manually to the hosting account with the rest of the site files.
+Then enter the MySQL host, database name, username, and password from the hosting panel. Keep this file private. During later code uploads, never overwrite the production `config.local.php`.
 
 ## CMS
 
 Open `http://127.0.0.1:8000/admin.html` to manage the website content.
 
-Demo password:
+Local development password:
 
 ```text
 onesadmin
 ```
 
-Keep this password only during development. Change it before real deployment.
+Keep this password only during local development. Production installations must set `security.initial_admin_password` in `config.local.php` before the first run, and the password should then be changed from the CMS security panel.
 
 The CMS saves content in the SQLite database. After saving, refresh the public website to see changes.
 
 You can edit:
 
-- WhatsApp and Viber phone numbers
+- WhatsApp and Viber phone numbers and contact email
 - product categories
 - products and specifications
 - coming soon products
@@ -75,12 +75,11 @@ Cart flow:
 - badges can be assigned to individual products or categories, each with its own expiry date
 - products support MPC, discount price, sale price, and required sale end date
 
-This is the first database-backed CMS version. Later, the same structure can grow into image uploads, PDF uploads, hosting, and full cart checkout.
-
 ## Deployment and security
 
 - `data/` contains the SQLite database and backup files. It must stay private on hosting.
 - `uploads/` must stay public for product images, blog images, and manuals, but it should not execute scripts.
+- During a normal production update, replace code and static assets only. Do not replace `data/`, `uploads/`, or `config.local.php`; those contain live profiles, carts, orders, products, media, and database credentials.
 - Apache/LiteSpeed protection files are included:
   - `.htaccess`
   - `data/.htaccess`
@@ -94,7 +93,6 @@ This is the first database-backed CMS version. Later, the same structure can gro
 ## Included sections
 
 - Početna
-- Kategorije
 - Proizvodi
 - Proizvodi uskoro
 - Usporedba proizvoda
@@ -106,10 +104,15 @@ This is the first database-backed CMS version. Later, the same structure can gro
 - Blog i novosti
 - FAQ
 - WhatsApp i Viber upit
+- Email upit
+- Privatnost i uslovi korištenja
 
 ## Later additions
 
 - English language version
 - bundles
+- open a product directly from the CMS
+- add customer favorites to the profile
+- add images for categories
 - production email sending
 - final online payment flow, if needed later

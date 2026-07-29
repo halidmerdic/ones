@@ -1,7 +1,8 @@
 ﻿let cms = {
   contact: {
-    whatsapp: "38761000000",
-    viber: "38761000000",
+    whatsapp: "062455779",
+    viber: "062455779",
+    email: "info@fontele.ba",
     defaultMessage: "Pozdrav, zanima me oneS proizvod.",
   },
   sections: {
@@ -22,20 +23,8 @@
   },
   categories: [
     {
-      name: "Električni skuteri",
-      text: "Modeli za gradsku vožnju, svakodnevne relacije i praktično kretanje.",
-    },
-    {
-      name: "Kuhinjski aparati",
-      text: "Multicookeri i pametni uređaji za bržu pripremu obroka.",
-    },
-    {
-      name: "Mobitel dodaci",
-      text: "Adapteri, zaštitna stakla i dodaci za najtraženije telefone.",
-    },
-    {
-      name: "Dom i ured",
-      text: "Multi utičnice i korisni električni dodaci za radni prostor.",
+      name: "Električni romobili",
+      text: "oneS F3 modeli za gradsku vožnju, svakodnevne relacije i praktično kretanje.",
     },
     {
       name: "Rezervni dijelovi",
@@ -49,8 +38,8 @@
   products: [
     {
       id: "scooter-f3",
-      name: "oneS F3 električni skuter",
-      category: "Električni skuteri",
+      name: "oneS F3 električni romobil",
+      category: "Električni romobili",
       status: "Dostupno",
       badge: "Popularno",
       tone: "red",
@@ -60,96 +49,29 @@
         Baterija: "36 V",
         Garancija: "preko prodavnice",
       },
-      summary: "Praktičan gradski skuter za svakodnevne relacije, posao i kratke vožnje.",
-    },
-    {
-      id: "multicooker",
-      name: "oneS električni multicooker",
-      category: "Kuhinjski aparati",
-      status: "Dostupno",
-      badge: "Novo",
-      tone: "light",
-      specs: {
-        Programi: "više režima kuhanja",
-        Posuda: "neljepljiva",
-        Upotreba: "kuhanje, dinstanje, zagrijavanje",
-        Garancija: "preko prodavnice",
-      },
-      summary: "Jednostavan uređaj za brzu pripremu jela u kući, stanu ili kancelariji.",
-    },
-    {
-      id: "adapter-20w",
-      name: "oneS brzi adapter 20W",
-      category: "Mobitel dodaci",
-      status: "Dostupno",
-      badge: "Brzo punjenje",
-      tone: "dark",
-      specs: {
-        Snaga: "20 W",
-        Port: "USB-C",
-        Zaštita: "od pregrijavanja",
-        Kompatibilnost: "telefoni i dodaci",
-      },
-      summary: "Kompaktan adapter za svakodnevno brzo punjenje mobilnih uređaja.",
-    },
-    {
-      id: "multi-socket",
-      name: "oneS multi utičnica",
-      category: "Dom i ured",
-      status: "U dolasku",
-      badge: "Uskoro",
-      tone: "dark",
-      specs: {
-        Namjena: "dom i ured",
-        Portovi: "više priključaka",
-        Sigurnost: "zaštita pri korištenju",
-        Status: "u dolasku",
-      },
-      summary: "Praktično rješenje za više uređaja na jednom radnom ili kućnom mjestu.",
+      summary: "Praktičan gradski romobil za svakodnevne relacije, posao i kratke vožnje.",
     },
   ],
   comingSoon: [
     {
-      name: "Zaštitna stakla za telefone",
-      text: "Dolaze modeli za najtraženije telefone. Dodati opciju 'obavijesti me' u sljedećoj fazi.",
-    },
-    {
-      name: "oneS multi utičnice",
-      text: "Nova kategorija za dom, ured i sigurnije organizovanje kablova.",
-    },
-    {
-      name: "Rezervni dijelovi za skutere",
+      name: "Rezervni dijelovi za romobile",
       text: "Gume, punjači, kočioni dijelovi i drugi servisni dodaci biće prikazani kao posebna ponuda.",
     },
   ],
   parts: [
     {
-      name: "Punjači za skutere",
+      name: "Punjači za romobile",
       text: "U pripremi za servisnu i dodatnu prodaju.",
     },
     {
       name: "Gume i potrošni dijelovi",
-      text: "Planirano za oneS električne skutere.",
-    },
-    {
-      name: "Adapteri i kablovi",
-      text: "Dodatna oprema za postojeće i buduće proizvode.",
+      text: "Planirano za oneS električne romobile.",
     },
   ],
   manuals: [
     {
-      title: "oneS F3 električni skuter",
+      title: "oneS F3 električni romobil",
       type: "PDF manual",
-      status: "Dodati dokument",
-    },
-    {
-      title: "oneS električni multicooker",
-      type: "PDF uputstvo",
-      status: "Dodati dokument",
-    },
-    {
-      title: "Sigurnosne upute za adaptere i utičnice",
-      type: "PDF dokument",
       status: "Dodati dokument",
     },
   ],
@@ -172,19 +94,9 @@
   ],
   blogs: [
     {
-      title: "Kako odabrati električni skuter za gradsku vožnju",
+      title: "Kako odabrati električni romobil za gradsku vožnju",
       text: "Savjeti o dometu, brzini, bateriji, težini i održavanju.",
-      tag: "Skuteri",
-    },
-    {
-      title: "Zašto koristiti provjeren adapter za telefon",
-      text: "Sigurnost punjenja, zaštita uređaja i kompatibilnost.",
-      tag: "Mobiteli",
-    },
-    {
-      title: "Multicooker: praktičan uređaj za brzu kuhinju",
-      text: "Ideje za svakodnevnu upotrebu i lakšu pripremu obroka.",
-      tag: "Kuhinja",
+      tag: "Romobili",
     },
   ],
   faq: [
@@ -213,9 +125,7 @@
 
 async function loadCmsFromDatabase() {
   try {
-    const response = await fetch("api.php?action=cms", { cache: "no-store" });
-    if (!response.ok) return;
-    const data = await response.json();
+    const data = await api("cms");
     if (data.ok && data.cms) {
       cms = {
         ...cms,
@@ -223,19 +133,25 @@ async function loadCmsFromDatabase() {
         contact: { ...cms.contact, ...(data.cms.contact || {}) },
         sections: { ...cms.sections, ...(data.cms.sections || {}) },
       };
+      return true;
     }
   } catch (error) {
-    console.warn("Database CMS could not be loaded. Demo content is being used.", error);
+    console.warn("Database CMS could not be loaded.", error);
   }
+  return false;
 }
 
 let activeCategory = "Sve";
 let cartCount = 0;
 let currentCustomer = null;
 let currentFavorites = new Set();
+let inquiryReturnFocus = null;
 let manualSearch = "";
 let manualCategory = "Sve";
 let manualType = "Sve";
+const bottomProfileIcon = '<span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span><strong>Profil</strong>';
+const customerPreviewKey = "onesCustomerPreview";
+const cartCountPreviewKey = "onesCartCountPreview";
 
 function qs(selector) {
   return document.querySelector(selector);
@@ -251,7 +167,8 @@ function escapeHtml(value) {
 }
 
 function moneyText(product) {
-  return activePrice(product).label || "0";
+  const price = activePrice(product);
+  return price.type === "inquiry" ? price.label : `${price.label} KM`;
 }
 
 function numericPrice(value) {
@@ -304,16 +221,25 @@ function activePrice(product) {
     return { label: formatPrice(product.discountPrice), type: "discount" };
   }
 
-  return { label: "0", type: "regular" };
+  if (numericPrice(product.mpcPrice) > 0) {
+    return { label: formatPrice(product.mpcPrice), type: "regular" };
+  }
+
+  if (numericPrice(product.price) > 0) {
+    return { label: formatPrice(product.price), type: "regular" };
+  }
+
+  return { label: "Cijena na upit", type: "inquiry" };
 }
 
 function priceHtml(product) {
   const current = activePrice(product);
-  const mpc = numericPrice(product.mpcPrice) > 0 && formatPrice(product.mpcPrice) !== current.label ? formatPrice(product.mpcPrice) : "";
+  const mpc = ["sale", "discount"].includes(current.type) && numericPrice(product.mpcPrice) > 0 && formatPrice(product.mpcPrice) !== current.label ? formatPrice(product.mpcPrice) : "";
+  const currentLabel = current.type === "inquiry" ? current.label : `${current.label} KM`;
   return `
     <div class="price-stack">
-      <strong class="${current.type === "sale" ? "sale-price" : ""}">${current.label}</strong>
-      ${mpc ? `<span class="mpc-price">MPC: ${mpc}</span>` : ""}
+      <strong class="${current.type === "sale" ? "sale-price" : ""}">${currentLabel}</strong>
+      ${mpc ? `<span class="mpc-price">MPC: ${mpc} KM</span>` : ""}
       ${current.type === "sale" && product.saleUntil ? `<small>Akcija traje do ${formatDateOnly(product.saleUntil)}</small>` : ""}
     </div>
   `;
@@ -321,6 +247,30 @@ function priceHtml(product) {
 
 function productUrl(product) {
   return `product.html?id=${encodeURIComponent(product.id)}`;
+}
+
+function publicProducts() {
+  return (cms.products || []).filter((product) => product.enabled !== false);
+}
+
+function catalogKeywords() {
+  const ignored = new Set(["ones", "elektricni", "električni", "proizvod", "proizvodi"]);
+  const keywords = new Set(
+    publicProducts()
+      .flatMap((product) => `${product.name || ""} ${product.category || ""}`.toLowerCase().split(/[^\p{L}\p{N}]+/u))
+      .filter((word) => word.length >= 2 && !ignored.has(word))
+  );
+  if ([...keywords].some((word) => word.includes("romobil") || word.includes("skuter"))) {
+    keywords.add("romobil");
+    keywords.add("skuter");
+  }
+  return keywords;
+}
+
+function matchesActiveCatalog(...values) {
+  const haystack = values.join(" ").toLowerCase();
+  const keywords = catalogKeywords();
+  return !keywords.size || [...keywords].some((keyword) => haystack.includes(keyword));
 }
 
 function slugify(value) {
@@ -344,19 +294,24 @@ function inquiryMessage(productName) {
     : cms.contact.defaultMessage;
 }
 
+function contactPhone(value) {
+  const digits = String(value || "").replace(/[^\d]/g, "");
+  return digits.startsWith("0") ? `387${digits.slice(1)}` : digits;
+}
+
 function inquiryUrl(productName, channel = "whatsapp") {
   const message = inquiryMessage(productName);
   const text = encodeURIComponent(message);
 
   if (channel === "viber") {
-    return `viber://chat?number=%2B${cms.contact.viber}&text=${text}`;
+    return `viber://chat?number=%2B${contactPhone(cms.contact.viber)}&text=${text}`;
   }
 
   if (channel === "email") {
-    return `mailto:?subject=${encodeURIComponent(`oneS upit${productName ? ` - ${productName}` : ""}`)}&body=${text}`;
+    return `mailto:${encodeURIComponent(cms.contact.email || "info@fontele.ba")}?subject=${encodeURIComponent(`oneS upit${productName ? ` - ${productName}` : ""}`)}&body=${text}`;
   }
 
-  return `https://wa.me/${cms.contact.whatsapp}?text=${text}`;
+  return `https://wa.me/${contactPhone(cms.contact.whatsapp)}?text=${text}`;
 }
 
 const sectionMap = {
@@ -409,25 +364,14 @@ function applySectionVisibility() {
 }
 
 async function api(action, payload) {
-  const options = payload
-    ? {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
-    : { cache: "no-store" };
-
-  const response = await fetch(`api.php?action=${action}`, options);
-  const data = await response.json();
-  if (!response.ok || !data.ok) {
-    throw new Error(data.message || "API greška.");
-  }
-  return data;
+  return window.onesApi(action, payload);
 }
 
 function flash(message) {
   const note = document.createElement("div");
   note.className = "admin-toast";
+  note.setAttribute("role", "status");
+  note.setAttribute("aria-live", "polite");
   note.textContent = message;
   document.body.appendChild(note);
   setTimeout(() => note.remove(), 2600);
@@ -435,11 +379,17 @@ function flash(message) {
 
 function updateCartCount(count) {
   cartCount = count || 0;
-  const badge = qs("#cartCount");
-  if (badge) {
+  localStorage.setItem(cartCountPreviewKey, String(cartCount));
+  const badges = document.querySelectorAll(".cart-count-sync");
+  badges.forEach((badge) => {
     badge.textContent = String(cartCount);
     badge.hidden = cartCount === 0;
-  }
+  });
+}
+
+function restoreCartCountPreview() {
+  const count = Number(window.__onesCartPreview || localStorage.getItem(cartCountPreviewKey) || 0);
+  if (count > 0) updateCartCount(count);
 }
 
 async function loadCartCount() {
@@ -457,7 +407,7 @@ async function loadCartCount() {
 }
 
 function updateAccountLinks() {
-  const links = ["#accountLink", "#footerAccountLink", "#mobileAccountLink"]
+  const links = ["#accountLink", "#footerAccountLink", "#mobileAccountLink", "#bottomAccountLink"]
     .map((selector) => qs(selector))
     .filter(Boolean);
 
@@ -465,14 +415,30 @@ function updateAccountLinks() {
     link.hidden = false;
     if (currentCustomer) {
       link.href = "profile.html";
-      link.textContent = `Prijavljen: ${currentCustomer.name}`;
-      link.classList.add("account-active");
+      if (link.id === "bottomAccountLink") {
+        link.innerHTML = bottomProfileIcon;
+      } else {
+        link.textContent = `Prijavljen: ${currentCustomer.name}`;
+      }
+      if (link.id !== "bottomAccountLink") link.classList.add("account-active");
     } else {
       link.href = "login.html";
-      link.textContent = "Prijavi se";
+      if (link.id === "bottomAccountLink") {
+        link.innerHTML = bottomProfileIcon;
+      } else {
+        link.textContent = "Prijavi se";
+      }
       link.classList.remove("account-active");
     }
   });
+}
+
+function rememberCustomerPreview(user) {
+  if (user) {
+    localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
+  } else {
+    localStorage.removeItem(customerPreviewKey);
+  }
 }
 
 async function logoutCustomer() {
@@ -483,6 +449,7 @@ async function logoutCustomer() {
   }
 
   currentCustomer = null;
+  rememberCustomerPreview(null);
   currentFavorites = new Set();
   updateAccountLinks();
   updateCartCount(0);
@@ -525,6 +492,7 @@ async function loadCustomerStatus() {
   try {
     const data = await api("customer-status");
     currentCustomer = data.loggedIn ? data.user : null;
+    rememberCustomerPreview(currentCustomer);
     currentFavorites = new Set(Array.isArray(data.favorites) ? data.favorites : []);
   } catch {
     currentCustomer = null;
@@ -566,10 +534,13 @@ async function toggleFavorite(productId) {
 function closeInquiryModal() {
   qs("#inquiryModal")?.remove();
   document.body.classList.remove("modal-open");
+  inquiryReturnFocus?.focus();
+  inquiryReturnFocus = null;
 }
 
 function openInquiryModal(productName) {
   closeInquiryModal();
+  inquiryReturnFocus = document.activeElement;
   const modal = document.createElement("div");
   modal.className = "inquiry-modal";
   modal.id = "inquiryModal";
@@ -584,7 +555,7 @@ function openInquiryModal(productName) {
       </div>
       <div class="inquiry-options">
         <a href="${inquiryUrl(productName, "whatsapp")}" target="_blank" rel="noreferrer"><span>W</span><strong>WhatsApp</strong></a>
-        <a href="${inquiryUrl(productName, "viber")}"><span>V</span><strong>Viber</strong></a>
+        <a href="${inquiryUrl(productName, "viber")}" data-viber-link><span>V</span><strong>Viber</strong></a>
         <a href="${inquiryUrl(productName, "email")}"><span>@</span><strong>Email</strong></a>
       </div>
     </div>
@@ -594,20 +565,30 @@ function openInquiryModal(productName) {
     if (event.target === modal) closeInquiryModal();
   });
   modal.querySelector(".inquiry-close").addEventListener("click", closeInquiryModal);
+  modal.querySelector("[data-viber-link]").addEventListener("click", () => {
+    navigator.clipboard?.writeText(inquiryMessage(productName)).then(
+      () => flash("Poruka za Viber je kopirana. Zalijepite je u razgovor."),
+      () => {}
+    );
+  });
   modal.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeInquiryModal));
   document.body.appendChild(modal);
   document.body.classList.add("modal-open");
+  modal.querySelector(".inquiry-close").focus();
 }
 
 function renderCategories() {
-  const usedCategories = new Set((cms.products || []).map((product) => product.category).filter(Boolean));
-  qs("#categoryGrid").innerHTML = (cms.categories || [])
+  const categoryGrid = qs("#categoryGrid");
+  if (!categoryGrid) return;
+
+  const usedCategories = new Set(publicProducts().map((product) => product.category).filter(Boolean));
+  categoryGrid.innerHTML = (cms.categories || [])
     .filter((item) => usedCategories.has(item.name))
     .map(
       (item) => `
         <article class="category-card">
-          <strong>${item.name}</strong>
-          <span>${item.text}</span>
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${escapeHtml(item.text)}</span>
         </article>
       `
     )
@@ -618,7 +599,7 @@ function renderFilters() {
   const filters = qs("#filters");
 
   const enabledCategoryNames = new Set((cms.categories || []).filter((category) => category.enabled !== false).map((category) => category.name));
-  const categories = ["Sve", ...new Set(cms.products.map((product) => product.category).filter((category) => enabledCategoryNames.has(category)))];
+  const categories = ["Sve", ...new Set(publicProducts().map((product) => product.category).filter((category) => enabledCategoryNames.has(category)))];
   if (!categories.includes(activeCategory)) {
     activeCategory = "Sve";
   }
@@ -626,8 +607,8 @@ function renderFilters() {
   filters.innerHTML = categories
     .map(
       (category) => `
-        <button class="filter-button ${category === activeCategory ? "active" : ""}" type="button" data-category="${category}">
-          ${category}
+        <button class="filter-button ${category === activeCategory ? "active" : ""}" type="button" data-category="${escapeHtml(category)}">
+          ${escapeHtml(category)}
         </button>
       `
     )
@@ -659,10 +640,11 @@ function setupClickableCards() {
 }
 
 function renderProducts() {
+  const products = publicProducts();
   const visible =
     activeCategory === "Sve"
-      ? cms.products
-      : cms.products.filter((product) => product.category === activeCategory);
+      ? products
+      : products.filter((product) => product.category === activeCategory);
 
   qs("#productGrid").innerHTML = visible
     .map((product) => {
@@ -676,7 +658,7 @@ function renderProducts() {
             </div>
             ${
               product.image
-                ? `<img class="product-card-image" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />`
+                ? `<img class="product-card-image" src="${escapeHtml(window.onesSafeUrl(product.image))}" alt="${escapeHtml(product.name)}" loading="lazy" />`
                 : `<div class="product-shape" aria-hidden="true"></div>`
             }
           </a>
@@ -688,7 +670,7 @@ function renderProducts() {
             <p>${escapeHtml(product.summary)}</p>
             ${priceHtml(product)}
             ${product.deliveryTime ? `<p class="delivery-note"><strong>Rok isporuke:</strong> ${escapeHtml(product.deliveryTime)}</p>` : ""}
-            <ul class="spec-list">
+            <ul class="spec-list product-card-specs">
               ${Object.entries(product.specs || {})
                 .slice(0, 4)
                 .map(([key, value]) => `<li><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></li>`)
@@ -719,12 +701,16 @@ function renderProducts() {
   setupClickableCards();
 }
 function renderComingSoon() {
-  qs("#comingGrid").innerHTML = cms.comingSoon
+  const comingGrid = qs("#comingGrid");
+  if (!comingGrid) return;
+
+  comingGrid.innerHTML = (cms.comingSoon || [])
+    .filter((item) => item.enabled !== false)
     .map(
       (item) => `
         <article class="coming-card">
-          <h3>${item.name}</h3>
-          <p>${item.text}</p>
+          <h3>${escapeHtml(item.name)}</h3>
+          <p>${escapeHtml(item.text)}</p>
           <a class="btn btn-secondary" href="${inquiryUrl(item.name)}" target="_blank" rel="noreferrer">Pitaj za dolazak</a>
         </article>
       `
@@ -733,13 +719,14 @@ function renderComingSoon() {
 }
 
 function renderParts() {
-  qs("#partsStrip").innerHTML = cms.parts
+  qs("#partsStrip").innerHTML = (cms.parts || [])
+    .filter((item) => item.enabled !== false && matchesActiveCatalog(item.name, item.text))
     .map(
       (item) => `
         <article class="part-card">
           <span class="badge red">Uskoro</span>
-          <h3>${item.name}</h3>
-          <p>${item.text}</p>
+          <h3>${escapeHtml(item.name)}</h3>
+          <p>${escapeHtml(item.text)}</p>
         </article>
       `
     )
@@ -747,7 +734,14 @@ function renderParts() {
 }
 
 function renderManuals() {
-  const publicManuals = cms.manuals.filter((manual) => (manual.visibility || "Javno") === "Javno");
+  const activeProductIds = new Set(publicProducts().map((product) => product.id));
+  const activeCategories = new Set(publicProducts().map((product) => product.category));
+  const publicManuals = (cms.manuals || []).filter((manual) => {
+    if (manual.enabled === false || (manual.visibility || "Javno") !== "Javno") return false;
+    if (manual.relatedProductId) return activeProductIds.has(manual.relatedProductId);
+    if (manual.category) return activeCategories.has(manual.category);
+    return matchesActiveCatalog(manual.title, manual.type);
+  });
   const categories = ["Sve", ...new Set(publicManuals.map((manual) => manual.category).filter(Boolean))];
   const types = ["Sve", ...new Set(publicManuals.map((manual) => manual.type).filter(Boolean))];
 
@@ -761,12 +755,12 @@ function renderManuals() {
 
   qs("#manualList").innerHTML = `
     <div class="manual-controls">
-      <input id="manualSearch" type="search" placeholder="Pretraži uputstva..." value="${manualSearch}" />
+      <input id="manualSearch" type="search" placeholder="Pretraži uputstva..." value="${escapeHtml(manualSearch)}" />
       <select id="manualCategory">
-        ${categories.map((category) => `<option value="${category}" ${category === manualCategory ? "selected" : ""}>${category}</option>`).join("")}
+        ${categories.map((category) => `<option value="${escapeHtml(category)}" ${category === manualCategory ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}
       </select>
       <select id="manualType">
-        ${types.map((type) => `<option value="${type}" ${type === manualType ? "selected" : ""}>${type}</option>`).join("")}
+        ${types.map((type) => `<option value="${escapeHtml(type)}" ${type === manualType ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}
       </select>
     </div>
     ${
@@ -776,12 +770,12 @@ function renderManuals() {
       (manual) => `
         <article class="manual-item">
           <div>
-            <h3>${manual.title}</h3>
-            <p>${manual.type || "PDF"} · ${manual.category || "Sve kategorije"} · ${manual.status}</p>
+            <h3>${escapeHtml(manual.title)}</h3>
+            <p>${escapeHtml(manual.type || "PDF")} · ${escapeHtml(manual.category || "Sve kategorije")} · ${escapeHtml(manual.status)}</p>
           </div>
           ${
             manual.file
-              ? `<a class="btn btn-primary" href="${manual.file}" target="_blank" rel="noreferrer">Preuzmi PDF</a>`
+              ? `<a class="btn btn-primary" href="${escapeHtml(window.onesSafeUrl(manual.file))}" target="_blank" rel="noreferrer">Preuzmi PDF</a>`
               : `<a class="btn btn-secondary" href="#kontakt">Zatraži manual</a>`
           }
         </article>
@@ -807,13 +801,14 @@ function renderManuals() {
 }
 
 function renderLocations() {
-  qs("#locationGrid").innerHTML = cms.locations
+  qs("#locationGrid").innerHTML = (cms.locations || [])
+    .filter((location) => location.enabled !== false)
     .map(
       (location) => `
         <article class="location-card">
-          <h3>${location.name}</h3>
-          <p>${location.address}</p>
-          <p>${location.hours}</p>
+          <h3>${escapeHtml(location.name)}</h3>
+          <p>${escapeHtml(location.address)}</p>
+          <p>${escapeHtml(location.hours)}</p>
           <a class="btn btn-secondary" href="#kontakt">Kontakt</a>
         </article>
       `
@@ -822,18 +817,20 @@ function renderLocations() {
 }
 
 function renderBlogs() {
-  qs("#blogGrid").innerHTML = cms.blogs
+  qs("#blogGrid").innerHTML = (cms.blogs || [])
+    .map((post, index) => ({ post, index }))
+    .filter(({ post }) => post.enabled !== false && matchesActiveCatalog(post.title, post.tag, post.text))
     .map(
-      (post, index) => `
-        <article class="blog-card clickable-card" data-card-url="${blogUrl(post, index)}" role="link" tabindex="0" aria-label="Otvori blog ${post.title}">
+      ({ post, index }) => `
+        <article class="blog-card clickable-card" data-card-url="${blogUrl(post, index)}" role="link" tabindex="0" aria-label="Otvori blog ${escapeHtml(post.title)}">
           ${
             post.image
-              ? `<a class="blog-card-image" href="${blogUrl(post, index)}"><img src="${post.image}" alt="${post.title}" /></a>`
+              ? `<a class="blog-card-image" href="${blogUrl(post, index)}"><img src="${escapeHtml(window.onesSafeUrl(post.image))}" alt="${escapeHtml(post.title)}" loading="lazy" /></a>`
               : `<a class="blog-card-image empty" href="${blogUrl(post, index)}"><span>oneS blog</span></a>`
           }
-          <span class="badge red">${post.tag}</span>
-          <h3>${post.title}</h3>
-          <div class="rich-content blog-content">${post.text || ""}</div>
+          <span class="badge red">${escapeHtml(post.tag)}</span>
+          <h3>${escapeHtml(post.title)}</h3>
+          <div class="rich-content blog-content">${window.onesSanitizeRichHtml(post.text)}</div>
         </article>
       `
     )
@@ -842,15 +839,16 @@ function renderBlogs() {
 }
 
 function renderFaq() {
-  qs("#faqList").innerHTML = cms.faq
+  qs("#faqList").innerHTML = (cms.faq || [])
+    .filter((item) => item.enabled !== false)
     .map(
       (item, index) => `
         <article class="faq-item">
           <button class="faq-button" type="button" aria-expanded="${index === 0}" data-faq="${index}">
-            <span>${item.q}</span>
+            <span>${escapeHtml(item.q)}</span>
             <strong>${index === 0 ? "-" : "+"}</strong>
           </button>
-          <div class="faq-panel" ${index === 0 ? "" : "hidden"}>${item.a}</div>
+          <div class="faq-panel" ${index === 0 ? "" : "hidden"}>${escapeHtml(item.a)}</div>
         </article>
       `
     )
@@ -868,8 +866,23 @@ function renderFaq() {
 }
 
 function setupComparison() {
-  if (!sectionEnabled("comparison") || !cms.products.length) return;
-  const options = cms.products
+  const products = publicProducts();
+  const categoryCounts = products.reduce((counts, product) => {
+    counts.set(product.category, (counts.get(product.category) || 0) + 1);
+    return counts;
+  }, new Map());
+  const comparableProducts = products.filter((product) => (categoryCounts.get(product.category) || 0) > 1);
+  const comparisonSection = qs("#usporedba");
+  const comparisonLinks = document.querySelectorAll('a[href="#usporedba"], a[href="index.html#usporedba"]');
+  const available = sectionEnabled("comparison") && comparableProducts.length > 1;
+
+  if (comparisonSection) comparisonSection.hidden = !available;
+  comparisonLinks.forEach((link) => {
+    link.hidden = !available;
+  });
+  if (!available) return;
+
+  const options = comparableProducts
     .map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.category)} - ${escapeHtml(product.name)}</option>`)
     .join("");
   qs("#compareA").innerHTML = options;
@@ -884,10 +897,11 @@ function setupComparison() {
 }
 
 function updateCompareBOptions() {
-  const first = cms.products.find((product) => product.id === qs("#compareA").value) || cms.products[0];
+  const products = publicProducts();
+  const first = products.find((product) => product.id === qs("#compareA").value) || products[0];
   if (!first) return;
 
-  const sameCategoryProducts = cms.products.filter((product) => product.category === first.category);
+  const sameCategoryProducts = products.filter((product) => product.category === first.category);
   const secondChoices =
     sameCategoryProducts.length > 1
       ? sameCategoryProducts.filter((product) => product.id !== first.id)
@@ -906,8 +920,9 @@ function updateCompareBOptions() {
 }
 
 function renderComparison() {
-  const first = cms.products.find((product) => product.id === qs("#compareA").value);
-  const second = cms.products.find((product) => product.id === qs("#compareB").value);
+  const products = publicProducts();
+  const first = products.find((product) => product.id === qs("#compareA").value);
+  const second = products.find((product) => product.id === qs("#compareB").value);
   if (!first || !second) return;
   if (first.category !== second.category) {
     updateCompareBOptions();
@@ -965,24 +980,111 @@ function setupContactLinks() {
 }
 
 function setupMobileNav() {
-  const button = qs(".menu-button");
-  const menu = qs(".mobile-nav");
-  button.addEventListener("click", () => {
-    const isOpen = button.getAttribute("aria-expanded") === "true";
-    button.setAttribute("aria-expanded", String(!isOpen));
-    menu.hidden = isOpen;
-  });
+  window.onesSetupMobileNav();
+  setupBottomNavScrollSpy();
+}
 
-  menu.querySelectorAll("a").forEach((link) => {
-    link.addEventListener("click", () => {
-      button.setAttribute("aria-expanded", "false");
-      menu.hidden = true;
+function setupBottomNavScrollSpy() {
+  const nav = qs(".bottom-mobile-nav");
+  if (!nav || nav.dataset.scrollSpyReady === "true") return;
+
+  const links = [...nav.querySelectorAll("a")];
+  const normalizePath = (path) => path.replace(/\/index\.html$/i, "/");
+  const currentPath = normalizePath(window.location.pathname);
+  const sectionLinks = links
+    .map((link) => {
+      const url = new URL(link.getAttribute("href"), window.location.href);
+      const target = normalizePath(url.pathname) === currentPath && url.hash
+        ? document.getElementById(url.hash.slice(1))
+        : null;
+      return target ? { link, target } : null;
+    })
+    .filter(Boolean);
+
+  if (!sectionLinks.length) return;
+  nav.dataset.scrollSpyReady = "true";
+
+  const setActiveLink = (activeLink) => {
+    links.forEach((link) => {
+      const isActive = link === activeLink;
+      link.classList.toggle("active", isActive);
+      if (isActive) {
+        link.setAttribute("aria-current", "location");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+  };
+
+  const updateActiveLink = () => {
+    const headerHeight = qs(".site-header")?.getBoundingClientRect().height || 0;
+    const activationLine = headerHeight + 16;
+    let active = sectionLinks[0];
+
+    sectionLinks.forEach((item) => {
+      if (!item.target.hidden && item.target.getBoundingClientRect().top <= activationLine) {
+        active = item;
+      }
+    });
+
+    setActiveLink(active.link);
+  };
+
+  let updateFrame = 0;
+  const scheduleUpdate = () => {
+    if (updateFrame) return;
+    updateFrame = requestAnimationFrame(() => {
+      updateFrame = 0;
+      updateActiveLink();
+    });
+  };
+
+  window.addEventListener("scroll", scheduleUpdate, { passive: true });
+  window.addEventListener("resize", scheduleUpdate);
+  window.addEventListener("hashchange", scheduleUpdate);
+  window.addEventListener("pageshow", scheduleUpdate);
+  updateActiveLink();
+}
+
+function restoreHashScroll() {
+  const scheduledHash = window.location.hash;
+  const targetId = window.location.hash.slice(1);
+  if (!targetId) return;
+
+  const target = document.getElementById(targetId);
+  if (!target || target.hidden) return;
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (window.location.hash === scheduledHash) {
+        target.scrollIntoView({ block: "start", behavior: "instant" });
+      }
     });
   });
 }
 
 async function init() {
-  await loadCmsFromDatabase();
+  restoreCartCountPreview();
+  const cmsLoaded = await loadCmsFromDatabase();
+  const isLocalDevelopment = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  if (!cmsLoaded && !isLocalDevelopment) {
+    setupMobileNav();
+    setupAccountMenu();
+    const filters = qs("#filters");
+    const productGrid = qs("#productGrid");
+    if (filters) filters.replaceChildren();
+    if (productGrid) {
+      productGrid.innerHTML = `
+        <article class="catalog-error" role="alert">
+          <h3>Ponuda trenutno nije dostupna</h3>
+          <p>Pokušajte ponovo za nekoliko trenutaka ili nas kontaktirajte direktno.</p>
+          <a class="btn btn-primary" href="mailto:info@fontele.ba">Pošalji email</a>
+        </article>
+      `;
+    }
+    restoreHashScroll();
+    return;
+  }
   applySectionVisibility();
   if (sectionEnabled("categories")) renderCategories();
   if (sectionEnabled("products")) {
@@ -1002,6 +1104,7 @@ async function init() {
   await loadCustomerStatus();
   if (sectionEnabled("products")) renderProducts();
   await loadCartCount();
+  restoreHashScroll();
 }
 
 window.addEventListener("storage", async (event) => {

@@ -16,4 +16,8 @@ return [
         'user' => 'if0_XXXXXXX',
         'password' => 'OVDJE_UNESI_LOZINKU',
     ],
+    'security' => [
+        // Required only when the production database does not yet have an admin user.
+        'initial_admin_password' => 'PROMIJENI-U-JAKU-LOZINKU',
+    ],
 ];

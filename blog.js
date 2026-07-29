@@ -7,25 +7,14 @@ function $(selector) {
 }
 
 async function api(action, payload) {
-  const options = payload
-    ? {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
-    : { cache: "no-store" };
-
-  const response = await fetch(`api.php?action=${action}`, options);
-  const data = await response.json();
-  if (!response.ok || !data.ok) {
-    throw new Error(data.message || "API greška.");
-  }
-  return data;
+  return window.onesApi(action, payload);
 }
 
 function flash(message) {
   const note = document.createElement("div");
   note.className = "admin-toast";
+  note.setAttribute("role", "status");
+  note.setAttribute("aria-live", "polite");
   note.textContent = message;
   document.body.appendChild(note);
   setTimeout(() => note.remove(), 2600);
@@ -50,25 +39,39 @@ function productUrl(product) {
 }
 
 function updateCartCount(count) {
-  const badge = $("#cartCount");
-  if (badge) {
+  document.querySelectorAll("#cartCount, .cart-count-sync").forEach((badge) => {
     badge.textContent = String(count || 0);
     badge.hidden = !count;
-  }
+  });
 }
 
 function updateAccountLink() {
   const link = $("#accountLink");
-  if (!link) return;
+  const mobileLink = $("#mobileAccountLink");
+  const bottomLink = $("#bottomAccountLink");
 
   if (currentCustomer) {
-    link.href = "profile.html";
-    link.textContent = `Prijavljen: ${currentCustomer.name}`;
-    link.classList.add("account-active");
+    if (link) {
+      link.href = "profile.html";
+      link.textContent = `Prijavljen: ${currentCustomer.name}`;
+      link.classList.add("account-active");
+    }
+    if (mobileLink) {
+      mobileLink.href = "profile.html";
+      mobileLink.textContent = "Moj profil";
+    }
+    if (bottomLink) bottomLink.href = "profile.html";
   } else {
-    link.href = "login.html";
-    link.textContent = "Prijavi se";
-    link.classList.remove("account-active");
+    if (link) {
+      link.href = "login.html";
+      link.textContent = "Prijavi se";
+      link.classList.remove("account-active");
+    }
+    if (mobileLink) {
+      mobileLink.href = "login.html";
+      mobileLink.textContent = "Prijavi se";
+    }
+    if (bottomLink) bottomLink.href = "login.html";
   }
 }
 
@@ -125,6 +128,10 @@ function setupAccountMenu() {
   });
 }
 
+function setupMobileNav() {
+  window.onesSetupMobileNav();
+}
+
 function setMeta(selector, content) {
   let meta = document.querySelector(selector);
   if (!meta) {
@@ -154,8 +161,21 @@ function setCanonical(url) {
 
 function plainText(html) {
   const temp = document.createElement("div");
-  temp.innerHTML = html || "";
+  temp.innerHTML = window.onesSanitizeRichHtml(html);
   return (temp.textContent || temp.innerText || "").trim();
+}
+
+function postMatchesCatalog(item) {
+  const ignored = new Set(["ones", "elektricni", "električni", "proizvod", "proizvodi"]);
+  const keywords = (cms.products || [])
+    .filter((product) => product.enabled !== false)
+    .flatMap((product) => `${product.name || ""} ${product.category || ""}`.toLowerCase().split(/[^\p{L}\p{N}]+/u))
+    .filter((word) => word.length >= 2 && !ignored.has(word));
+  if (keywords.some((word) => word.includes("romobil") || word.includes("skuter"))) {
+    keywords.push("romobil", "skuter");
+  }
+  const haystack = `${item.title || ""} ${item.tag || ""} ${plainText(item.text)}`.toLowerCase();
+  return !keywords.length || [...new Set(keywords)].some((keyword) => haystack.includes(keyword));
 }
 
 function applyBlogSeo() {
@@ -181,6 +201,7 @@ function relatedProducts() {
   const haystack = `${tag} ${title} ${text}`;
 
   return (cms.products || [])
+    .filter((product) => product.enabled !== false)
     .filter((product) => {
       const category = String(product.category || "").toLowerCase();
       const name = String(product.name || "").toLowerCase();
@@ -190,10 +211,7 @@ function relatedProducts() {
         .map((word) => word.replace(/[^a-z0-9čćžšđ]/gi, "").toLowerCase())
         .filter((word) => word.length >= 4);
 
-      if (category.includes("skuter")) keywords.push("skuter", "skuteri");
-      if (category.includes("kuhinj")) keywords.push("kuhinj", "kuhinja", "multicooker");
-      if (category.includes("mobitel")) keywords.push("mobitel", "telefon", "adapter");
-      if (category.includes("dom") || category.includes("ured")) keywords.push("ured", "uticnica", "utičnica");
+      if (category.includes("skuter") || category.includes("romobil")) keywords.push("skuter", "skuteri", "romobil", "romobili");
 
       return [...new Set(keywords)].some((keyword) => haystack.includes(keyword));
     })
@@ -215,10 +233,10 @@ function renderRelatedProducts(products) {
             (product) => `
               <article class="blog-related-card">
                 <a href="${productUrl(product)}">
-                  ${product.image ? `<img src="${product.image}" alt="${product.name}" />` : `<span class="product-shape" aria-hidden="true"></span>`}
+                  ${product.image ? `<img src="${window.onesEscapeHtml(window.onesSafeUrl(product.image))}" alt="${window.onesEscapeHtml(product.name)}" loading="lazy" />` : `<span class="product-shape" aria-hidden="true"></span>`}
                   <div>
-                    <span>${product.category || ""}</span>
-                    <strong>${product.name}</strong>
+                    <span>${window.onesEscapeHtml(product.category || "")}</span>
+                    <strong>${window.onesEscapeHtml(product.name)}</strong>
                   </div>
                 </a>
               </article>
@@ -238,12 +256,12 @@ function renderBlog() {
       <a class="btn btn-secondary" href="index.html#blog">Nazad na blog</a>
       ${
         post.image
-          ? `<div class="blog-hero-image"><img src="${post.image}" alt="${post.title}" /></div>`
+          ? `<div class="blog-hero-image"><img src="${window.onesEscapeHtml(window.onesSafeUrl(post.image))}" alt="${window.onesEscapeHtml(post.title)}" /></div>`
           : `<div class="blog-hero-image empty"><span>oneS blog</span></div>`
       }
-      <p class="eyebrow">${post.tag || "Blog"}</p>
-      <h1>${post.title}</h1>
-      <div class="rich-content blog-article-content">${post.text || ""}</div>
+      <p class="eyebrow">${window.onesEscapeHtml(post.tag || "Blog")}</p>
+      <h1>${window.onesEscapeHtml(post.title)}</h1>
+      <div class="rich-content blog-article-content">${window.onesSanitizeRichHtml(post.text)}</div>
     </article>
     ${renderRelatedProducts(related)}
   `;
@@ -252,13 +270,14 @@ function renderBlog() {
 async function init() {
   try {
     setupAccountMenu();
+    setupMobileNav();
     await loadCustomerStatus();
     await loadCartCount();
 
     const requestedId = new URLSearchParams(window.location.search).get("id");
     const data = await api("cms");
     cms = data.cms;
-    post = (cms.blogs || []).find((item, index) => blogId(item, index) === requestedId);
+    post = (cms.blogs || []).find((item, index) => item.enabled !== false && postMatchesCatalog(item) && blogId(item, index) === requestedId);
 
     if (!post) {
       $("#blogDetail").innerHTML = `
@@ -277,7 +296,7 @@ async function init() {
     $("#blogDetail").innerHTML = `
       <div class="login-panel profile-panel">
         <h1>Greška</h1>
-        <p>${error.message}</p>
+        <p>${window.onesEscapeHtml(error.message)}</p>
       </div>
     `;
   }
@@ -290,7 +309,7 @@ window.addEventListener("storage", async (event) => {
     const data = await api("cms");
     cms = data.cms;
     const currentId = blogId(post, 0);
-    post = (cms.blogs || []).find((item, index) => blogId(item, index) === currentId);
+    post = (cms.blogs || []).find((item, index) => item.enabled !== false && postMatchesCatalog(item) && blogId(item, index) === currentId);
     if (post) {
       applyBlogSeo();
       renderBlog();
