@@ -31,6 +31,10 @@
   function applyTheme(theme) {
     const nextTheme = theme === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = nextTheme;
+    document.querySelectorAll("[data-theme-image]").forEach((image) => {
+      const source = image.dataset[`${nextTheme}Src`];
+      if (source && image.getAttribute("src") !== source) image.setAttribute("src", source);
+    });
     document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
       const nextLabel = nextTheme === "dark" ? "Prebaci na svijetli mod" : "Prebaci na tamni mod";
       button.innerHTML = nextTheme === "dark" ? icons.light : icons.dark;

@@ -42,7 +42,7 @@
         } catch (error) {}
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260723-priority-3" />
+    <link rel="stylesheet" href="styles.css?v=20260730-hero-scene-2" />
   </head>
   <body>
     <header class="site-header">
@@ -68,25 +68,45 @@
     </header>
 
     <main>
-      <section class="hero" id="pocetna">
+      <section class="hero hero-showcase" id="pocetna">
         <div class="hero-copy">
-          <p class="eyebrow">Električni romobili | upit putem WhatsApp/Viber</p>
-          <h1>oneS električni romobili za sigurnu i praktičnu gradsku vožnju.</h1>
-          <p>
-            Pregledajte modele, domet, brzinu, bateriju i dostupnost rezervnih dijelova.
-            Za cijenu, narudžbu ili testnu vožnju pošaljite direktan upit našem timu.
+          <p class="eyebrow">Električni romobili | oneS F-serija</p>
+          <h1>
+            <span class="hero-headline-line">oneS električni</span>
+            <span class="hero-headline-line">romobili za</span>
+            <span class="hero-headline-line">gradsku vožnju<span class="hero-headline-dot">.</span></span>
+          </h1>
+          <p class="hero-description">
+            Praktični modeli za svakodnevne relacije, posao, školu i brže kretanje kroz grad.
+            Pregledajte dostupne modele i pošaljite upit za cijenu ili dostupnost.
           </p>
           <div class="hero-actions">
-            <a class="btn btn-primary" href="#proizvodi">Pogledaj romobile</a>
-            <a class="btn btn-secondary" href="#rezervni-dijelovi">Rezervni dijelovi</a>
+            <a class="btn btn-primary hero-primary-cta" href="#proizvodi">
+              Pogledaj romobile
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6"></path>
+              </svg>
+            </a>
           </div>
         </div>
-        <div class="hero-lineup" aria-label="oneS F3 serija električnih romobila">
-          <picture>
-            <source media="(max-width: 640px)" srcset="assets/f3-lineup-mobile.webp" type="image/webp" />
-            <source srcset="assets/f3-lineup-hero.webp" type="image/webp" />
-            <img src="assets/f3-lineup-hero.png" width="1672" height="941" alt="oneS F3 serija električnih romobila" fetchpriority="high" decoding="async" />
-          </picture>
+
+        <div class="hero-product-stage" aria-label="oneS F-serija električni romobil">
+          <div class="hero-scene">
+            <div class="hero-stage-wall" aria-hidden="true"></div>
+            <img
+              class="hero-scooter"
+              src="assets/hero-f3-promax-platform-light.png"
+              data-theme-image
+              data-light-src="assets/hero-f3-promax-platform-light.png"
+              data-dark-src="assets/hero-f3-promax-platform-dark-v2.png"
+              alt="oneS F-serija električni romobil"
+              width="1254"
+              height="1254"
+              fetchpriority="high"
+              decoding="async"
+              draggable="false"
+            />
+          </div>
         </div>
       </section>
 
@@ -287,7 +307,7 @@
       <a href="login.html" id="bottomAccountLink"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span><strong>Profil</strong></a>
     </nav>
 
-    <script src="theme.js?v=20260723-priority-2"></script>
+    <script src="theme.js?v=20260730-hero-composite-1"></script>
     <script src="api-client.js?v=20260723-priority-2"></script>
     <script src="app.js?v=20260723-priority-3"></script>
   </body>
