@@ -672,7 +672,7 @@ function renderProducts() {
             ${product.deliveryTime ? `<p class="delivery-note"><strong>Rok isporuke:</strong> ${escapeHtml(product.deliveryTime)}</p>` : ""}
             <ul class="spec-list product-card-specs">
               ${Object.entries(product.specs || {})
-                .slice(0, 4)
+                .slice(0, 5)
                 .map(([key, value]) => `<li><span>${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></li>`)
                 .join("")}
             </ul>

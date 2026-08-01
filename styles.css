@@ -851,17 +851,23 @@ main section[id] {
 }
 
 .trust-strip {
+  display: block;
+  position: relative;
+  z-index: 2;
   overflow: hidden;
   padding-block: 14px;
   border-block: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface-subtle) 72%, var(--surface));
   mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  contain: layout paint;
 }
 
 .trust-track {
   display: flex;
+  flex-wrap: nowrap;
   width: max-content;
   animation: trust-marquee 24s linear infinite;
+  will-change: transform;
 }
 
 .trust-strip:hover .trust-track {
@@ -871,6 +877,7 @@ main section[id] {
 .trust-group {
   display: flex;
   flex: 0 0 auto;
+  min-width: max-content;
   gap: 12px;
   padding-inline: 12px 0;
 }
@@ -878,12 +885,16 @@ main section[id] {
 .trust-item {
   flex: 0 0 max(260px, 25vw);
   display: grid;
+  align-content: center;
   gap: 4px;
+  min-height: 84px;
   padding: 18px clamp(18px, 3vw, 34px);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-raised);
   box-shadow: var(--card-shadow);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .trust-item strong,
@@ -903,11 +914,11 @@ main section[id] {
 
 @keyframes trust-marquee {
   from {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
 
   to {
-    transform: translateX(-50%);
+    transform: translate3d(-50%, 0, 0);
   }
 }
 
@@ -2214,7 +2225,6 @@ select {
     grid-template-columns: 1fr;
   }
 
-  .trust-strip,
   .category-grid,
   .product-grid,
   .coming-grid,
@@ -2287,6 +2297,26 @@ select {
   .mobile-nav .theme-toggle {
     width: 100%;
     border-radius: var(--radius);
+  }
+
+  .trust-strip {
+    padding-block: 10px;
+    mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  }
+
+  .trust-track {
+    animation-duration: 28s;
+  }
+
+  .trust-group {
+    gap: 10px;
+    padding-inline-start: 10px;
+  }
+
+  .trust-item {
+    flex-basis: min(78vw, 286px);
+    min-height: 76px;
+    padding: 14px 18px;
   }
 
   .bottom-mobile-nav {
@@ -2452,7 +2482,6 @@ select {
   }
 
   .hero-panel,
-  .trust-strip,
   .category-grid,
   .product-grid,
   .coming-grid,
