@@ -173,6 +173,11 @@ function closeInquiryModal() {
 }
 
 function openInquiryModal() {
+  if (!currentCustomer) {
+    window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;
+    return;
+  }
+
   closeInquiryModal();
   inquiryReturnFocus = document.activeElement;
   const modal = document.createElement("div");

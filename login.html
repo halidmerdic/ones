@@ -6,7 +6,7 @@
     <title>Prijavi se | oneS</title>
     <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#111216" />
-    <link rel="stylesheet" href="styles.css?v=20260723-priority-2" />
+    <link rel="stylesheet" href="styles.css?v=20260801-antispam-1" />
     <link rel="stylesheet" href="admin.css?v=20260723-priority-2" />
   </head>
   <body class="admin-body">
@@ -58,6 +58,10 @@
             <input id="registerConsent" type="checkbox" required />
             <span>Pročitao/la sam <a href="privacy.html" target="_blank" rel="noreferrer">obavijest o privatnosti</a> i prihvatam <a href="terms.html" target="_blank" rel="noreferrer">uslove korištenja</a>.</span>
           </label>
+          <label class="anti-spam-field" aria-hidden="true">
+            Website
+            <input id="registerWebsite" type="text" name="website" tabindex="-1" autocomplete="off" />
+          </label>
           <button class="btn btn-secondary" type="button" id="customerRegisterBtn">Registruj se</button>
         </article>
       </section>
@@ -76,6 +80,6 @@
 
     <script src="theme.js?v=20260723-priority-2"></script>
     <script src="api-client.js?v=20260723-priority-2"></script>
-    <script src="login.js?v=20260723-priority-2"></script>
+    <script src="login.js?v=20260801-antispam-1"></script>
   </body>
 </html>

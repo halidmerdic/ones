@@ -544,6 +544,11 @@ function closeInquiryModal() {
 }
 
 function openInquiryModal(productName) {
+  if (!currentCustomer) {
+    window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;
+    return;
+  }
+
   closeInquiryModal();
   inquiryReturnFocus = document.activeElement;
   const modal = document.createElement("div");
@@ -716,11 +721,15 @@ function renderComingSoon() {
         <article class="coming-card">
           <h3>${escapeHtml(item.name)}</h3>
           <p>${escapeHtml(item.text)}</p>
-          <a class="btn btn-secondary" href="${inquiryUrl(item.name)}" target="_blank" rel="noreferrer">Pitaj za dolazak</a>
+          <button class="btn btn-secondary" type="button" data-coming-inquiry="${escapeHtml(item.name)}">Pitaj za dolazak</button>
         </article>
       `
     )
     .join("");
+
+  comingGrid.querySelectorAll("[data-coming-inquiry]").forEach((button) => {
+    button.addEventListener("click", () => openInquiryModal(button.dataset.comingInquiry));
+  });
 }
 
 function renderParts() {
@@ -975,13 +984,23 @@ function renderComparison() {
 }
 
 function setupContactLinks() {
-  ["#whatsappBottom"].forEach((selector) => {
-    qs(selector).href = inquiryUrl();
-  });
+  const requireContactLogin = (event) => {
+    if (currentCustomer) return;
+    event.preventDefault();
+    window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;
+  };
 
-  ["#viberBottom"].forEach((selector) => {
-    qs(selector).href = inquiryUrl("", "viber");
-  });
+  const whatsappBottom = qs("#whatsappBottom");
+  if (whatsappBottom) {
+    whatsappBottom.href = inquiryUrl();
+    whatsappBottom.addEventListener("click", requireContactLogin);
+  }
+
+  const viberBottom = qs("#viberBottom");
+  if (viberBottom) {
+    viberBottom.href = inquiryUrl("", "viber");
+    viberBottom.addEventListener("click", requireContactLogin);
+  }
 }
 
 function setupMobileNav() {

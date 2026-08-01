@@ -279,6 +279,7 @@ async function submitOrder() {
     const data = await api("order-submit", {
       phone,
       note: $("#orderNote")?.value || "",
+      website: $("#orderWebsite")?.value || "",
       updateProfilePhone,
     });
     cart = data.cart;

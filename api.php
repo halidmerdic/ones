@@ -120,6 +120,47 @@ function clear_login_failures(string $scope): void
     unset($_SESSION[login_attempt_key($scope)]);
 }
 
+function client_ip(): string
+{
+    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $key) {
+        $value = trim((string)($_SERVER[$key] ?? ''));
+        if ($value === '') {
+            continue;
+        }
+        $ip = trim(explode(',', $value)[0]);
+        if (filter_var($ip, FILTER_VALIDATE_IP)) {
+            return $ip;
+        }
+    }
+
+    return 'unknown';
+}
+
+function reject_honeypot(array $body): void
+{
+    foreach (['website', 'company', 'homepage'] as $field) {
+        if (trim((string)($body[$field] ?? '')) !== '') {
+            respond(['ok' => false, 'message' => 'Zahtjev nije prihvaćen. Pokušajte ponovo.'], 400);
+        }
+    }
+}
+
+function require_action_rate_limit(PDO $pdo, string $action, string $identifier, int $maxAttempts, int $windowSeconds, string $message): void
+{
+    $cutoff = date('c', time() - $windowSeconds);
+    $cleanup = $pdo->prepare('DELETE FROM request_limits WHERE created_at < :cutoff');
+    $cleanup->execute([':cutoff' => date('c', time() - 60 * 60 * 24 * 2)]);
+
+    $count = $pdo->prepare('SELECT COUNT(*) FROM request_limits WHERE action = :action AND identifier = :identifier AND created_at >= :cutoff');
+    $count->execute([':action' => $action, ':identifier' => $identifier, ':cutoff' => $cutoff]);
+    if ((int)$count->fetchColumn() >= $maxAttempts) {
+        respond(['ok' => false, 'message' => $message], 429);
+    }
+
+    $insert = $pdo->prepare('INSERT INTO request_limits (action, identifier, created_at) VALUES (:action, :identifier, :created_at)');
+    $insert->execute([':action' => $action, ':identifier' => $identifier, ':created_at' => date('c')]);
+}
+
 function default_cms(): array
 {
     return [
@@ -265,6 +306,7 @@ function database(array $config): PDO
         $pdo->exec('CREATE TABLE IF NOT EXISTS cart_items (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, cart_id INT UNSIGNED NOT NULL, product_id VARCHAR(190) NOT NULL, quantity INT UNSIGNED NOT NULL DEFAULT 1, created_at VARCHAR(64) NOT NULL, INDEX(cart_id), INDEX(product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         $pdo->exec('CREATE TABLE IF NOT EXISTS product_favorites (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, product_id VARCHAR(190) NOT NULL, created_at VARCHAR(64) NOT NULL, UNIQUE KEY user_product (user_id, product_id), INDEX(user_id), INDEX(product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         $pdo->exec('CREATE TABLE IF NOT EXISTS orders (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, customer_name VARCHAR(190) NOT NULL, customer_email VARCHAR(190) NOT NULL, phone VARCHAR(80) NOT NULL DEFAULT "", note TEXT NOT NULL, status VARCHAR(40) NOT NULL DEFAULT "Novo", items_json LONGTEXT NOT NULL, created_at VARCHAR(64) NOT NULL, updated_at VARCHAR(64) NOT NULL, admin_note VARCHAR(1000) NOT NULL DEFAULT "", INDEX(user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS request_limits (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, action VARCHAR(80) NOT NULL, identifier VARCHAR(190) NOT NULL, created_at VARCHAR(64) NOT NULL, INDEX action_identifier_created (action, identifier, created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
     } else {
         $dbPath = (string)($databaseConfig['sqlite_path'] ?? (__DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'ones.sqlite'));
         $dir = dirname($dbPath);
@@ -282,6 +324,7 @@ function database(array $config): PDO
         $pdo->exec('CREATE TABLE IF NOT EXISTS cart_items (id INTEGER PRIMARY KEY AUTOINCREMENT, cart_id INTEGER NOT NULL, product_id TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, FOREIGN KEY(cart_id) REFERENCES carts(id))');
         $pdo->exec('CREATE TABLE IF NOT EXISTS product_favorites (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, product_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(user_id, product_id), FOREIGN KEY(user_id) REFERENCES users(id))');
         $pdo->exec('CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, customer_name TEXT NOT NULL, customer_email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT "", note TEXT NOT NULL DEFAULT "", status TEXT NOT NULL DEFAULT "Novo", items_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS request_limits (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, identifier TEXT NOT NULL, created_at TEXT NOT NULL)');
     }
 
     if (!has_column($pdo, 'users', 'phone')) {
@@ -1157,6 +1200,8 @@ try {
     if ($action === 'customer-register') {
         require_login_window('customer');
         $body = body_json();
+        reject_honeypot($body);
+        require_action_rate_limit($pdo, 'customer-register', 'ip:' . client_ip(), 6, 3600, 'Previše registracija dolazi sa ove mreže. Pokušajte ponovo kasnije.');
         $name = trim((string)($body['name'] ?? ''));
         $email = trim(strtolower((string)($body['email'] ?? '')));
         $password = (string)($body['password'] ?? '');
@@ -1320,6 +1365,7 @@ try {
     if ($action === 'order-submit') {
         $userId = require_customer();
         $body = body_json();
+        reject_honeypot($body);
         $phone = trim((string)($body['phone'] ?? ''));
         $note = trim((string)($body['note'] ?? ''));
         $updateProfilePhone = !empty($body['updateProfilePhone']);
@@ -1357,6 +1403,10 @@ try {
         if (strlen($note) > 1000) {
             respond(['ok' => false, 'message' => 'Napomena može imati najviše 1000 znakova.'], 400);
         }
+
+        require_action_rate_limit($pdo, 'order-submit', 'user:' . $userId, 3, 600, 'Poslali ste više upita u kratkom periodu. Pokušajte ponovo za nekoliko minuta.');
+        require_action_rate_limit($pdo, 'order-submit', 'user-day:' . $userId, 10, 86400, 'Dnevni limit upita je dostignut. Pokušajte ponovo sutra ili nas kontaktirajte direktno.');
+        require_action_rate_limit($pdo, 'order-submit', 'ip:' . client_ip(), 20, 86400, 'Previše upita dolazi sa ove mreže. Pokušajte ponovo kasnije.');
 
         $items = array_map(static function (array $item): array {
             $product = is_array($item['product'] ?? null) ? $item['product'] : [];

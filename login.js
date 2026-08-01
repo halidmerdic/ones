@@ -65,6 +65,7 @@ async function customerRegister() {
       email: $("#registerEmail").value,
       password: $("#registerPassword").value,
       acceptedPrivacy: $("#registerConsent").checked,
+      website: $("#registerWebsite")?.value || "",
     });
     const user = data.user || { name: $("#registerName").value, email: $("#registerEmail").value };
     localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));

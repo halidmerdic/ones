@@ -23,7 +23,7 @@
         } catch (error) {}
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260723-priority-2" />
+    <link rel="stylesheet" href="styles.css?v=20260801-antispam-1" />
     <link rel="stylesheet" href="admin.css?v=20260723-priority-2" />
   </head>
   <body class="admin-body">
@@ -61,6 +61,10 @@
           <label>
             Napomena
             <textarea id="orderNote" maxlength="1000" placeholder="Dodajte napomenu za prodavca"></textarea>
+          </label>
+          <label class="anti-spam-field" aria-hidden="true">
+            Website
+            <input id="orderWebsite" type="text" name="website" tabindex="-1" autocomplete="off" />
           </label>
           <div class="admin-actions">
             <button class="btn btn-primary" id="submitOrderBtn" type="button">Posalji upit</button>
@@ -117,6 +121,6 @@
     </script>
     <script src="theme.js?v=20260723-priority-2"></script>
     <script src="api-client.js?v=20260723-priority-2"></script>
-    <script src="cart.js?v=20260723-priority-2"></script>
+    <script src="cart.js?v=20260801-antispam-1"></script>
   </body>
 </html>
