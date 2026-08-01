@@ -144,6 +144,7 @@ function default_cms(): array
             'blog' => true,
             'faq' => true,
             'contact' => true,
+            'footer' => true,
         ],
         'launchChecklist' => [
             ['id' => 'products', 'label' => 'Proizvodi provjereni', 'done' => false],

@@ -20,6 +20,7 @@
     blog: true,
     faq: true,
     contact: true,
+    footer: true,
   },
   categories: [
     {
@@ -329,6 +330,7 @@ const sectionMap = {
   blog: ["#blog"],
   faq: ["#podrska"],
   contact: ["#kontakt"],
+  footer: [".site-footer"],
 };
 
 function sectionEnabled(key) {
@@ -347,11 +349,14 @@ function applySectionVisibility() {
   const navTargets = {
     products: ["#proizvodi"],
     comparison: ["#usporedba"],
+    service: ["#servis"],
+    parts: ["#rezervni-dijelovi"],
     locations: ["#lokacije"],
     manuals: ["#manuali"],
     faq: ["#podrska"],
     delivery: ["#dostava"],
     blog: ["#blog"],
+    contact: ["#kontakt"],
   };
 
   Object.entries(navTargets).forEach(([key, hrefs]) => {

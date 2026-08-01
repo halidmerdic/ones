@@ -27,6 +27,7 @@ const defaultCms = {
     blog: true,
     faq: true,
     contact: true,
+    footer: true,
   },
   launchChecklist: [
     { id: "products", label: "Proizvodi provjereni", done: false },
@@ -1229,6 +1230,7 @@ const sectionLabels = {
   blog: "Blog",
   faq: "FAQ / podrška",
   contact: "Kontakt traka",
+  footer: "Footer / donji dio stranice",
 };
 
 function renderSections() {
