@@ -283,11 +283,7 @@ async function uploadProductImage(file) {
     headers: await window.onesCsrfHeaders(),
     body: formData,
   });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    throw new Error(data.message || "Upload nije uspio.");
-  }
+  const data = await readUploadResponse(response, "Upload slike nije uspio.");
 
   return data.file.path;
 }
@@ -301,13 +297,37 @@ async function uploadBlogImage(file) {
     headers: await window.onesCsrfHeaders(),
     body: formData,
   });
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    throw new Error(data.message || "Upload blog slike nije uspio.");
-  }
+  const data = await readUploadResponse(response, "Upload blog slike nije uspio.");
 
   return data.file.path;
+}
+
+async function readUploadResponse(response, fallbackMessage) {
+  const raw = await response.text();
+  let data;
+
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`${fallbackMessage} Hosting je prekinuo obradu ili nije vratio ispravan odgovor.`);
+  }
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || fallbackMessage);
+  }
+
+  return data;
+}
+
+function validateProductImage(file) {
+  const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+  const hasAllowedExtension = /\.(jpe?g|png|webp|gif)$/i.test(file.name || "");
+  if (!allowedTypes.has(file.type) && !hasAllowedExtension) {
+    throw new Error("Dozvoljeni formati su JPG, PNG, WEBP i GIF.");
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("Slika može biti maksimalno 5 MB.");
+  }
 }
 
 async function uploadManualFile(file) {
@@ -445,14 +465,14 @@ async function saveCms() {
   }
 }
 
-function flash(message) {
+function flash(message, duration = 2800) {
   const note = document.createElement("div");
   note.className = "admin-toast";
   note.setAttribute("role", "status");
   note.setAttribute("aria-live", "polite");
   note.textContent = message;
   document.body.appendChild(note);
-  setTimeout(() => note.remove(), 2800);
+  setTimeout(() => note.remove(), duration);
 }
 
 function renderCmsValidationBanner() {
@@ -771,24 +791,42 @@ function galleryField(item) {
 
   const input = document.createElement("input");
   input.type = "file";
-  input.accept = "image/*";
+  input.accept = ".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif";
   input.multiple = true;
   input.addEventListener("change", async () => {
     const files = Array.from(input.files || []);
     if (!files.length) return;
 
+    input.disabled = true;
+    const failed = [];
+    let uploaded = 0;
+
     try {
       item.gallery = Array.isArray(item.gallery) ? item.gallery : [];
       for (const file of files) {
-        const path = await uploadProductImage(file);
-        item.gallery.push(path);
+        try {
+          validateProductImage(file);
+          const path = await uploadProductImage(file);
+          item.gallery.push(path);
+          uploaded += 1;
+          renderGallery();
+        } catch (error) {
+          failed.push(`${file.name}: ${error.message}`);
+        }
       }
-      renderGallery();
+    } finally {
+      input.disabled = false;
       input.value = "";
-      flash(`${files.length} slika je dodano u galeriju. Ne zaboravite sačuvati CMS.`);
-    } catch (error) {
-      flash(error.message);
     }
+
+    if (failed.length) {
+      const failedPreview = failed.slice(0, 3).join(" | ");
+      const remaining = failed.length > 3 ? ` | Još ${failed.length - 3} neuspjelih.` : "";
+      flash(`${uploaded} od ${files.length} slika je uploadovano. Nisu dodane: ${failedPreview}${remaining}`, 9000);
+      return;
+    }
+
+    flash(`${uploaded} slika je dodano u galeriju. Ne zaboravite sačuvati CMS.`);
   });
 
   wrapper.append(title, note, list, input);

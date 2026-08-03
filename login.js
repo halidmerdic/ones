@@ -26,15 +26,15 @@ function showProfile(user) {
 function redirectAfterLogin() {
   const next = new URLSearchParams(window.location.search).get("next");
   if (!next) {
-    window.location.href = "index.html";
+    window.location.href = "/";
     return;
   }
 
   try {
     const target = new URL(next, window.location.href);
-    window.location.href = target.origin === window.location.origin ? `${target.pathname}${target.search}${target.hash}` : "index.html";
+    window.location.href = target.origin === window.location.origin ? `${target.pathname}${target.search}${target.hash}` : "/";
   } catch (error) {
-    window.location.href = "index.html";
+    window.location.href = "/";
   }
 }
 

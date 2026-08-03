@@ -353,7 +353,7 @@ function setMeta(selector, content) {
 }
 
 function absoluteUrl(path) {
-  return new URL(path || "index.html", window.location.href).href;
+  return new URL(path || "/", window.location.href).href;
 }
 
 function setCanonical(url) {
@@ -412,7 +412,7 @@ function thumbnailButtonsHtml(images) {
       const index = galleryImages.indexOf(image);
       return `
         <button type="button" class="${index === activeImageIndex ? "active" : ""}" data-image="${escapeHtml(image)}">
-          <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} ${index + 1}" loading="lazy" />
+          <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} ${index + 1}" loading="eager" decoding="async" />
         </button>
       `;
     })
@@ -619,7 +619,7 @@ async function init() {
         <div class="login-panel profile-panel">
           <h1>Proizvod nije pronađen</h1>
           <p>Vratite se na katalog i odaberite proizvod.</p>
-          <a class="btn btn-primary" href="index.html#proizvodi">Nazad na proizvode</a>
+          <a class="btn btn-primary" href="/#proizvodi">Nazad na proizvode</a>
         </div>
       `;
       return;

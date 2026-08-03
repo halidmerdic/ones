@@ -361,7 +361,7 @@ function applySectionVisibility() {
 
   Object.entries(navTargets).forEach(([key, hrefs]) => {
     hrefs.forEach((href) => {
-      document.querySelectorAll(`a[href="${href}"], a[href="index.html${href}"]`).forEach((link) => {
+      document.querySelectorAll(`a[href="${href}"], a[href="/${href}"], a[href="index.html${href}"]`).forEach((link) => {
         link.hidden = !sectionEnabled(key);
       });
     });
@@ -887,7 +887,7 @@ function setupComparison() {
   }, new Map());
   const comparableProducts = products.filter((product) => (categoryCounts.get(product.category) || 0) > 1);
   const comparisonSection = qs("#usporedba");
-  const comparisonLinks = document.querySelectorAll('a[href="#usporedba"], a[href="index.html#usporedba"]');
+  const comparisonLinks = document.querySelectorAll('a[href="#usporedba"], a[href="/#usporedba"], a[href="index.html#usporedba"]');
   const available = sectionEnabled("comparison") && comparableProducts.length > 1;
 
   if (comparisonSection) comparisonSection.hidden = !available;

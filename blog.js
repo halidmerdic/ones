@@ -151,7 +151,7 @@ function setMeta(selector, content) {
 }
 
 function absoluteUrl(path) {
-  return new URL(path || "index.html", window.location.href).href;
+  return new URL(path || "/", window.location.href).href;
 }
 
 function setCanonical(url) {
@@ -258,7 +258,7 @@ function renderBlog() {
 
   $("#blogDetail").innerHTML = `
     <article class="blog-article">
-      <a class="btn btn-secondary" href="index.html#blog">Nazad na blog</a>
+      <a class="btn btn-secondary" href="/#blog">Nazad na blog</a>
       ${
         post.image
           ? `<div class="blog-hero-image"><img src="${window.onesEscapeHtml(window.onesSafeUrl(post.image))}" alt="${window.onesEscapeHtml(post.title)}" /></div>`
@@ -288,7 +288,7 @@ async function init() {
         <div class="login-panel profile-panel">
           <h1>Blog nije pronađen</h1>
           <p>Vratite se na listu blogova i odaberite tekst.</p>
-          <a class="btn btn-primary" href="index.html#blog">Nazad na blog</a>
+          <a class="btn btn-primary" href="/#blog">Nazad na blog</a>
         </div>
       `;
       return;

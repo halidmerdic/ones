@@ -495,6 +495,31 @@ function image_source_from_upload(string $path, string $mime)
     return false;
 }
 
+function uploaded_file_or_error(string $key, string $label): array
+{
+    if (!isset($_FILES[$key]) || !is_array($_FILES[$key])) {
+        respond(['ok' => false, 'message' => $label . ' nije poslana.'], 400);
+    }
+
+    $file = $_FILES[$key];
+    $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($error === UPLOAD_ERR_OK) {
+        return $file;
+    }
+
+    $messages = [
+        UPLOAD_ERR_INI_SIZE => $label . ' je veća od limita koji hosting dozvoljava.',
+        UPLOAD_ERR_FORM_SIZE => $label . ' je veća od dozvoljenog limita.',
+        UPLOAD_ERR_PARTIAL => $label . ' je samo djelimično uploadovana. Pokušajte ponovo.',
+        UPLOAD_ERR_NO_FILE => $label . ' nije odabrana.',
+        UPLOAD_ERR_NO_TMP_DIR => 'Hostingu nedostaje privremeni folder za upload.',
+        UPLOAD_ERR_CANT_WRITE => 'Hosting nije mogao zapisati datoteku na disk.',
+        UPLOAD_ERR_EXTENSION => 'Hosting je zaustavio upload datoteke.',
+    ];
+
+    respond(['ok' => false, 'message' => $messages[$error] ?? 'Upload nije uspio.'], 400);
+}
+
 function save_optimized_image(array $file, string $folder, string $prefix, int $maxWidth, int $maxHeight): array
 {
     $maxSize = 5 * 1024 * 1024;
@@ -529,7 +554,7 @@ function save_optimized_image(array $file, string $folder, string $prefix, int $
         $name = $prefix . '-' . date('YmdHis') . '-' . bin2hex(random_bytes(4)) . '.' . $extensions[$mime];
         $target = $dir . DIRECTORY_SEPARATOR . $name;
 
-        if (!move_uploaded_file($file['tmp_name'], $target)) {
+        if (!move_uploaded_file($file['tmp_name'], $target) || !is_file($target) || filesize($target) === 0) {
             respond(['ok' => false, 'message' => 'Upload nije uspio.'], 500);
         }
 
@@ -573,6 +598,11 @@ function save_optimized_image(array $file, string $folder, string $prefix, int $
     imagedestroy($source);
     imagedestroy($targetImage);
 
+    if (!is_file($target) || filesize($target) === 0 || @getimagesize($target) === false) {
+        @unlink($target);
+        respond(['ok' => false, 'message' => 'Slika je obrađena, ali spremljena datoteka nije ispravna.'], 500);
+    }
+
     return [
         'path' => 'uploads/' . $folder . '/' . $name,
         'name' => $name,
@@ -585,20 +615,12 @@ function save_optimized_image(array $file, string $folder, string $prefix, int $
 
 function upload_product_image(): array
 {
-    if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-        respond(['ok' => false, 'message' => 'Slika nije poslana.'], 400);
-    }
-
-    return save_optimized_image($_FILES['image'], 'products', 'product', 1200, 1200);
+    return save_optimized_image(uploaded_file_or_error('image', 'Slika'), 'products', 'product', 1200, 1200);
 }
 
 function upload_blog_image(): array
 {
-    if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-        respond(['ok' => false, 'message' => 'Slika nije poslana.'], 400);
-    }
-
-    return save_optimized_image($_FILES['image'], 'blogs', 'blog', 1600, 900);
+    return save_optimized_image(uploaded_file_or_error('image', 'Slika'), 'blogs', 'blog', 1600, 900);
 }
 
 function upload_manual_file(): array

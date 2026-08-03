@@ -137,7 +137,7 @@ try {
 }
 $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 $xml .= "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
-$xml .= sitemap_url($base . '/index.html', '1.0', 'daily');
+$xml .= sitemap_url($base . '/', '1.0', 'daily');
 $xml .= sitemap_url($base . '/privacy.html', '0.3', 'yearly');
 $xml .= sitemap_url($base . '/terms.html', '0.3', 'yearly');
 

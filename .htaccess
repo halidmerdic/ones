@@ -1,6 +1,25 @@
 Options -Indexes
 DirectoryIndex index.html
 
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Keep one public homepage URL for SEO and a cleaner address bar.
+  RewriteCond %{HTTP_HOST} ^(?:www\.)?ones\.ba$ [NC]
+  RewriteCond %{THE_REQUEST} \s/+index\.html(?:[?\s]) [NC]
+  RewriteRule ^index\.html$ https://ones.ba/ [R=301,L,NE,QSD]
+
+  # Canonicalize the www subdomain to the secure apex domain.
+  RewriteCond %{HTTP_HOST} ^www\.ones\.ba$ [NC]
+  RewriteRule ^ https://ones.ba%{REQUEST_URI} [R=301,L,NE]
+
+  # Force HTTPS without looping behind a reverse proxy.
+  RewriteCond %{HTTP_HOST} ^ones\.ba$ [NC]
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+  RewriteRule ^ https://ones.ba%{REQUEST_URI} [R=301,L,NE]
+</IfModule>
+
 <FilesMatch "(\.sqlite|\.sqlite-|\.db|\.env|\.log|\.json|\.sql|README\.md|DEPLOYMENT\.md)$">
   Require all denied
 </FilesMatch>

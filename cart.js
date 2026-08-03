@@ -193,7 +193,7 @@ function renderCart() {
       <article class="login-panel profile-panel">
         <h2>Korpa je prazna</h2>
         <p>Dodajte proizvod iz kataloga da ga sačuvate za upit.</p>
-        <a class="btn btn-primary" href="index.html#proizvodi">Pogledaj proizvode</a>
+        <a class="btn btn-primary" href="/#proizvodi">Pogledaj proizvode</a>
       </article>
     `;
     $("#cartSummaryText").textContent = "Trenutno nema proizvoda u korpi.";
