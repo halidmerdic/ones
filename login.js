@@ -120,7 +120,7 @@ $("#customerLogoutBtn").addEventListener("click", async () => {
 
 async function initLogin() {
   try {
-    const data = await api("customer-status");
+    const data = (await window.onesCustomerStatus?.()) || (await api("customer-status"));
     if (data.loggedIn && data.user) {
       redirectAfterLogin();
     }

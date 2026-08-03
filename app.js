@@ -495,7 +495,7 @@ function setupAccountMenu() {
 
 async function loadCustomerStatus() {
   try {
-    const data = await api("customer-status");
+    const data = (await window.onesCustomerStatus?.()) || (await api("customer-status"));
     currentCustomer = data.loggedIn ? data.user : null;
     rememberCustomerPreview(currentCustomer);
     currentFavorites = new Set(Array.isArray(data.favorites) ? data.favorites : []);
@@ -1297,6 +1297,7 @@ function setupTrustStripScroller() {
 
 async function init() {
   restoreCartCountPreview();
+  const accountReady = loadCustomerStatus().then(loadCartCount);
   const cmsLoaded = await loadCmsFromDatabase();
   const isLocalDevelopment = ["localhost", "127.0.0.1"].includes(window.location.hostname);
   if (!cmsLoaded && !isLocalDevelopment) {
@@ -1315,6 +1316,7 @@ async function init() {
         </article>
       `;
     }
+    await accountReady;
     restoreHashScroll();
     return;
   }
@@ -1335,9 +1337,8 @@ async function init() {
   setupMobileNav();
   setupAccountMenu();
   setupTrustStripScroller();
-  await loadCustomerStatus();
+  await accountReady;
   if (sectionEnabled("products")) renderProducts();
-  await loadCartCount();
   restoreHashScroll();
 }
 

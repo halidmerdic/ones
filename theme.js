@@ -65,10 +65,8 @@
     if (pageScope() === "admin" || location.protocol === "file:") return;
 
     try {
-      const response = await fetch("api.php?action=customer-status", { cache: "no-store" });
-      if (!response.ok) return;
-
-      const data = await response.json();
+      const data = await loadCustomerStatus();
+      if (!data) return;
       const nextKey = resolveStorageKey(data.loggedIn ? data.user : null);
       if (nextKey === storageKey) return;
 
@@ -81,6 +79,24 @@
     }
   }
 
+  function loadCustomerStatus() {
+    if (pageScope() === "admin" || location.protocol === "file:") return Promise.resolve(null);
+    if (window.__onesCustomerStatusPromise) return window.__onesCustomerStatusPromise;
+
+    window.__onesCustomerStatusPromise = fetch("api.php?action=customer-status", {
+      cache: "no-store",
+      credentials: "same-origin",
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const data = await response.json();
+        return data?.ok ? data : null;
+      })
+      .catch(() => null);
+
+    return window.__onesCustomerStatusPromise;
+  }
+
   window.onesTheme = {
     toggle() {
       const current = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
@@ -91,6 +107,7 @@
     },
     apply: applyTheme,
   };
+  window.onesCustomerStatus = loadCustomerStatus;
 
   applyTheme(preferredTheme());
   resolveCustomerTheme();

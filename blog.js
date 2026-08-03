@@ -77,7 +77,7 @@ function updateAccountLink() {
 
 async function loadCustomerStatus() {
   try {
-    const data = await api("customer-status");
+    const data = (await window.onesCustomerStatus?.()) || (await api("customer-status"));
     currentCustomer = data.loggedIn ? data.user : null;
   } catch {
     currentCustomer = null;
@@ -86,6 +86,11 @@ async function loadCustomerStatus() {
 }
 
 async function loadCartCount() {
+  if (!currentCustomer) {
+    updateCartCount(0);
+    return;
+  }
+
   try {
     const data = await api("cart");
     updateCartCount(data.cart.count);
@@ -271,8 +276,7 @@ async function init() {
   try {
     setupAccountMenu();
     setupMobileNav();
-    await loadCustomerStatus();
-    await loadCartCount();
+    const accountReady = loadCustomerStatus().then(loadCartCount);
 
     const requestedId = new URLSearchParams(window.location.search).get("id");
     const data = await api("cms");
@@ -289,6 +293,8 @@ async function init() {
       `;
       return;
     }
+
+    await accountReady;
 
     applyBlogSeo();
     renderBlog();

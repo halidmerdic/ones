@@ -84,7 +84,7 @@ function rememberCustomerPreview(user) {
 
 async function loadCustomerStatus() {
   try {
-    const data = await api("customer-status");
+    const data = (await window.onesCustomerStatus?.()) || (await api("customer-status"));
     currentCustomer = data.loggedIn ? data.user : null;
     rememberCustomerPreview(currentCustomer);
   } catch {
@@ -607,8 +607,7 @@ async function init() {
     setupAccountMenu();
     setupMobileNav();
     restoreCartCountPreview();
-    await loadCustomerStatus();
-    await loadCartCount();
+    const accountReady = loadCustomerStatus().then(loadCartCount);
 
     const id = new URLSearchParams(window.location.search).get("id");
     const data = await api("cms");
@@ -625,6 +624,8 @@ async function init() {
       `;
       return;
     }
+
+    await accountReady;
 
     applyProductSeo();
     renderProduct();
