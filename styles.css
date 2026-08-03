@@ -2315,11 +2315,17 @@ select {
     padding: 12px 0 16px;
     margin-bottom: 26px;
     mask-image: none;
-    overflow-x: auto;
+    overflow-x: hidden;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    user-select: none;
+    cursor: grab;
+  }
+
+  .trust-strip.is-dragging {
+    cursor: grabbing;
   }
 
   .trust-strip::-webkit-scrollbar {
@@ -2333,8 +2339,7 @@ select {
     flex-wrap: nowrap;
     gap: 10px;
     animation: none !important;
-    transform: none !important;
-    will-change: auto;
+    will-change: transform;
     padding-inline: 14px;
   }
 

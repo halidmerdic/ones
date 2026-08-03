@@ -1094,58 +1094,49 @@ function setupTrustStripScroller() {
 
   strip.dataset.scrollerReady = "true";
   const mobileQuery = window.matchMedia("(max-width: 640px)");
+  const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   let frameId = 0;
   let lastTime = 0;
+  let segmentWidth = 0;
+  let position = 0;
+  let dragStartX = 0;
+  let dragStartPosition = 0;
+  let lastPointerX = 0;
+  let lastPointerTime = 0;
+  let dragVelocity = 0;
   let pausedUntil = 0;
-  let isNormalizing = false;
-  let isAutoScrolling = false;
-  let ignoreScrollUntil = 0;
-  let virtualPosition = 0;
-  let userInteracting = false;
-
-  const pauseForUser = () => {
-    pausedUntil = performance.now() + 2400;
-  };
+  let activePointerId = null;
+  let isDragging = false;
 
   const ensureLoopSegments = () => {
     const sourceGroup = track.querySelector(".trust-group");
     if (!sourceGroup) return;
 
-    while (track.querySelectorAll(".trust-group").length < 11) {
+    while (track.querySelectorAll(".trust-group").length < 3) {
       const clone = sourceGroup.cloneNode(true);
       clone.setAttribute("aria-hidden", "true");
+      clone.dataset.trustClone = "true";
       track.appendChild(clone);
     }
   };
 
-  const getSegmentWidth = () => {
+  const removeLoopSegments = () => {
+    track.querySelectorAll('[data-trust-clone="true"]').forEach((clone) => clone.remove());
+  };
+
+  const measureSegment = () => {
     const groups = track.querySelectorAll(".trust-group");
-    if (groups.length < 2) return track.scrollWidth / Math.max(groups.length, 1);
-    return groups[1].offsetLeft - groups[0].offsetLeft;
+    segmentWidth = groups.length > 1 ? groups[1].offsetLeft - groups[0].offsetLeft : 0;
   };
 
   const normalizePosition = () => {
-    const segmentWidth = getSegmentWidth();
-    if (!segmentWidth || segmentWidth <= strip.clientWidth / 2) return;
+    if (!segmentWidth) return;
+    while (position >= segmentWidth * 2) position -= segmentWidth;
+    while (position < segmentWidth) position += segmentWidth;
+  };
 
-    const groupsCount = track.querySelectorAll(".trust-group").length;
-    const middleShift = segmentWidth * Math.floor(groupsCount / 2);
-    const edgeBuffer = segmentWidth * 2;
-    const maxScroll = strip.scrollWidth - strip.clientWidth;
-
-    if (virtualPosition < edgeBuffer) {
-      isNormalizing = true;
-      ignoreScrollUntil = performance.now() + 160;
-      virtualPosition += middleShift;
-      strip.scrollLeft = virtualPosition;
-      isNormalizing = false;
-    } else if (virtualPosition > maxScroll - edgeBuffer) {
-      isNormalizing = true;
-      ignoreScrollUntil = performance.now() + 160;
-      virtualPosition -= middleShift;
-      strip.scrollLeft = virtualPosition;
-      isNormalizing = false;
-    }
+  const renderPosition = () => {
+    track.style.transform = `translate3d(${-position}px, 0, 0)`;
   };
 
   const stop = () => {
@@ -1157,24 +1148,21 @@ function setupTrustStripScroller() {
   const step = (time) => {
     if (!mobileQuery.matches) {
       stop();
-      virtualPosition = 0;
-      strip.scrollLeft = 0;
       return;
     }
 
-    const segmentWidth = getSegmentWidth();
-    if (segmentWidth > strip.clientWidth) {
-      const delta = lastTime ? Math.min(time - lastTime, 40) : 16;
-      if (time > pausedUntil) {
-        isAutoScrolling = true;
-        ignoreScrollUntil = time + 160;
-        virtualPosition += delta * 0.035;
-        strip.scrollLeft = virtualPosition;
-        normalizePosition();
-        requestAnimationFrame(() => {
-          isAutoScrolling = false;
-        });
+    const delta = lastTime ? Math.min(time - lastTime, 40) : 16;
+    if (!isDragging && segmentWidth) {
+      if (Math.abs(dragVelocity) > 0.005) {
+        position += dragVelocity * delta;
+        dragVelocity *= Math.pow(0.92, delta / 16.67);
+        if (Math.abs(dragVelocity) <= 0.005) dragVelocity = 0;
+      } else if (time > pausedUntil && !reducedMotionQuery.matches) {
+        position += delta * 0.045;
       }
+
+      normalizePosition();
+      renderPosition();
     }
 
     lastTime = time;
@@ -1183,69 +1171,85 @@ function setupTrustStripScroller() {
 
   const start = () => {
     stop();
-    ensureLoopSegments();
     if (mobileQuery.matches) {
+      ensureLoopSegments();
       requestAnimationFrame(() => {
-        const segmentWidth = getSegmentWidth();
+        measureSegment();
         if (segmentWidth) {
-          ignoreScrollUntil = performance.now() + 160;
-          const groupsCount = track.querySelectorAll(".trust-group").length;
-          virtualPosition = segmentWidth * Math.floor(groupsCount / 2);
-          strip.scrollLeft = virtualPosition;
+          position = segmentWidth;
+          renderPosition();
         }
         frameId = requestAnimationFrame(step);
       });
     } else {
-      virtualPosition = 0;
-      strip.scrollLeft = 0;
+      removeLoopSegments();
+      segmentWidth = 0;
+      position = 0;
+      dragVelocity = 0;
+      track.style.transform = "";
+      strip.classList.remove("is-dragging");
     }
   };
 
-  const beginUserScroll = () => {
-    userInteracting = true;
-    virtualPosition = strip.scrollLeft;
-    normalizePosition();
-    pauseForUser();
+  const beginDrag = (event) => {
+    if (!mobileQuery.matches || (event.pointerType === "mouse" && event.button !== 0)) return;
+
+    isDragging = true;
+    activePointerId = event.pointerId;
+    dragStartX = event.clientX;
+    dragStartPosition = position;
+    lastPointerX = event.clientX;
+    lastPointerTime = performance.now();
+    dragVelocity = 0;
+    pausedUntil = performance.now() + 1400;
+    strip.classList.add("is-dragging");
+    strip.setPointerCapture?.(event.pointerId);
   };
 
-  const finishUserScroll = () => {
-    userInteracting = false;
-    virtualPosition = strip.scrollLeft;
+  const moveDrag = (event) => {
+    if (!isDragging || event.pointerId !== activePointerId) return;
+
+    const now = performance.now();
+    const elapsed = Math.max(now - lastPointerTime, 1);
+    const pointerDelta = event.clientX - lastPointerX;
+    position = dragStartPosition - (event.clientX - dragStartX);
+    dragVelocity = Math.max(-1.2, Math.min(1.2, -pointerDelta / elapsed));
+    lastPointerX = event.clientX;
+    lastPointerTime = now;
     normalizePosition();
-    pauseForUser();
+    renderPosition();
   };
 
-  strip.addEventListener("pointerdown", beginUserScroll, { passive: true });
-  strip.addEventListener("pointerup", finishUserScroll, { passive: true });
-  strip.addEventListener("pointercancel", finishUserScroll, { passive: true });
-  strip.addEventListener("touchstart", beginUserScroll, { passive: true });
-  strip.addEventListener("touchend", finishUserScroll, { passive: true });
-  strip.addEventListener("wheel", pauseForUser, { passive: true });
-  strip.addEventListener(
-    "scroll",
-    () => {
-      if (!mobileQuery.matches || isNormalizing) return;
+  const finishDrag = (event) => {
+    if (!isDragging || event.pointerId !== activePointerId) return;
 
-      const currentPosition = strip.scrollLeft;
-      const segmentWidth = getSegmentWidth();
-      const edgeBuffer = segmentWidth * 2;
-      const maxScroll = strip.scrollWidth - strip.clientWidth;
+    isDragging = false;
+    activePointerId = null;
+    pausedUntil = performance.now() + 1400;
+    strip.classList.remove("is-dragging");
+    strip.releasePointerCapture?.(event.pointerId);
+  };
 
-      if (segmentWidth && (currentPosition < edgeBuffer || currentPosition > maxScroll - edgeBuffer)) {
-        virtualPosition = currentPosition;
-        normalizePosition();
-        return;
-      }
+  const moveWithWheel = (event) => {
+    if (!mobileQuery.matches || Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+    event.preventDefault();
+    position += event.deltaX;
+    dragVelocity = 0;
+    pausedUntil = performance.now() + 1400;
+    normalizePosition();
+    renderPosition();
+  };
 
-      if (isAutoScrolling || performance.now() < ignoreScrollUntil) return;
-      virtualPosition = strip.scrollLeft;
-      pauseForUser();
-      if (!userInteracting) requestAnimationFrame(normalizePosition);
-    },
-    { passive: true },
-  );
+  strip.addEventListener("pointerdown", beginDrag);
+  strip.addEventListener("pointermove", moveDrag);
+  strip.addEventListener("pointerup", finishDrag);
+  strip.addEventListener("pointercancel", finishDrag);
+  strip.addEventListener("wheel", moveWithWheel, { passive: false });
   window.addEventListener("resize", start);
   mobileQuery.addEventListener?.("change", start);
+  reducedMotionQuery.addEventListener?.("change", () => {
+    dragVelocity = 0;
+  });
   start();
 }
 
