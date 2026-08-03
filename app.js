@@ -1087,6 +1087,168 @@ function restoreHashScroll() {
   });
 }
 
+function setupTrustStripScroller() {
+  const strip = qs(".trust-strip");
+  const track = qs(".trust-track");
+  if (!strip || !track || strip.dataset.scrollerReady === "true") return;
+
+  strip.dataset.scrollerReady = "true";
+  const mobileQuery = window.matchMedia("(max-width: 640px)");
+  let frameId = 0;
+  let lastTime = 0;
+  let pausedUntil = 0;
+  let isNormalizing = false;
+  let isAutoScrolling = false;
+  let ignoreScrollUntil = 0;
+  let virtualPosition = 0;
+  let userInteracting = false;
+
+  const pauseForUser = () => {
+    pausedUntil = performance.now() + 2400;
+  };
+
+  const ensureLoopSegments = () => {
+    const sourceGroup = track.querySelector(".trust-group");
+    if (!sourceGroup) return;
+
+    while (track.querySelectorAll(".trust-group").length < 11) {
+      const clone = sourceGroup.cloneNode(true);
+      clone.setAttribute("aria-hidden", "true");
+      track.appendChild(clone);
+    }
+  };
+
+  const getSegmentWidth = () => {
+    const groups = track.querySelectorAll(".trust-group");
+    if (groups.length < 2) return track.scrollWidth / Math.max(groups.length, 1);
+    return groups[1].offsetLeft - groups[0].offsetLeft;
+  };
+
+  const normalizePosition = () => {
+    const segmentWidth = getSegmentWidth();
+    if (!segmentWidth || segmentWidth <= strip.clientWidth / 2) return;
+
+    const groupsCount = track.querySelectorAll(".trust-group").length;
+    const middleShift = segmentWidth * Math.floor(groupsCount / 2);
+    const edgeBuffer = segmentWidth * 2;
+    const maxScroll = strip.scrollWidth - strip.clientWidth;
+
+    if (virtualPosition < edgeBuffer) {
+      isNormalizing = true;
+      ignoreScrollUntil = performance.now() + 160;
+      virtualPosition += middleShift;
+      strip.scrollLeft = virtualPosition;
+      isNormalizing = false;
+    } else if (virtualPosition > maxScroll - edgeBuffer) {
+      isNormalizing = true;
+      ignoreScrollUntil = performance.now() + 160;
+      virtualPosition -= middleShift;
+      strip.scrollLeft = virtualPosition;
+      isNormalizing = false;
+    }
+  };
+
+  const stop = () => {
+    if (frameId) cancelAnimationFrame(frameId);
+    frameId = 0;
+    lastTime = 0;
+  };
+
+  const step = (time) => {
+    if (!mobileQuery.matches) {
+      stop();
+      virtualPosition = 0;
+      strip.scrollLeft = 0;
+      return;
+    }
+
+    const segmentWidth = getSegmentWidth();
+    if (segmentWidth > strip.clientWidth) {
+      const delta = lastTime ? Math.min(time - lastTime, 40) : 16;
+      if (time > pausedUntil) {
+        isAutoScrolling = true;
+        ignoreScrollUntil = time + 160;
+        virtualPosition += delta * 0.035;
+        strip.scrollLeft = virtualPosition;
+        normalizePosition();
+        requestAnimationFrame(() => {
+          isAutoScrolling = false;
+        });
+      }
+    }
+
+    lastTime = time;
+    frameId = requestAnimationFrame(step);
+  };
+
+  const start = () => {
+    stop();
+    ensureLoopSegments();
+    if (mobileQuery.matches) {
+      requestAnimationFrame(() => {
+        const segmentWidth = getSegmentWidth();
+        if (segmentWidth) {
+          ignoreScrollUntil = performance.now() + 160;
+          const groupsCount = track.querySelectorAll(".trust-group").length;
+          virtualPosition = segmentWidth * Math.floor(groupsCount / 2);
+          strip.scrollLeft = virtualPosition;
+        }
+        frameId = requestAnimationFrame(step);
+      });
+    } else {
+      virtualPosition = 0;
+      strip.scrollLeft = 0;
+    }
+  };
+
+  const beginUserScroll = () => {
+    userInteracting = true;
+    virtualPosition = strip.scrollLeft;
+    normalizePosition();
+    pauseForUser();
+  };
+
+  const finishUserScroll = () => {
+    userInteracting = false;
+    virtualPosition = strip.scrollLeft;
+    normalizePosition();
+    pauseForUser();
+  };
+
+  strip.addEventListener("pointerdown", beginUserScroll, { passive: true });
+  strip.addEventListener("pointerup", finishUserScroll, { passive: true });
+  strip.addEventListener("pointercancel", finishUserScroll, { passive: true });
+  strip.addEventListener("touchstart", beginUserScroll, { passive: true });
+  strip.addEventListener("touchend", finishUserScroll, { passive: true });
+  strip.addEventListener("wheel", pauseForUser, { passive: true });
+  strip.addEventListener(
+    "scroll",
+    () => {
+      if (!mobileQuery.matches || isNormalizing) return;
+
+      const currentPosition = strip.scrollLeft;
+      const segmentWidth = getSegmentWidth();
+      const edgeBuffer = segmentWidth * 2;
+      const maxScroll = strip.scrollWidth - strip.clientWidth;
+
+      if (segmentWidth && (currentPosition < edgeBuffer || currentPosition > maxScroll - edgeBuffer)) {
+        virtualPosition = currentPosition;
+        normalizePosition();
+        return;
+      }
+
+      if (isAutoScrolling || performance.now() < ignoreScrollUntil) return;
+      virtualPosition = strip.scrollLeft;
+      pauseForUser();
+      if (!userInteracting) requestAnimationFrame(normalizePosition);
+    },
+    { passive: true },
+  );
+  window.addEventListener("resize", start);
+  mobileQuery.addEventListener?.("change", start);
+  start();
+}
+
 async function init() {
   restoreCartCountPreview();
   const cmsLoaded = await loadCmsFromDatabase();
@@ -1094,6 +1256,7 @@ async function init() {
   if (!cmsLoaded && !isLocalDevelopment) {
     setupMobileNav();
     setupAccountMenu();
+    setupTrustStripScroller();
     const filters = qs("#filters");
     const productGrid = qs("#productGrid");
     if (filters) filters.replaceChildren();
@@ -1125,6 +1288,7 @@ async function init() {
   if (sectionEnabled("contact")) setupContactLinks();
   setupMobileNav();
   setupAccountMenu();
+  setupTrustStripScroller();
   await loadCustomerStatus();
   if (sectionEnabled("products")) renderProducts();
   await loadCartCount();
