@@ -1100,6 +1100,7 @@ function setupTrustStripScroller() {
   let segmentWidth = 0;
   let position = 0;
   let dragStartX = 0;
+  let dragStartY = 0;
   let dragStartPosition = 0;
   let lastPointerX = 0;
   let lastPointerTime = 0;
@@ -1107,6 +1108,7 @@ function setupTrustStripScroller() {
   let pausedUntil = 0;
   let activePointerId = null;
   let isDragging = false;
+  let gestureDirection = "idle";
 
   const ensureLoopSegments = () => {
     const sourceGroup = track.querySelector(".trust-group");
@@ -1194,26 +1196,44 @@ function setupTrustStripScroller() {
   const beginDrag = (event) => {
     if (!mobileQuery.matches || (event.pointerType === "mouse" && event.button !== 0)) return;
 
-    isDragging = true;
     activePointerId = event.pointerId;
     dragStartX = event.clientX;
+    dragStartY = event.clientY;
     dragStartPosition = position;
     lastPointerX = event.clientX;
     lastPointerTime = performance.now();
     dragVelocity = 0;
     pausedUntil = performance.now() + 1400;
-    strip.classList.add("is-dragging");
-    strip.setPointerCapture?.(event.pointerId);
+    gestureDirection = "pending";
   };
 
   const moveDrag = (event) => {
-    if (!isDragging || event.pointerId !== activePointerId) return;
+    if (event.pointerId !== activePointerId || gestureDirection === "vertical") return;
+
+    const totalX = event.clientX - dragStartX;
+    const totalY = event.clientY - dragStartY;
+
+    if (gestureDirection === "pending") {
+      if (Math.max(Math.abs(totalX), Math.abs(totalY)) < 10) return;
+
+      if (Math.abs(totalY) >= Math.abs(totalX) * 0.85) {
+        gestureDirection = "vertical";
+        dragVelocity = 0;
+        return;
+      }
+
+      gestureDirection = "horizontal";
+      isDragging = true;
+      strip.classList.add("is-dragging");
+      strip.setPointerCapture?.(event.pointerId);
+    }
 
     const now = performance.now();
     const elapsed = Math.max(now - lastPointerTime, 1);
     const pointerDelta = event.clientX - lastPointerX;
-    position = dragStartPosition - (event.clientX - dragStartX);
-    dragVelocity = Math.max(-1.2, Math.min(1.2, -pointerDelta / elapsed));
+    position = dragStartPosition - totalX;
+    const instantVelocity = Math.max(-0.65, Math.min(0.65, -pointerDelta / elapsed));
+    dragVelocity = dragVelocity * 0.7 + instantVelocity * 0.3;
     lastPointerX = event.clientX;
     lastPointerTime = now;
     normalizePosition();
@@ -1221,13 +1241,16 @@ function setupTrustStripScroller() {
   };
 
   const finishDrag = (event) => {
-    if (!isDragging || event.pointerId !== activePointerId) return;
+    if (event.pointerId !== activePointerId) return;
 
+    const keepInertia = gestureDirection === "horizontal" && event.type !== "pointercancel";
+    if (!keepInertia) dragVelocity = 0;
     isDragging = false;
     activePointerId = null;
+    gestureDirection = "idle";
     pausedUntil = performance.now() + 1400;
     strip.classList.remove("is-dragging");
-    strip.releasePointerCapture?.(event.pointerId);
+    if (strip.hasPointerCapture?.(event.pointerId)) strip.releasePointerCapture(event.pointerId);
   };
 
   const moveWithWheel = (event) => {
@@ -1245,6 +1268,17 @@ function setupTrustStripScroller() {
   strip.addEventListener("pointerup", finishDrag);
   strip.addEventListener("pointercancel", finishDrag);
   strip.addEventListener("wheel", moveWithWheel, { passive: false });
+
+  const pauseForPageScroll = () => {
+    if (!mobileQuery.matches || gestureDirection === "horizontal") return;
+    pausedUntil = performance.now() + 220;
+    dragVelocity = 0;
+  };
+
+  document.addEventListener("touchstart", pauseForPageScroll, { passive: true });
+  document.addEventListener("touchmove", pauseForPageScroll, { passive: true });
+  document.addEventListener("touchend", pauseForPageScroll, { passive: true });
+  window.addEventListener("scroll", pauseForPageScroll, { passive: true });
   window.addEventListener("resize", start);
   mobileQuery.addEventListener?.("change", start);
   reducedMotionQuery.addEventListener?.("change", () => {

@@ -2340,6 +2340,8 @@ select {
     gap: 10px;
     animation: none !important;
     will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
     padding-inline: 14px;
   }
 
