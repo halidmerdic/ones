@@ -17,6 +17,11 @@
     <meta name="theme-color" content="#111216" />
     <link rel="canonical" href="https://ones.ba/" />
     <script>
+      if (window.location.hash === "#pocetna") {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
+    </script>
+    <script>
       (function () {
         try {
           const base = "onesTheme";
@@ -42,11 +47,11 @@
         } catch (error) {}
       })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260803-trust-slider-8" />
+    <link rel="stylesheet" href="styles.css?v=20260808-card-new-tab-2" />
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="#pocetna" aria-label="oneS početna">
+      <a class="brand" href="/" aria-label="oneS početna">
         <img src="assets/ones-logo.webp" alt="oneS logo" />
       </a>
       <nav class="nav" aria-label="Glavna navigacija">
@@ -154,7 +159,7 @@
         <div class="coming-grid" id="comingGrid"></div>
       </section> -->
 
-      <section class="section section-split" id="usporedba">
+      <section class="section section-split compact-compare-section" id="usporedba">
         <div class="section-heading">
           <p class="eyebrow">Usporedba</p>
           <h2>Brzo uporedite karakteristike</h2>
@@ -211,7 +216,7 @@
         <div class="manual-list" id="manualList"></div>
       </section>
 
-      <section class="section section-split" id="dostava">
+      <section class="section section-split compact-policy-section" id="dostava">
         <div class="section-heading">
           <p class="eyebrow">Dostava i povrat</p>
           <h2>Jednostavan upit, jasni uslovi</h2>
@@ -301,7 +306,7 @@
     </div>
 
     <nav class="bottom-mobile-nav" aria-label="Brza mobilna navigacija">
-      <a href="#pocetna" class="active"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8"></path><path d="M5.5 9.8V21h13V9.8"></path><path d="M9.5 21v-6h5v6"></path></svg></span><strong>Pocetna</strong></a>
+      <a href="/" data-section="pocetna" class="active"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8"></path><path d="M5.5 9.8V21h13V9.8"></path><path d="M9.5 21v-6h5v6"></path></svg></span><strong>Pocetna</strong></a>
       <a href="#proizvodi"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4z"></path><path d="M13 4h7v7h-7z"></path><path d="M4 13h7v7H4z"></path><path d="M13 13h7v7h-7z"></path></svg></span><strong>Proizvodi</strong></a>
       <a href="cart.html"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 11h10l2-8H7"></path><path d="M9 20h.1"></path><path d="M17 20h.1"></path></svg></span><strong>Korpa</strong><em class="nav-count cart-count-sync" hidden>0</em></a>
       <a href="login.html" id="bottomAccountLink"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span><strong>Profil</strong></a>
@@ -309,6 +314,6 @@
 
     <script src="theme.js?v=20260803-load-1"></script>
     <script src="api-client.js?v=20260723-priority-2"></script>
-    <script src="app.js?v=20260803-canonical-url-1"></script>
+    <script src="app.js?v=20260808-card-new-tab-1"></script>
   </body>
 </html>

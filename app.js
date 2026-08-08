@@ -22,6 +22,9 @@
     contact: true,
     footer: true,
   },
+  settings: {
+    productGridColumns: 4,
+  },
   categories: [
     {
       name: "Električni romobili",
@@ -98,6 +101,7 @@
       title: "Kako odabrati električni romobil za gradsku vožnju",
       text: "Savjeti o dometu, brzini, bateriji, težini i održavanju.",
       tag: "Romobili",
+      enabled: true,
     },
   ],
   faq: [
@@ -133,6 +137,7 @@ async function loadCmsFromDatabase() {
         ...data.cms,
         contact: { ...cms.contact, ...(data.cms.contact || {}) },
         sections: { ...cms.sections, ...(data.cms.sections || {}) },
+        settings: { ...cms.settings, ...(data.cms.settings || {}) },
       };
       return true;
     }
@@ -360,6 +365,10 @@ function applySectionVisibility() {
   };
 
   Object.entries(navTargets).forEach(([key, hrefs]) => {
+    document.querySelectorAll(`[data-section-key="${key}"]`).forEach((link) => {
+      link.hidden = !sectionEnabled(key);
+    });
+
     hrefs.forEach((href) => {
       document.querySelectorAll(`a[href="${href}"], a[href="/${href}"], a[href="index.html${href}"]`).forEach((link) => {
         link.hidden = !sectionEnabled(key);
@@ -640,6 +649,12 @@ function setupClickableCards() {
       window.location.href = card.dataset.cardUrl;
     });
 
+    card.addEventListener("auxclick", (event) => {
+      if (event.button !== 1) return;
+      if (event.target.closest("a, button, input, select, textarea")) return;
+      window.open(card.dataset.cardUrl, "_blank", "noopener");
+    });
+
     card.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       if (event.target.closest("a, button, input, select, textarea")) return;
@@ -651,17 +666,24 @@ function setupClickableCards() {
 
 function renderProducts() {
   const products = publicProducts();
+  const grid = qs("#productGrid");
+  if (!grid) return;
+
   const visible =
     activeCategory === "Sve"
       ? products
       : products.filter((product) => product.category === activeCategory);
 
-  qs("#productGrid").innerHTML = visible
+  const gridColumns = Number(cms.settings?.productGridColumns) === 3 ? 3 : 4;
+  grid.dataset.columns = String(gridColumns);
+  grid.innerHTML = visible
     .map((product) => {
       const favoriteActive = currentFavorites.has(product.id);
+      const url = productUrl(product);
       return `
-        <article class="product-card clickable-card" data-card-url="${productUrl(product)}" role="link" tabindex="0" aria-label="Otvori proizvod ${escapeHtml(product.name)}">
-          <a class="product-visual ${product.tone === "red" ? "red" : "light"}" href="${productUrl(product)}">
+        <article class="product-card clickable-card" data-card-url="${url}" role="link" tabindex="0" aria-label="Otvori proizvod ${escapeHtml(product.name)}">
+          <a class="card-open-link" href="${url}" aria-label="Otvori proizvod ${escapeHtml(product.name)}"></a>
+          <a class="product-visual ${product.tone === "red" ? "red" : "light"}" href="${url}">
             <div>
               <span>${escapeHtml(product.category)}</span>
               <h3>${escapeHtml(product.name)}</h3>
@@ -842,9 +864,11 @@ function renderBlogs() {
               ? `<a class="blog-card-image" href="${blogUrl(post, index)}"><img src="${escapeHtml(window.onesSafeUrl(post.image))}" alt="${escapeHtml(post.title)}" loading="lazy" /></a>`
               : `<a class="blog-card-image empty" href="${blogUrl(post, index)}"><span>oneS blog</span></a>`
           }
-          <span class="badge red">${escapeHtml(post.tag)}</span>
-          <h3>${escapeHtml(post.title)}</h3>
-          <div class="rich-content blog-content">${window.onesSanitizeRichHtml(post.text)}</div>
+          <div class="blog-card-copy">
+            <span class="badge red">${escapeHtml(post.tag || "Blog")}</span>
+            <h3>${escapeHtml(post.title)}</h3>
+            <div class="rich-content blog-content">${window.onesSanitizeRichHtml(post.text)}</div>
+          </div>
         </article>
       `
     )
@@ -1018,8 +1042,9 @@ function setupBottomNavScrollSpy() {
   const sectionLinks = links
     .map((link) => {
       const url = new URL(link.getAttribute("href"), window.location.href);
-      const target = normalizePath(url.pathname) === currentPath && url.hash
-        ? document.getElementById(url.hash.slice(1))
+      const targetId = url.hash.slice(1) || link.dataset.section || "";
+      const target = normalizePath(url.pathname) === currentPath && targetId
+        ? document.getElementById(targetId)
         : null;
       return target ? { link, target } : null;
     })

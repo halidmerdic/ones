@@ -187,6 +187,9 @@ function default_cms(): array
             'contact' => true,
             'footer' => true,
         ],
+        'settings' => [
+            'productGridColumns' => 4,
+        ],
         'launchChecklist' => [
             ['id' => 'products', 'label' => 'Proizvodi provjereni', 'done' => false],
             ['id' => 'prices', 'label' => 'Cijene, MPC, akcije i rokovi provjereni', 'done' => false],
@@ -234,7 +237,7 @@ function default_cms(): array
             ['name' => 'Online upit', 'address' => 'WhatsApp i Viber podrška za dostupnost', 'hours' => 'Odgovor u radnom vremenu'],
         ],
         'blogs' => [
-            ['title' => 'Kako odabrati električni romobil za gradsku vožnju', 'text' => 'Savjeti o dometu, brzini, bateriji, težini i održavanju.', 'tag' => 'Romobili'],
+            ['title' => 'Kako odabrati električni romobil za gradsku vožnju', 'text' => 'Savjeti o dometu, brzini, bateriji, težini i održavanju.', 'tag' => 'Romobili', 'enabled' => true],
         ],
         'faq' => [
             ['q' => 'Da li mogu kupiti direktno na stranici?', 'a' => 'Trenutno ne. Stranica radi kao katalog, a narudžbe i dostupnost se potvrđuju putem WhatsAppa, Vibera ili prodavnice.'],
@@ -392,6 +395,7 @@ function get_cms(PDO $pdo): array
     $cms = is_array($data) ? array_replace($defaults, $data) : $defaults;
     $cms['contact'] = array_replace($defaults['contact'], is_array($data['contact'] ?? null) ? $data['contact'] : []);
     $cms['sections'] = array_replace($defaults['sections'], is_array($data['sections'] ?? null) ? $data['sections'] : []);
+    $cms['settings'] = array_replace($defaults['settings'], is_array($data['settings'] ?? null) ? $data['settings'] : []);
     foreach (['whatsapp', 'viber'] as $channel) {
         if (($cms['contact'][$channel] ?? '') === '38761000000') {
             $cms['contact'][$channel] = default_cms()['contact'][$channel];

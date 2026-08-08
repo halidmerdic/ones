@@ -29,6 +29,9 @@ const defaultCms = {
     contact: true,
     footer: true,
   },
+  settings: {
+    productGridColumns: 4,
+  },
   launchChecklist: [
     { id: "products", label: "Proizvodi provjereni", done: false },
     { id: "prices", label: "Cijene, MPC, akcije i rokovi provjereni", done: false },
@@ -381,6 +384,7 @@ async function loadCms() {
     cms = { ...structuredClone(defaultCms), ...data.cms };
     cms.contact = { ...structuredClone(defaultCms.contact), ...(data.cms?.contact || {}) };
     cms.sections = { ...structuredClone(defaultCms.sections), ...(data.cms?.sections || {}) };
+    cms.settings = { ...structuredClone(defaultCms.settings), ...(data.cms?.settings || {}) };
     delete cms.sections.productFilters;
     cms.launchChecklist = mergeLaunchChecklist(data.cms?.launchChecklist);
     captureCmsBaseline();
@@ -1232,8 +1236,29 @@ function showPanel() {
 
 function renderSettings() {
   const panel = $('[data-panel="settings"]');
-  panel.innerHTML = "<h2>Kontakt postavke</h2>";
+  panel.innerHTML = "<h2>Postavke</h2>";
   cms.contact = { ...structuredClone(defaultCms.contact), ...(cms.contact || {}) };
+  cms.settings = { ...structuredClone(defaultCms.settings), ...(cms.settings || {}) };
+  panel.append(
+    selectField(
+      "Raspored artikala na stranici",
+      String(cms.settings.productGridColumns || 4),
+      [
+        { value: "4", label: "4 artikla u redu" },
+        { value: "3", label: "3 artikla u redu" },
+      ],
+      (value) => (cms.settings.productGridColumns = Number(value) === 3 ? 3 : 4)
+    )
+  );
+
+  const layoutHint = document.createElement("p");
+  layoutHint.className = "admin-note-text";
+  layoutHint.textContent = "Desktop prikaz: 4 artikla u redu je kompaktniji katalog, 3 artikla u redu ostavlja veće kartice.";
+  panel.appendChild(layoutHint);
+
+  const contactTitle = document.createElement("h3");
+  contactTitle.textContent = "Kontakt postavke";
+  panel.appendChild(contactTitle);
   panel.append(
     field("WhatsApp broj bez plusa", cms.contact.whatsapp, (value) => (cms.contact.whatsapp = value)),
     field("Viber broj bez plusa", cms.contact.viber, (value) => (cms.contact.viber = value)),
@@ -2272,9 +2297,10 @@ function renderBlogs() {
     previewRow.className = "blog-preview-row";
     previewRow.innerHTML = `
       <div>
-        <strong>Pregled bloga</strong>
-        <span>Otvorite javnu stranicu bloga u novom tabu.</span>
+        <strong>Pregled javne stranice bloga</strong>
+        <span>${item.enabled === false ? "Blog je sakriven na stranici." : "Blog je vidljiv na stranici."}</span>
       </div>
+      <span class="admin-status-pill ${item.enabled === false ? "is-muted" : "is-active"}">${item.enabled === false ? "Sakriveno" : "Javno"}</span>
       <a class="btn btn-secondary" href="${blogPreviewUrl(item)}" target="_blank" rel="noreferrer">Otvori blog</a>
     `;
     itemCard.append(previewRow);
