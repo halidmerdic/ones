@@ -442,6 +442,14 @@
   font-weight: 700;
 }
 
+.image-upload-progress {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 800;
+}
+
 .manual-upload-field {
   align-content: start;
 }

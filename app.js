@@ -9,8 +9,10 @@
     hero: true,
     trust: true,
     categories: true,
+    categoryShowcase: false,
     products: true,
     comingSoon: true,
+    comingSoonShowcase: false,
     comparison: true,
     service: true,
     parts: true,
@@ -256,7 +258,15 @@ function productUrl(product) {
 }
 
 function publicProducts() {
-  return (cms.products || []).filter((product) => product.enabled !== false);
+  const enabledCategories = new Set(
+    (cms.categories || [])
+      .filter((category) => category.enabled !== false && String(category.name || "").trim())
+      .map((category) => category.name)
+  );
+
+  return (cms.products || []).filter(
+    (product) => product.enabled !== false && enabledCategories.has(product.category)
+  );
 }
 
 function catalogKeywords() {
@@ -323,9 +333,9 @@ function inquiryUrl(productName, channel = "whatsapp") {
 const sectionMap = {
   hero: ["#pocetna"],
   trust: [".trust-strip"],
-  categories: ["#kategorije"],
+  categoryShowcase: ["#kategorije"],
   products: ["#proizvodi"],
-  comingSoon: ["#uskoro"],
+  comingSoonShowcase: ["#uskoro"],
   comparison: ["#usporedba"],
   service: ["#servis"],
   parts: ["#rezervni-dijelovi"],
@@ -448,11 +458,14 @@ function updateAccountLinks() {
 }
 
 function rememberCustomerPreview(user) {
-  if (user) {
-    localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
-  } else {
+  try {
     localStorage.removeItem(customerPreviewKey);
-  }
+    if (user) {
+      sessionStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
+    } else {
+      sessionStorage.removeItem(customerPreviewKey);
+    }
+  } catch {}
 }
 
 async function logoutCustomer() {
@@ -602,7 +615,7 @@ function renderCategories() {
 
   const usedCategories = new Set(publicProducts().map((product) => product.category).filter(Boolean));
   categoryGrid.innerHTML = (cms.categories || [])
-    .filter((item) => usedCategories.has(item.name))
+    .filter((item) => item.enabled !== false && usedCategories.has(item.name))
     .map(
       (item) => `
         <article class="category-card">
@@ -617,8 +630,7 @@ function renderCategories() {
 function renderFilters() {
   const filters = qs("#filters");
 
-  const enabledCategoryNames = new Set((cms.categories || []).filter((category) => category.enabled !== false).map((category) => category.name));
-  const categories = ["Sve", ...new Set(publicProducts().map((product) => product.category).filter((category) => enabledCategoryNames.has(category)))];
+  const categories = ["Sve", ...new Set(publicProducts().map((product) => product.category).filter(Boolean))];
   if (!categories.includes(activeCategory)) {
     activeCategory = "Sve";
   }
@@ -881,7 +893,7 @@ function renderFaq() {
     .filter((item) => item.enabled !== false)
     .map(
       (item, index) => `
-        <article class="faq-item">
+        <article class="faq-item" data-faq-card="${index}">
           <button class="faq-button" type="button" aria-expanded="${index === 0}" data-faq="${index}">
             <span>${escapeHtml(item.q)}</span>
             <strong>${index === 0 ? "-" : "+"}</strong>
@@ -892,8 +904,9 @@ function renderFaq() {
     )
     .join("");
 
-  document.querySelectorAll("[data-faq]").forEach((button) => {
-    button.addEventListener("click", () => {
+  document.querySelectorAll("[data-faq-card]").forEach((card) => {
+    card.addEventListener("click", () => {
+      const button = card.querySelector("[data-faq]");
       const panel = button.nextElementSibling;
       const isOpen = button.getAttribute("aria-expanded") === "true";
       button.setAttribute("aria-expanded", String(!isOpen));
@@ -1346,12 +1359,12 @@ async function init() {
     return;
   }
   applySectionVisibility();
-  if (sectionEnabled("categories")) renderCategories();
+  if (sectionEnabled("categoryShowcase")) renderCategories();
   if (sectionEnabled("products")) {
     renderFilters();
     renderProducts();
   }
-  if (sectionEnabled("comingSoon")) renderComingSoon();
+  if (sectionEnabled("comingSoonShowcase")) renderComingSoon();
   if (sectionEnabled("parts")) renderParts();
   if (sectionEnabled("manuals")) renderManuals();
   if (sectionEnabled("locations")) renderLocations();
@@ -1372,12 +1385,12 @@ window.addEventListener("storage", async (event) => {
 
   await loadCmsFromDatabase();
   applySectionVisibility();
-  if (sectionEnabled("categories")) renderCategories();
+  if (sectionEnabled("categoryShowcase")) renderCategories();
   if (sectionEnabled("products")) {
     renderFilters();
     renderProducts();
   }
-  if (sectionEnabled("comingSoon")) renderComingSoon();
+  if (sectionEnabled("comingSoonShowcase")) renderComingSoon();
   if (sectionEnabled("parts")) renderParts();
   if (sectionEnabled("manuals")) renderManuals();
   if (sectionEnabled("locations")) renderLocations();

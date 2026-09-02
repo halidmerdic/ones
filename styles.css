@@ -19,6 +19,10 @@
   color-scheme: light;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 /* oneS F-series homepage hero */
 .hero.hero-showcase {
   --hero-bg: #fffdfb;
@@ -1006,7 +1010,7 @@ main section[id] {
 }
 
 .section {
-  padding: clamp(40px, 5vw, 72px) clamp(18px, 6vw, 80px);
+  padding: clamp(32px, 4.2vw, 58px) clamp(18px, 6vw, 80px);
 }
 
 .section-muted {
@@ -1028,11 +1032,16 @@ main section[id] {
   min-width: 0;
 }
 
+.compact-policy-section,
+.compact-compare-section,
+.compact-faq-section {
+  grid-template-columns: minmax(260px, 0.58fr) minmax(0, 1.42fr);
+}
+
 .compact-policy-section {
-  grid-template-columns: minmax(260px, 0.62fr) minmax(0, 1.38fr);
   gap: clamp(24px, 4vw, 56px);
-  padding-top: clamp(30px, 3.8vw, 52px);
-  padding-bottom: clamp(32px, 4vw, 56px);
+  padding-top: clamp(22px, 3vw, 38px);
+  padding-bottom: clamp(26px, 3.4vw, 44px);
 }
 
 .compact-policy-section .section-heading {
@@ -1065,10 +1074,20 @@ main section[id] {
 }
 
 .compact-compare-section {
-  grid-template-columns: minmax(260px, 0.58fr) minmax(0, 1.42fr);
   gap: clamp(24px, 4vw, 56px);
-  padding-top: clamp(32px, 4vw, 56px);
-  padding-bottom: clamp(34px, 4.2vw, 60px);
+  padding-top: clamp(20px, 2.8vw, 34px);
+  padding-bottom: clamp(24px, 3.2vw, 42px);
+}
+
+#blog {
+  padding-top: clamp(24px, 3vw, 38px);
+  padding-bottom: clamp(26px, 3.2vw, 44px);
+}
+
+.compact-faq-section {
+  gap: clamp(24px, 4vw, 56px);
+  padding-top: clamp(24px, 3vw, 38px);
+  padding-bottom: clamp(30px, 3.8vw, 50px);
 }
 
 .compact-compare-section .section-heading {
@@ -2316,6 +2335,10 @@ select {
   margin-top: 10px;
 }
 
+.faq-item {
+  cursor: pointer;
+}
+
 .faq-button {
   width: 100%;
   min-height: 54px;
@@ -2330,11 +2353,12 @@ select {
   color: var(--black);
   font-weight: 900;
   text-align: left;
-  cursor: pointer;
+  cursor: inherit;
 }
 
 .faq-panel {
   padding: 0 18px 18px;
+  cursor: inherit;
 }
 
 .contact-band {
@@ -2490,7 +2514,8 @@ select {
     padding-bottom: 34px;
   }
 
-  .compact-compare-section {
+  .compact-compare-section,
+  .compact-faq-section {
     gap: 22px;
     padding-top: 30px;
     padding-bottom: 34px;
@@ -2986,10 +3011,11 @@ select {
   }
 
   .compact-policy-section,
-  .compact-compare-section {
+  .compact-compare-section,
+  .compact-faq-section {
     gap: 18px;
-    padding-top: 28px;
-    padding-bottom: 32px;
+    padding-top: 24px;
+    padding-bottom: 28px;
   }
 
   .product-detail-page {

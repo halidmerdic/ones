@@ -143,16 +143,20 @@ function updateAccountLink() {
 }
 
 function rememberCustomerPreview(user) {
-  if (user) {
-    localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
-  } else {
+  try {
     localStorage.removeItem(customerPreviewKey);
-  }
+    if (user) {
+      sessionStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
+    } else {
+      sessionStorage.removeItem(customerPreviewKey);
+    }
+  } catch {}
 }
 
 function restoreCustomerPreview() {
   try {
-    const cached = JSON.parse(localStorage.getItem(customerPreviewKey) || "null");
+    localStorage.removeItem(customerPreviewKey);
+    const cached = JSON.parse(sessionStorage.getItem(customerPreviewKey) || "null");
     if (!cached?.name) return;
     currentCustomer = cached;
     updateAccountLink();

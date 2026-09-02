@@ -23,6 +23,17 @@ function showProfile(user) {
   $("#profileTitle").textContent = `Dobrodošli, ${user.name}`;
 }
 
+function rememberCustomerPreview(user) {
+  try {
+    localStorage.removeItem(customerPreviewKey);
+    if (user) {
+      sessionStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
+    } else {
+      sessionStorage.removeItem(customerPreviewKey);
+    }
+  } catch {}
+}
+
 function redirectAfterLogin() {
   const next = new URLSearchParams(window.location.search).get("next");
   if (!next) {
@@ -45,7 +56,7 @@ async function customerLogin() {
       password: $("#loginPassword").value,
     });
     const user = data.user || { name: $("#loginEmail").value, email: $("#loginEmail").value };
-    localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
+    rememberCustomerPreview(user);
     redirectAfterLogin();
   } catch (error) {
     flash(error.message);
@@ -68,7 +79,7 @@ async function customerRegister() {
       website: $("#registerWebsite")?.value || "",
     });
     const user = data.user || { name: $("#registerName").value, email: $("#registerEmail").value };
-    localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
+    rememberCustomerPreview(user);
     redirectAfterLogin();
   } catch (error) {
     flash(error.message);
@@ -110,7 +121,7 @@ setupPasswordToggles();
 $("#customerLogoutBtn").addEventListener("click", async () => {
   try {
     await api("customer-logout", {});
-    localStorage.removeItem(customerPreviewKey);
+    rememberCustomerPreview(null);
     $("#profilePanel").hidden = true;
     flash("Odjavljeni ste.");
   } catch (error) {

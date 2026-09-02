@@ -40,8 +40,29 @@ function Get-HttpStatus {
 $apiLint = & php -l (Join-Path $projectRoot "api.php")
 Assert-True ($LASTEXITCODE -eq 0) "api.php prolazi PHP lint"
 
+$authSecurity = & php (Join-Path $PSScriptRoot "auth-security.php")
+Assert-True ($LASTEXITCODE -eq 0) "lozinke, rate limit i sesijske sigurnosne provjere prolaze"
+
+$storageReliability = & php (Join-Path $PSScriptRoot "storage-reliability.php")
+Assert-True ($LASTEXITCODE -eq 0) "CMS revizije, backup i atomsko spremanje prolaze"
+
+$cmsValidation = & php (Join-Path $PSScriptRoot "validate-cms.php")
+Assert-True ($LASTEXITCODE -eq 0) "postojeći CMS podaci prolaze serversku validaciju"
+
+$networkSecurity = & php (Join-Path $PSScriptRoot "network-security.php")
+Assert-True ($LASTEXITCODE -eq 0) "proxy, HTTPS i IP sigurnosne provjere prolaze"
+
 $sitemapLint = & php -l (Join-Path $projectRoot "sitemap.php")
 Assert-True ($LASTEXITCODE -eq 0) "sitemap.php prolazi PHP lint"
+
+$htaccess = Get-Content -LiteralPath (Join-Path $projectRoot ".htaccess") -Raw -Encoding UTF8
+Assert-True ($htaccess -notmatch 'HTTP:X-Forwarded-Proto') ".htaccess ne vjeruje javno poslanom X-Forwarded-Proto zaglavlju"
+Assert-True ($htaccess -match 'Strict-Transport-Security') ".htaccess postavlja HSTS na HTTPS odgovore"
+Assert-True ($htaccess -match 'api\\\.php\|admin\\\.html\|cart\\\.html\|login\\\.html\|profile\\\.html') ".htaccess izuzima privatne stranice iz keša"
+Assert-True ($htaccess -match 'deploy\|tests') ".htaccess blokira razvojne deploy i tests direktorije"
+
+$uploadHtaccess = Get-Content -LiteralPath (Join-Path $projectRoot "uploads\.htaccess") -Raw -Encoding UTF8
+Assert-True ($uploadHtaccess -match 'php\|phtml\|phar') "uploads folder blokira izvršne PHP datoteke"
 
 $htmlFiles = Get-ChildItem -LiteralPath $projectRoot -Filter "*.html" -File
 foreach ($htmlFile in $htmlFiles) {
@@ -77,7 +98,31 @@ foreach ($htmlFile in $htmlFiles) {
 
 $cms = Invoke-RestMethod -Uri "$BaseUrl/api.php?action=cms" -Method Get
 Assert-True ($cms.ok -eq $true) "javni CMS API odgovara"
+$cmsHeaders = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/api.php?action=cms" -Method Get
+Assert-True ([string]$cmsHeaders.Headers["Cache-Control"] -match 'no-store') "CMS API odgovor se ne kešira"
 Assert-True (@($cms.cms.products).Count -gt 0) "CMS API vraća proizvode"
+Assert-True ($cms.cms.PSObject.Properties.Name -notcontains "launchChecklist") "javni CMS ne izlaže administratorsku kontrolnu listu"
+Assert-True ($cms.cms.contact.PSObject.Properties.Name -notcontains "orderMessageTemplate") "javni CMS ne izlaže interne predloške poruka"
+Assert-True ($cms.cms.contact.PSObject.Properties.Name -notcontains "customerEmailBodyTemplate") "javni CMS ne izlaže interne email predloške"
+
+$enabledCategoryNames = @(
+  $cms.cms.categories |
+    Where-Object { $_.enabled -ne $false -and -not [string]::IsNullOrWhiteSpace([string]$_.name) } |
+    ForEach-Object { [string]$_.name }
+)
+$publicProducts = @(
+  $cms.cms.products |
+    Where-Object { $_.enabled -ne $false -and $enabledCategoryNames -contains [string]$_.category }
+)
+$categoryHiddenProducts = @(
+  $cms.cms.products |
+    Where-Object { $_.enabled -ne $false -and $enabledCategoryNames -notcontains [string]$_.category }
+)
+Assert-True ($publicProducts.Count -gt 0) "CMS ima barem jedan javni proizvod u uključenoj kategoriji"
+foreach ($product in $publicProducts) {
+  Assert-True ($enabledCategoryNames -contains [string]$product.category) "javni proizvod $($product.id) pripada javnoj kategoriji"
+  Assert-True ($product.PSObject.Properties.Name -notcontains "enabled") "javni proizvod $($product.id) ne izlaže internu oznaku vidljivosti"
+}
 
 $csrf = Invoke-RestMethod -Uri "$BaseUrl/api.php?action=csrf-token" -Method Get
 Assert-True ($csrf.ok -eq $true -and $csrf.csrfToken.Length -eq 64) "CSRF endpoint vraća token"
@@ -88,10 +133,31 @@ Assert-True ($resetGetStatus -eq 405) "CMS reset nije dozvoljen GET zahtjevom"
 $loginWithoutCsrfStatus = Get-HttpStatus -Uri "$BaseUrl/api.php?action=admin-login" -Method "POST"
 Assert-True ($loginWithoutCsrfStatus -eq 403) "admin prijava bez CSRF tokena je odbijena"
 
+$adminCmsStatus = Get-HttpStatus -Uri "$BaseUrl/api.php?action=admin-cms"
+Assert-True ($adminCmsStatus -eq 401) "puni CMS zapis nije dostupan bez admin prijave"
+
 $sitemap = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/sitemap.php"
-Assert-True ($sitemap.Content -match '/index\.html') "sitemap sadrži početnu stranicu"
+$normalizedBaseUrl = $BaseUrl.TrimEnd("/")
+$escapedHomeUrl = [regex]::Escape("$normalizedBaseUrl/")
+Assert-True ($sitemap.Content -match "<loc>$escapedHomeUrl</loc>") "sitemap sadrži početnu stranicu"
 Assert-True ($sitemap.Content -match '/privacy\.html') "sitemap sadrži privatnost"
 Assert-True ($sitemap.Content -match '/terms\.html') "sitemap sadrži uslove korištenja"
+
+foreach ($product in $publicProducts) {
+  if ([string]::IsNullOrWhiteSpace([string]$product.id)) {
+    continue
+  }
+  $encodedId = [Uri]::EscapeDataString([string]$product.id)
+  Assert-True ($sitemap.Content -match [regex]::Escape("product.html?id=$encodedId")) "sitemap sadrži javni proizvod $($product.id)"
+}
+
+foreach ($product in $categoryHiddenProducts) {
+  if ([string]::IsNullOrWhiteSpace([string]$product.id)) {
+    continue
+  }
+  $encodedId = [Uri]::EscapeDataString([string]$product.id)
+  Assert-True ($sitemap.Content -notmatch [regex]::Escape("product.html?id=$encodedId")) "sitemap ne sadrži proizvod $($product.id) iz isključene kategorije"
+}
 
 Write-Host ""
 Write-Host "Smoke provjera završena: $checks provjera."

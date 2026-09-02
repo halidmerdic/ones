@@ -16,8 +16,10 @@ const defaultCms = {
     hero: true,
     trust: true,
     categories: true,
+    categoryShowcase: false,
     products: true,
     comingSoon: true,
+    comingSoonShowcase: false,
     comparison: true,
     service: true,
     parts: true,
@@ -85,7 +87,7 @@ const defaultCms = {
     { name: "Online upit", address: "WhatsApp i Viber podrška za dostupnost", hours: "Odgovor u radnom vremenu" },
   ],
   blogs: [
-    { title: "Kako odabrati električni romobil za gradsku vožnju", text: "Savjeti o dometu, brzini, bateriji, težini i održavanju.", tag: "Romobili" },
+    { id: "kako-odabrati-elektricni-romobil", title: "Kako odabrati električni romobil za gradsku vožnju", text: "Savjeti o dometu, brzini, bateriji, težini i održavanju.", tag: "Romobili" },
   ],
   faq: [
     { q: "Da li mogu kupiti direktno na stranici?", a: "Trenutno ne. Stranica radi kao katalog, a narudžbe i dostupnost se potvrđuju putem WhatsAppa, Vibera ili prodavnice." },
@@ -121,6 +123,8 @@ let orderSearchTimer = null;
 let customerSearchTimer = null;
 let passwordNeedsChange = false;
 let cmsBaseline = "";
+let cmsRevision = 0;
+let cmsSaving = false;
 
 const panels = [
   { id: "settings", label: "Postavke" },
@@ -173,7 +177,8 @@ function updateSaveState() {
   if (!saveButton) return;
   const dirty = Boolean(cmsBaseline) && cmsSnapshot() !== cmsBaseline;
   saveButton.classList.toggle("has-unsaved", dirty);
-  saveButton.textContent = dirty ? "Sačuvaj izmjene" : "Sačuvaj CMS";
+  saveButton.disabled = cmsSaving;
+  saveButton.textContent = cmsSaving ? "Spremanje..." : dirty ? "Sačuvaj izmjene" : "Sačuvaj CMS";
   saveButton.title = dirty ? "Postoje nesačuvane izmjene" : "Sve izmjene su sačuvane";
 }
 
@@ -380,7 +385,8 @@ function mergeLaunchChecklist(savedItems) {
 
 async function loadCms() {
   try {
-    const data = await api("cms");
+    const data = await api("admin-cms");
+    cmsRevision = Number(data.revision) || 1;
     cms = { ...structuredClone(defaultCms), ...data.cms };
     cms.contact = { ...structuredClone(defaultCms.contact), ...(data.cms?.contact || {}) };
     cms.sections = { ...structuredClone(defaultCms.sections), ...(data.cms?.sections || {}) };
@@ -415,6 +421,7 @@ async function loadCustomers() {
 }
 
 async function saveCms() {
+  if (cmsSaving) return;
   syncOpenProductSpecs();
 
   if (cms.sections) {
@@ -451,9 +458,12 @@ async function saveCms() {
     return;
   }
 
+  cmsSaving = true;
+  updateSaveState();
   try {
     const editedProductId = editingProductId;
-    const data = await api("save-cms", { cms });
+    const data = await api("save-cms", { cms, revision: cmsRevision });
+    cmsRevision = Number(data.revision) || cmsRevision + 1;
     cms = data.cms;
     captureCmsBaseline();
     renderAll();
@@ -465,7 +475,10 @@ async function saveCms() {
     localStorage.setItem("onesCmsUpdatedAt", String(Date.now()));
     flash(removedEmptyCategories ? `CMS je sacuvan. Uklonjeno praznih kategorija: ${removedEmptyCategories}.` : "CMS je sacuvan u bazi.");
   } catch (error) {
-    flash(error.message);
+    flash(error.message, /međuvremenu|osvježite cms/i.test(error.message) ? 9000 : 2800);
+  } finally {
+    cmsSaving = false;
+    updateSaveState();
   }
 }
 
@@ -797,17 +810,24 @@ function galleryField(item) {
   input.type = "file";
   input.accept = ".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif";
   input.multiple = true;
+  const progress = document.createElement("p");
+  progress.className = "image-upload-progress";
+  progress.hidden = true;
+  progress.setAttribute("role", "status");
+  progress.setAttribute("aria-live", "polite");
   input.addEventListener("change", async () => {
     const files = Array.from(input.files || []);
     if (!files.length) return;
 
     input.disabled = true;
+    progress.hidden = false;
     const failed = [];
     let uploaded = 0;
 
     try {
       item.gallery = Array.isArray(item.gallery) ? item.gallery : [];
-      for (const file of files) {
+      for (const [index, file] of files.entries()) {
+        progress.textContent = `Upload ${index + 1} od ${files.length}: ${file.name}`;
         try {
           validateProductImage(file);
           const path = await uploadProductImage(file);
@@ -824,16 +844,18 @@ function galleryField(item) {
     }
 
     if (failed.length) {
+      progress.textContent = `Završeno: ${uploaded} od ${files.length} slika je uspješno uploadovano.`;
       const failedPreview = failed.slice(0, 3).join(" | ");
       const remaining = failed.length > 3 ? ` | Još ${failed.length - 3} neuspjelih.` : "";
       flash(`${uploaded} od ${files.length} slika je uploadovano. Nisu dodane: ${failedPreview}${remaining}`, 9000);
       return;
     }
 
+    progress.textContent = `Završeno: svih ${uploaded} slika je uploadovano.`;
     flash(`${uploaded} slika je dodano u galeriju. Ne zaboravite sačuvati CMS.`);
   });
 
-  wrapper.append(title, note, list, input);
+  wrapper.append(title, note, list, progress, input);
   renderGallery();
   return wrapper;
 }
@@ -1281,9 +1303,9 @@ function renderSettings() {
 const sectionLabels = {
   hero: "Hero / početni dio",
   trust: "Traka prednosti",
-  categories: "Kategorije",
+  categoryShowcase: "Kategorije",
   products: "Proizvodi",
-  comingSoon: "Proizvodi uskoro",
+  comingSoonShowcase: "Proizvodi uskoro",
   comparison: "Usporedba",
   service: "Servis i podrška",
   parts: "Rezervni dijelovi",
@@ -2376,15 +2398,15 @@ function renderSecurity() {
         <h3>Promjena lozinke</h3>
         <label>
           Trenutna lozinka
-          <input id="adminCurrentPassword" type="password" autocomplete="current-password" />
+          <input id="adminCurrentPassword" type="password" autocomplete="current-password" maxlength="72" />
         </label>
         <label>
-          Nova lozinka
-          <input id="adminNewPassword" type="password" autocomplete="new-password" minlength="12" />
+          Nova lozinka (najmanje 15 znakova)
+          <input id="adminNewPassword" type="password" autocomplete="new-password" minlength="15" maxlength="72" />
         </label>
         <label>
           Ponovite novu lozinku
-          <input id="adminConfirmPassword" type="password" autocomplete="new-password" minlength="12" />
+          <input id="adminConfirmPassword" type="password" autocomplete="new-password" minlength="15" maxlength="72" />
         </label>
         <button class="btn btn-primary" type="button" id="adminPasswordUpdateBtn">Promijeni lozinku</button>
       </article>
@@ -2415,8 +2437,8 @@ function renderSecurity() {
     const newPassword = $("#adminNewPassword").value;
     const confirmPassword = $("#adminConfirmPassword").value;
 
-    if (newPassword.length < 12) {
-      flash("Nova admin lozinka mora imati najmanje 12 znakova.");
+    if (newPassword.length < 15) {
+      flash("Nova admin lozinka mora imati najmanje 15 znakova.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -2557,7 +2579,8 @@ async function adminLogout() {
 async function resetCmsDemo() {
   if (!confirm("Vratiti demo sadržaj?")) return;
   try {
-    const data = await api("reset-cms", {});
+    const data = await api("reset-cms", { revision: cmsRevision });
+    cmsRevision = Number(data.revision) || cmsRevision + 1;
     cms = data.cms;
     await loadCustomers();
     captureCmsBaseline();
@@ -2648,6 +2671,7 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
 
   try {
     const data = await restoreBackupFile(file);
+    cmsRevision = Number(data.revision) || cmsRevision + 1;
     cms = { ...structuredClone(defaultCms), ...data.cms };
     orders = data.orders || [];
     await loadCustomers();
@@ -2663,8 +2687,12 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
 
 window.addEventListener("storage", async (event) => {
   if (event.key !== "onesCmsUpdatedAt" || $("#adminEditor").hidden) return;
+  if (cmsBaseline && cmsSnapshot() !== cmsBaseline) {
+    flash("CMS je promijenjen u drugoj kartici. Vaše nesačuvane izmjene nisu prepisane; osvježite stranicu tek kada ih više ne trebate.", 9000);
+    return;
+  }
 
-    await loadCms();
+  await loadCms();
   await loadOrders();
   await loadCustomers();
   renderAll();
@@ -2675,8 +2703,8 @@ async function initAdmin() {
   try {
     const status = await api("admin-status");
     passwordNeedsChange = Boolean(status.passwordNeedsChange);
-    await loadCms();
     if (status.loggedIn) {
+      await loadCms();
       await showEditor();
     } else {
       $("#loginPanel").hidden = false;

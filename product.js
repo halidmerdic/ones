@@ -75,11 +75,14 @@ function updateAccountLink() {
 }
 
 function rememberCustomerPreview(user) {
-  if (user) {
-    localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
-  } else {
+  try {
     localStorage.removeItem(customerPreviewKey);
-  }
+    if (user) {
+      sessionStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
+    } else {
+      sessionStorage.removeItem(customerPreviewKey);
+    }
+  } catch {}
 }
 
 async function loadCustomerStatus() {
@@ -296,7 +299,10 @@ function productUrl(item) {
 }
 
 function productIsPublic(item) {
-  return item && item.enabled !== false;
+  if (!item || item.enabled === false) return false;
+  return (cms?.categories || []).some(
+    (category) => category.enabled !== false && category.name === item.category
+  );
 }
 
 function relatedProductsHtml() {

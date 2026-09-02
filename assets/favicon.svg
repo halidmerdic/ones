@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="oneS">
+  <rect width="64" height="64" rx="12" fill="#111216"/>
+  <path d="M7 10h34c7 0 13 6 13 13v18c0 7-6 13-13 13H7z" fill="#e30613"/>
+  <path d="M42 10h15v44H42z" fill="#050505"/>
+  <text x="9" y="40" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="900">one</text>
+  <path d="M48 18 58 23 57 29 49 26 47 29 56 34 55 40 43 33 45 18z" fill="none" stroke="#e30613" stroke-width="3.2" stroke-linejoin="round"/>
+</svg>

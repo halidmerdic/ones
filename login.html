@@ -6,8 +6,9 @@
     <title>Prijavi se | oneS</title>
     <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#111216" />
-    <link rel="stylesheet" href="styles.css?v=20260803-mobile-layout-2" />
-    <link rel="stylesheet" href="admin.css?v=20260723-priority-2" />
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=20260808-1" />
+    <link rel="stylesheet" href="styles.css?v=20260902-visibility-1" />
+    <link rel="stylesheet" href="admin.css?v=20260808-section-faq-favicon-1" />
   </head>
   <body class="admin-body">
     <main class="auth-page">
@@ -28,7 +29,7 @@
           <label>
             Lozinka
             <span class="password-field">
-              <input id="loginPassword" type="password" autocomplete="current-password" maxlength="4096" required />
+              <input id="loginPassword" type="password" autocomplete="current-password" maxlength="72" required />
               <button type="button" class="password-toggle" data-password-toggle="loginPassword" aria-label="Prikazi lozinku">Vidi</button>
             </span>
           </label>
@@ -48,9 +49,9 @@
             <input id="registerEmail" type="email" autocomplete="email" maxlength="190" required />
           </label>
           <label>
-            Lozinka
+            Lozinka (najmanje 15 znakova)
             <span class="password-field">
-              <input id="registerPassword" type="password" autocomplete="new-password" minlength="8" maxlength="4096" required />
+              <input id="registerPassword" type="password" autocomplete="new-password" minlength="15" maxlength="72" required />
               <button type="button" class="password-toggle" data-password-toggle="registerPassword" aria-label="Prikazi lozinku">Vidi</button>
             </span>
           </label>
@@ -80,6 +81,6 @@
 
     <script src="theme.js?v=20260803-load-1"></script>
     <script src="api-client.js?v=20260723-priority-2"></script>
-    <script src="login.js?v=20260803-canonical-url-1"></script>
+    <script src="login.js?v=20260902-auth-1"></script>
   </body>
 </html>

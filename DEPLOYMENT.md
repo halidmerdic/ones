@@ -1,70 +1,189 @@
-# oneS deployment checklist
+# oneS production deployment
 
-Use this before publishing the website to a real domain.
+Use this checklist for the Hetzner server and `ones.ba`. The live database,
+`config.local.php`, `data/`, and `uploads/` must never be replaced during a
+normal code deployment.
 
-## Before upload
+## 1. Before every deployment
 
-- [ ] Make a CMS backup from `CMS -> Sigurnost -> Preuzmi backup`.
-- [ ] Confirm product names, prices, badges, sale dates, delivery times, manuals, and gallery images.
-- [ ] Confirm store locations, FAQ, blog posts, contact numbers, WhatsApp and Viber templates.
-- [ ] Keep the current admin password during development only. Change it when deployment starts.
-- [ ] Confirm that `data/ones.sqlite` is not uploaded publicly without server protection.
-- [ ] Confirm that `data/backups/` is private and not browsable.
-- [ ] Confirm that `uploads/` is public for images/PDF manuals, but cannot execute scripts.
+- [ ] Download a CMS backup from `CMS -> Sigurnost -> Preuzmi backup`.
+- [ ] Back up the production MariaDB database on the server.
+- [ ] Back up `uploads/` separately. The CMS JSON backup contains file paths,
+      products, users, carts, and inquiries, but not the image/PDF file contents.
+- [ ] Upload only changed application files with WinSCP.
+- [ ] Never overwrite `config.local.php`, `data/`, or `uploads/`.
+- [ ] Confirm product names, prices, badges, sale dates, delivery times,
+      manuals, gallery images, FAQ, blog posts, and contact numbers.
 
-## Hosting requirements
+## 2. Server requirements
 
-- GitHub Pages is not enough for this project because it does not run PHP, SQLite, sessions, uploads, or the CMS API.
-- Use PHP hosting, cPanel hosting, LiteSpeed/Apache hosting with PHP, or a VPS/container where PHP can write to `data/` and `uploads/`.
-- For test hosting with MySQL, edit `config.local.php`, set `driver` to `mysql`, enter the database credentials, and set a strong `security.initial_admin_password` before the first run.
-- Do not overwrite `config.local.php` on hosting during normal code redeploys. The hosted file contains the live database connection.
-- If CMS content looks reset after redeploy, first check `htdocs/config.local.php`. It must exist on hosting and must use `driver => mysql`; otherwise the app is looking at the wrong database.
 - PHP 8.1 or newer.
-- PHP extensions for local SQLite: `pdo_sqlite`, `sqlite3`, `gd`, `fileinfo`, `json`, `session`.
-- PHP extensions for MySQL hosting: `pdo_mysql`, `gd`, `fileinfo`, `json`, `session`.
-- Writable folders on server:
+- MariaDB/MySQL with `pdo_mysql`, plus `gd`, `fileinfo`, `json`, and `session`.
+- Apache modules: `headers`, `rewrite`, `expires`, `deflate`, and `remoteip`.
+- Writable directories for the Apache user:
   - `data/`
   - `data/backups/`
   - `uploads/`
   - `uploads/products/`
   - `uploads/blogs/`
   - `uploads/manuals/`
+- `config.local.php` must use the MySQL driver and must not be committed or
+  included in deployment archives.
 
-## Domain and SEO
+Enable the required Apache modules:
 
-- [ ] Set the production domain for sitemap generation.
-  - Preferred server environment variable: `ONES_SITE_URL=https://example.com`
-  - If the host cannot set environment variables, verify `sitemap.php` generates the correct domain after upload.
-- [ ] Update `robots.txt` sitemap line if needed:
-  - `Sitemap: https://example.com/sitemap.php`
-- [ ] Check product SEO title/description in CMS.
-- [ ] Check blog SEO title/description in CMS.
-- [ ] Open `/sitemap.php` in browser and confirm product/blog URLs are correct.
+```bash
+sudo a2enmod headers rewrite expires deflate remoteip
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
 
-## Security
+## 3. HTTPS and Cloudflare proxy
 
-- [ ] Confirm `.htaccess` is supported if hosting uses Apache or LiteSpeed.
-- [ ] If hosting uses IIS, confirm `data/web.config` blocks `data/`.
-- [ ] Test that these URLs are blocked after upload:
+1. In Cloudflare DNS, keep the `ones.ba` A/AAAA record and the `www` record
+   proxied (orange cloud).
+2. Install a valid certificate for `ones.ba` and `www.ones.ba` on Apache. A
+   current Let's Encrypt certificate is sufficient.
+3. In `SSL/TLS -> Overview`, choose `Full (strict)`. Do not use Flexible mode.
+4. Enable `Always Use HTTPS` only after `https://ones.ba` works through
+   Cloudflare without a 526 response.
+5. Keep the canonical redirect from `www.ones.ba` to `https://ones.ba`.
+
+The application accepts forwarded HTTPS and visitor-IP headers only when the
+direct sender is listed as a trusted proxy. Merge the `network` section from
+`config.example.php` into the production `config.local.php`, or provide these
+comma-separated server environment variables:
+
+```text
+ONES_ALLOWED_HOSTS=ones.ba,www.ones.ba
+ONES_TRUSTED_PROXIES=<current Cloudflare IPv4 and IPv6 ranges>
+```
+
+Before deployment, compare the stored ranges with:
+
+- `https://www.cloudflare.com/ips-v4`
+- `https://www.cloudflare.com/ips-v6`
+
+## 4. Real visitor IP in Apache
+
+The repository contains `deploy/apache/ones-remoteip.conf`. In WinSCP, upload
+that file to:
+
+```text
+/etc/apache2/conf-available/ones-remoteip.conf
+```
+
+Then enable and verify it:
+
+```bash
+sudo a2enmod remoteip
+sudo a2enconf ones-remoteip
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
+
+In `/etc/apache2/apache2.conf`, the combined `LogFormat` should use `%a` for
+the visitor address instead of `%h`. Open the website from a phone network and
+confirm that Apache logs the phone's public address rather than a Cloudflare
+address:
+
+```bash
+sudo tail -f /var/log/apache2/access.log
+```
+
+Never configure `RemoteIPHeader` without `RemoteIPTrustedProxy` entries. An
+unrestricted forwarded-IP header can be forged and would weaken rate limits.
+
+## 5. Hetzner Cloud Firewall
+
+Create a stateful Cloud Firewall and test each rule before closing the current
+SSH session:
+
+- TCP `22`: allow only the administrator's fixed public IPv4 `/32` and, when
+  used, IPv6 `/128`.
+- TCP `80` and `443`: allow only the current Cloudflare IPv4 and IPv6 ranges.
+- Do not expose MariaDB port `3306` publicly.
+- Leave outbound rules empty unless there is a documented reason to restrict
+  them; Hetzner then permits outbound traffic.
+- Apply the firewall to the production server and open a second SSH session to
+  verify access before disconnecting the first one.
+
+After this firewall is active, requests sent directly to the Hetzner origin IP
+on ports 80/443 are blocked, so Cloudflare protection cannot be bypassed.
+
+## 6. Cloudflare cache rules
+
+Do not enable `Cache Everything` for the whole domain. Create one Cache Rule
+named `Bypass private and dynamic pages` with this expression:
+
+```text
+(http.request.uri.path eq "/api.php") or
+(http.request.uri.path in {"/admin.html" "/cart.html" "/login.html" "/profile.html"})
+```
+
+Choose `Cache eligibility -> Bypass cache`. Keep this bypass rule after any
+broader cache rule because the last matching Cloudflare Cache Rule wins.
+
+Static CSS, JavaScript, fonts, images, and PDFs may be cached. Their HTML
+references use version parameters when application files change. The origin
+also sends `no-store` for the API, CMS, cart, login, and profile pages.
+
+## 7. Domain and SEO
+
+- [ ] Set `ONES_SITE_URL=https://ones.ba` in the Apache/PHP environment.
+- [ ] Confirm `robots.txt` contains `Sitemap: https://ones.ba/sitemap.php`.
+- [ ] Open `/sitemap.php` and confirm product and blog URLs use `ones.ba`.
+- [ ] Check product and blog SEO titles/descriptions in CMS.
+- [ ] Confirm `https://www.ones.ba/...` redirects to the same path on
+      `https://ones.ba/...`.
+
+## 8. Security checks
+
+- [ ] Confirm `.htaccess` is enabled (`AllowOverride` permits these rules).
+- [ ] Confirm these URLs return 403 or 404:
+  - `/config.local.php`
   - `/data/ones.sqlite`
   - `/data/backups/`
   - `/.env`
-- [ ] Confirm admin page is not indexed:
-  - `/robots.txt` disallows `/admin.html`, `/api.php`, `/data/`.
-- [ ] Confirm `privacy.html` and `terms.html` contain the final legal/business details approved by the site owner.
-- [ ] Do not keep backup JSON files in public downloads or email inboxes longer than needed.
+  - `/.git/config`
+- [ ] Confirm private responses are not cached:
 
-## Final QA
+```bash
+curl -I "https://ones.ba/api.php?action=cms"
+curl -I "https://ones.ba/admin.html"
+curl -I "https://ones.ba/cart.html"
+```
 
-- [ ] Register a customer.
-- [ ] Login as customer.
-- [ ] Add product to cart.
-- [ ] Update quantity in cart.
-- [ ] Submit inquiry with phone number.
-- [ ] Confirm inquiry appears in CMS orders.
-- [ ] Change order status in CMS.
-- [ ] Test product image upload.
-- [ ] Test blog image upload.
-- [ ] Test manual upload/download.
-- [ ] Test mobile layout on at least 360px, 390px, and desktop width.
-- [ ] Test dark mode on public website, customer pages, and CMS.
+Expected: `Cache-Control` contains `no-store` and Cloudflare reports a dynamic
+or bypassed response instead of `HIT`.
+
+## 9. Authentication checks
+
+- [ ] Confirm the default local admin password is not used in production.
+- [ ] New and changed passwords must contain 15 to 72 characters. Existing
+      customer passwords remain valid until the customer changes them.
+- [ ] Confirm a customer can still sign in after deployment.
+- [ ] Confirm changing a password keeps the current session active and rejects
+      another previously opened session.
+- [ ] Confirm changing the profile email requires the current password.
+- [ ] The first API request adds the non-destructive `users.auth_version`
+      column when it is missing; it does not delete or replace users.
+- [ ] Do not add an insecure manual "forgot password" flow. Password recovery
+      remains deferred together with SMTP and verified email delivery.
+
+## 10. Final QA
+
+- [ ] Register and sign in as a customer.
+- [ ] Add a product, update quantity, and submit an inquiry.
+- [ ] Confirm the inquiry appears in CMS and update its status.
+- [ ] Test product image, blog image, and manual upload.
+- [ ] Open two CMS tabs and confirm that an older tab cannot overwrite a newer
+      saved revision without first being refreshed.
+- [ ] Test the mobile layout at 360px and 390px, then desktop.
+- [ ] Test dark and light modes on public pages, customer pages, and CMS.
+- [ ] Confirm Apache and PHP logs contain no new errors.
+- [ ] Purge only the changed static URLs in Cloudflare when necessary; a purge
+      does not delete users, products, CMS data, or uploaded files.
+
+SMTP/email verification is intentionally deferred. Do not mark email delivery
+as production-ready until an official sender address and provider are chosen.

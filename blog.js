@@ -170,10 +170,21 @@ function plainText(html) {
   return (temp.textContent || temp.innerText || "").trim();
 }
 
+function publicProducts() {
+  const enabledCategories = new Set(
+    (cms.categories || [])
+      .filter((category) => category.enabled !== false && String(category.name || "").trim())
+      .map((category) => category.name)
+  );
+
+  return (cms.products || []).filter(
+    (product) => product.enabled !== false && enabledCategories.has(product.category)
+  );
+}
+
 function postMatchesCatalog(item) {
   const ignored = new Set(["ones", "elektricni", "električni", "proizvod", "proizvodi"]);
-  const keywords = (cms.products || [])
-    .filter((product) => product.enabled !== false)
+  const keywords = publicProducts()
     .flatMap((product) => `${product.name || ""} ${product.category || ""}`.toLowerCase().split(/[^\p{L}\p{N}]+/u))
     .filter((word) => word.length >= 2 && !ignored.has(word));
   if (keywords.some((word) => word.includes("romobil") || word.includes("skuter"))) {
@@ -205,8 +216,7 @@ function relatedProducts() {
   const text = plainText(post.text).toLowerCase();
   const haystack = `${tag} ${title} ${text}`;
 
-  return (cms.products || [])
-    .filter((product) => product.enabled !== false)
+  return publicProducts()
     .filter((product) => {
       const category = String(product.category || "").toLowerCase();
       const name = String(product.name || "").toLowerCase();

@@ -88,6 +88,25 @@ function sitemap_url(string $loc, string $priority = '0.7', string $changefreq =
         . "  </url>\n";
 }
 
+function sitemap_public_products(array $cms): array
+{
+    $enabledCategories = [];
+    foreach (($cms['categories'] ?? []) as $category) {
+        $name = trim((string)($category['name'] ?? ''));
+        if ($name !== '' && ($category['enabled'] ?? true) !== false) {
+            $enabledCategories[$name] = true;
+        }
+    }
+
+    return array_values(array_filter(
+        $cms['products'] ?? [],
+        static function (array $product) use ($enabledCategories): bool {
+            $category = trim((string)($product['category'] ?? ''));
+            return ($product['enabled'] ?? true) !== false && isset($enabledCategories[$category]);
+        }
+    ));
+}
+
 function sitemap_blog_matches_products(array $post, array $products): bool
 {
     $ignored = ['ones' => true, 'elektricni' => true, 'proizvod' => true, 'proizvodi' => true];
@@ -141,10 +160,8 @@ $xml .= sitemap_url($base . '/', '1.0', 'daily');
 $xml .= sitemap_url($base . '/privacy.html', '0.3', 'yearly');
 $xml .= sitemap_url($base . '/terms.html', '0.3', 'yearly');
 
-foreach (($cms['products'] ?? []) as $product) {
-    if (($product['enabled'] ?? true) === false) {
-        continue;
-    }
+$publicProducts = sitemap_public_products($cms);
+foreach ($publicProducts as $product) {
     $id = trim((string)($product['id'] ?? ''));
     if ($id !== '') {
         $xml .= sitemap_url($base . '/product.html?id=' . rawurlencode($id), '0.8', 'weekly');
@@ -152,7 +169,7 @@ foreach (($cms['products'] ?? []) as $product) {
 }
 
 foreach (($cms['blogs'] ?? []) as $index => $post) {
-    if (($post['enabled'] ?? true) === false || !sitemap_blog_matches_products($post, $cms['products'] ?? [])) {
+    if (($post['enabled'] ?? true) === false || !sitemap_blog_matches_products($post, $publicProducts)) {
         continue;
     }
     $id = trim((string)($post['id'] ?? ''));

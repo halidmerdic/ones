@@ -179,7 +179,10 @@ function renderOrders(orders) {
 }
 
 function fillProfileForm(user) {
-  localStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac", email: user.email || "" }));
+  try {
+    localStorage.removeItem(customerPreviewKey);
+    sessionStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
+  } catch {}
   $("#profileName").textContent = user.name;
   $("#profileEmail").textContent = [user.email, user.phone].filter(Boolean).join(" · ");
   $("#profileNameInput").value = user.name || "";
@@ -205,8 +208,10 @@ async function saveProfile() {
       name: $("#profileNameInput").value,
       email: $("#profileEmailInput").value,
       phone: $("#profilePhoneInput").value,
+      currentPassword: $("#profileEmailPasswordInput").value,
     });
     fillProfileForm(data.profile);
+    $("#profileEmailPasswordInput").value = "";
     flash("Podaci profila su sačuvani.");
   } catch (error) {
     flash(error.message);
@@ -231,6 +236,7 @@ async function logout() {
   try {
     await api("customer-logout", {});
     localStorage.removeItem(customerPreviewKey);
+    sessionStorage.removeItem(customerPreviewKey);
     window.location.href = "login.html";
   } catch (error) {
     flash(error.message);
