@@ -50,6 +50,9 @@ function redirectAfterLogin() {
 }
 
 async function customerLogin() {
+  const button = $("#customerLoginBtn");
+  if (button.disabled) return;
+  button.disabled = true;
   try {
     const data = await api("customer-login", {
       email: $("#loginEmail").value,
@@ -60,6 +63,8 @@ async function customerLogin() {
     redirectAfterLogin();
   } catch (error) {
     flash(error.message);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -70,6 +75,9 @@ async function customerRegister() {
     return;
   }
 
+  const button = $("#customerRegisterBtn");
+  if (button.disabled) return;
+  button.disabled = true;
   try {
     const data = await api("customer-register", {
       name: $("#registerName").value,
@@ -83,18 +91,9 @@ async function customerRegister() {
     redirectAfterLogin();
   } catch (error) {
     flash(error.message);
+  } finally {
+    button.disabled = false;
   }
-}
-
-function submitOnEnter(fields, callback) {
-  fields.forEach((selector) => {
-    $(selector)?.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        callback();
-      }
-    });
-  });
 }
 
 function setupPasswordToggles() {
@@ -110,11 +109,14 @@ function setupPasswordToggles() {
   });
 }
 
-$("#customerLoginBtn").addEventListener("click", customerLogin);
-$("#customerRegisterBtn").addEventListener("click", customerRegister);
-
-submitOnEnter(["#loginEmail", "#loginPassword"], customerLogin);
-submitOnEnter(["#registerName", "#registerEmail", "#registerPassword"], customerRegister);
+$("#customerLoginForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  customerLogin();
+});
+$("#customerRegisterForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  customerRegister();
+});
 
 setupPasswordToggles();
 

@@ -646,6 +646,12 @@ main section[id] {
   height: auto;
 }
 
+.brand {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
 .nav {
   display: flex;
   justify-content: center;
@@ -1277,6 +1283,10 @@ main section[id] {
   border-radius: inherit;
 }
 
+.card-open-link:focus-visible {
+  outline-offset: -4px;
+}
+
 .product-card > :not(.card-open-link) {
   position: relative;
   z-index: 1;
@@ -1758,6 +1768,8 @@ main section[id] {
   align-items: stretch;
   overflow: hidden;
   padding: 14px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .blog-card-image {
@@ -2281,6 +2293,11 @@ select {
   gap: 12px;
 }
 
+.manual-results {
+  display: grid;
+  gap: 12px;
+}
+
 .manual-controls {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(180px, auto) minmax(180px, auto);
@@ -2393,6 +2410,12 @@ select {
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
+}
+
+.site-footer a {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .legal-header {
@@ -3120,13 +3143,13 @@ select {
   }
 
   .thumb-slider-btn {
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
     font-size: 26px;
   }
 
   .product-thumbs-wrap {
-    grid-template-columns: 34px minmax(0, 1fr) 34px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
     gap: 6px;
   }
 

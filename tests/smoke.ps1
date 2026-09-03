@@ -5,6 +5,10 @@ param(
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $checks = 0
+$packageBuilderExists = Test-Path -LiteralPath (Join-Path $projectRoot "deploy/build-package.ps1")
+$productionVerifierExists = Test-Path -LiteralPath (Join-Path $projectRoot "deploy/verify-production.ps1")
+$robots = Get-Content -LiteralPath (Join-Path $projectRoot "robots.txt") -Raw
+$robotsHasAbsoluteSitemap = $robots -match [regex]::Escape("Sitemap: https://ones.ba/sitemap.php")
 
 function Assert-True {
   param(
@@ -18,6 +22,40 @@ function Assert-True {
 
   $script:checks += 1
   Write-Host "OK: $Message"
+}
+
+Assert-True $packageBuilderExists "sigurni deployment paket se moze napraviti"
+Assert-True $productionVerifierExists "produkcijska provjera postoji"
+Assert-True $robotsHasAbsoluteSitemap "robots.txt koristi apsolutni produkcijski sitemap URL"
+
+$packageTestPath = Join-Path ([IO.Path]::GetTempPath()) ("ones-deployment-smoke-" + [guid]::NewGuid().ToString("N") + ".zip")
+try {
+  & (Join-Path $projectRoot "deploy/build-package.ps1") -OutputPath $packageTestPath | Out-Null
+  Assert-True (($LASTEXITCODE -eq 0) -or ($null -eq $LASTEXITCODE)) "deployment ZIP se uspjesno generise"
+
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $packageArchive = [IO.Compression.ZipFile]::OpenRead($packageTestPath)
+  try {
+    $packageEntries = @($packageArchive.Entries | ForEach-Object { $_.FullName.Replace("\", "/") })
+  } finally {
+    $packageArchive.Dispose()
+  }
+
+  $requiredPackageEntries = @(".htaccess", "api.php", "assets/favicon.svg", "data/.htaccess", "uploads/.htaccess")
+  $missingPackageEntries = @($requiredPackageEntries | Where-Object { $_ -notin $packageEntries })
+  $privatePackageEntries = @($packageEntries | Where-Object {
+    $_ -eq "config.local.php" -or
+    $_ -match '^data/(?!\.htaccess$|backups/\.htaccess$|web\.config$)' -or
+    $_ -match '^uploads/(?!\.htaccess$)' -or
+    $_ -match '^(?:deploy|tests)/'
+  })
+
+  Assert-True ($missingPackageEntries.Count -eq 0) "deployment ZIP sadrzi obavezne aplikacijske fajlove"
+  Assert-True ($privatePackageEntries.Count -eq 0) "deployment ZIP ne sadrzi bazu, tajne, testove ni CMS medije"
+} finally {
+  if (Test-Path -LiteralPath $packageTestPath) {
+    Remove-Item -LiteralPath $packageTestPath -Force
+  }
 }
 
 function Get-HttpStatus {
@@ -42,6 +80,9 @@ Assert-True ($LASTEXITCODE -eq 0) "api.php prolazi PHP lint"
 
 $authSecurity = & php (Join-Path $PSScriptRoot "auth-security.php")
 Assert-True ($LASTEXITCODE -eq 0) "lozinke, rate limit i sesijske sigurnosne provjere prolaze"
+
+$businessLogic = & php (Join-Path $PSScriptRoot "business-logic.php")
+Assert-True ($LASTEXITCODE -eq 0) "proizvodi, korpa i slanje upita prolaze poslovne provjere"
 
 $storageReliability = & php (Join-Path $PSScriptRoot "storage-reliability.php")
 Assert-True ($LASTEXITCODE -eq 0) "CMS revizije, backup i atomsko spremanje prolaze"

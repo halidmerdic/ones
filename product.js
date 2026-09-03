@@ -4,6 +4,7 @@ let currentCustomer = null;
 let galleryImages = [];
 let activeImageIndex = 0;
 let inquiryReturnFocus = null;
+let lightboxReturnFocus = null;
 const bottomProfileIcon = '<span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span><strong>Profil</strong>';
 const customerPreviewKey = "onesCustomerPreview";
 const cartCountPreviewKey = "onesCartCountPreview";
@@ -175,6 +176,21 @@ function closeInquiryModal() {
   inquiryReturnFocus = null;
 }
 
+function trapModalFocus(event, modal) {
+  if (event.key !== "Tab") return;
+  const focusable = [...modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) return;
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function openInquiryModal() {
   if (!currentCustomer) {
     window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;
@@ -206,6 +222,7 @@ function openInquiryModal() {
   modal.addEventListener("click", (event) => {
     if (event.target === modal) closeInquiryModal();
   });
+  modal.addEventListener("keydown", (event) => trapModalFocus(event, modal));
   modal.querySelector(".inquiry-close").addEventListener("click", closeInquiryModal);
   modal.querySelector("[data-viber-link]").addEventListener("click", () => {
     const message = `Pozdrav, zanima me ${product.name}. Da li je dostupno i koja je cijena?`;
@@ -389,15 +406,21 @@ function applyProductSeo() {
 
 function openLightbox(index) {
   if (!galleryImages.length) return;
+  lightboxReturnFocus = document.activeElement;
   activeImageIndex = index;
   renderLightboxImage();
   $("#imageLightbox").hidden = false;
   document.body.classList.add("no-scroll");
+  $("#imageLightbox .lightbox-close")?.focus();
 }
 
 function closeLightbox() {
-  $("#imageLightbox").hidden = true;
+  const lightbox = $("#imageLightbox");
+  if (!lightbox || lightbox.hidden) return;
+  lightbox.hidden = true;
   document.body.classList.remove("no-scroll");
+  lightboxReturnFocus?.focus();
+  lightboxReturnFocus = null;
 }
 
 function moveLightbox(direction) {
@@ -409,6 +432,7 @@ function moveLightbox(direction) {
 function renderLightboxImage() {
   const image = galleryImages[activeImageIndex];
   $("#lightboxImage").src = image;
+  $("#lightboxImage").alt = `${product?.name || "Slika proizvoda"}, fotografija ${activeImageIndex + 1}`;
   $("#lightboxCounter").textContent = `${activeImageIndex + 1} / ${galleryImages.length}`;
 }
 
@@ -417,7 +441,7 @@ function thumbnailButtonsHtml(images) {
     .map((image) => {
       const index = galleryImages.indexOf(image);
       return `
-        <button type="button" class="${index === activeImageIndex ? "active" : ""}" data-image="${escapeHtml(image)}">
+        <button type="button" class="${index === activeImageIndex ? "active" : ""}" data-image="${escapeHtml(image)}" aria-label="Prikaži fotografiju ${index + 1}" aria-pressed="${index === activeImageIndex}">
           <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} ${index + 1}" loading="eager" decoding="async" />
         </button>
       `;
@@ -428,8 +452,12 @@ function thumbnailButtonsHtml(images) {
 function bindThumbnailButtons() {
   document.querySelectorAll("[data-image]").forEach((button) => {
     button.addEventListener("click", () => {
-      document.querySelectorAll("[data-image]").forEach((item) => item.classList.remove("active"));
+      document.querySelectorAll("[data-image]").forEach((item) => {
+        item.classList.remove("active");
+        item.setAttribute("aria-pressed", "false");
+      });
       button.classList.add("active");
+      button.setAttribute("aria-pressed", "true");
       $("#mainProductImage").src = button.dataset.image;
       activeImageIndex = galleryImages.indexOf(button.dataset.image);
     });
@@ -447,12 +475,15 @@ function setupLightbox() {
   lightbox.className = "image-lightbox";
   lightbox.id = "imageLightbox";
   lightbox.hidden = true;
+  lightbox.setAttribute("role", "dialog");
+  lightbox.setAttribute("aria-modal", "true");
+  lightbox.setAttribute("aria-label", "Pregled fotografije proizvoda");
   lightbox.innerHTML = `
     <button class="lightbox-close" type="button" aria-label="Zatvori pregled">×</button>
     <button class="lightbox-arrow lightbox-prev" type="button" aria-label="Prethodna slika">‹</button>
-    <img id="lightboxImage" src="" alt="${escapeHtml(product?.name || "Slika proizvoda")}" />
+    <img id="lightboxImage" alt="${escapeHtml(product?.name || "Slika proizvoda")}" />
     <button class="lightbox-arrow lightbox-next" type="button" aria-label="Sljedeća slika">›</button>
-    <div class="lightbox-counter" id="lightboxCounter"></div>
+    <div class="lightbox-counter" id="lightboxCounter" role="status" aria-live="polite" aria-atomic="true"></div>
   `;
   document.body.appendChild(lightbox);
 
@@ -468,10 +499,25 @@ function setupLightbox() {
     if (event.key === "Escape") closeLightbox();
     if (event.key === "ArrowLeft") moveLightbox(-1);
     if (event.key === "ArrowRight") moveLightbox(1);
+    if (event.key === "Tab") {
+      const focusable = [...lightbox.querySelectorAll("button:not([disabled])")];
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
   });
 }
 
-async function addToCart() {
+async function addToCart(event) {
+  const button = event?.currentTarget || $("#detailAddCart");
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
   try {
     await api("cart-add", { productId: product.id, quantity: 1 });
     await loadCartCount();
@@ -482,6 +528,8 @@ async function addToCart() {
       return;
     }
     flash(error.message);
+  } finally {
+    if (button?.isConnected) button.disabled = false;
   }
 }
 
@@ -505,7 +553,7 @@ function renderProduct() {
       <div class="product-main-image ${mainImage ? "" : "empty"}">
         ${
           mainImage
-            ? `<button class="main-image-button" type="button" id="mainImageButton"><img id="mainProductImage" src="${escapeHtml(mainImage)}" alt="${escapeHtml(product.name)}" /></button>`
+            ? `<button class="main-image-button" type="button" id="mainImageButton" aria-label="Otvori galeriju slika za ${escapeHtml(product.name)}"><img id="mainProductImage" src="${escapeHtml(mainImage)}" alt="${escapeHtml(product.name)}" /></button>`
             : `<span>Nema slike proizvoda</span>`
         }
       </div>
@@ -525,7 +573,6 @@ function renderProduct() {
         }
       </div>
       ${images.length > 8 ? `<button class="btn btn-secondary gallery-more-btn" type="button" id="showAllThumbs">Prikaži sve fotografije (${images.length})</button>` : ""}
-      ${images.length ? `<p class="gallery-hint">Kliknite glavnu sliku za full preview. Dvoklik na thumbnail također otvara pregled.</p>` : ""}
     </div>
 
     <div class="product-detail-copy">

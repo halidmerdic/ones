@@ -7,4 +7,4 @@ Disallow: /profile.html
 Disallow: /api.php
 Disallow: /data/
 
-Sitemap: /sitemap.php
+Sitemap: https://ones.ba/sitemap.php

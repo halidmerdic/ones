@@ -174,6 +174,13 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function nonInteractiveRichHtml(value) {
+  const template = document.createElement("template");
+  template.innerHTML = window.onesSanitizeRichHtml(value);
+  template.content.querySelectorAll("a").forEach((link) => link.replaceWith(...link.childNodes));
+  return template.innerHTML;
+}
+
 function moneyText(product) {
   const price = activePrice(product);
   return price.type === "inquiry" ? price.label : `${price.label} KM`;
@@ -528,7 +535,9 @@ async function loadCustomerStatus() {
   updateAccountLinks();
 }
 
-async function addToCart(productId) {
+async function addToCart(productId, button) {
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
   try {
     const data = await api("cart-add", { productId, quantity: 1 });
     updateCartCount(data.cart.count);
@@ -539,15 +548,19 @@ async function addToCart(productId) {
       return;
     }
     flash(error.message);
+  } finally {
+    if (button?.isConnected) button.disabled = false;
   }
 }
 
-async function toggleFavorite(productId) {
+async function toggleFavorite(productId, button) {
   if (!currentCustomer) {
     window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;
     return;
   }
 
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
   try {
     const data = await api("favorite-toggle", { productId });
     currentFavorites = new Set(data.favorites || []);
@@ -555,6 +568,8 @@ async function toggleFavorite(productId) {
     flash(data.favorited ? "Proizvod je dodan u favorite." : "Proizvod je uklonjen iz favorita.");
   } catch (error) {
     flash(error.message);
+  } finally {
+    if (button?.isConnected) button.disabled = false;
   }
 }
 
@@ -563,6 +578,21 @@ function closeInquiryModal() {
   document.body.classList.remove("modal-open");
   inquiryReturnFocus?.focus();
   inquiryReturnFocus = null;
+}
+
+function trapModalFocus(event, modal) {
+  if (event.key !== "Tab") return;
+  const focusable = [...modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) return;
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function openInquiryModal(productName) {
@@ -596,6 +626,7 @@ function openInquiryModal(productName) {
   modal.addEventListener("click", (event) => {
     if (event.target === modal) closeInquiryModal();
   });
+  modal.addEventListener("keydown", (event) => trapModalFocus(event, modal));
   modal.querySelector(".inquiry-close").addEventListener("click", closeInquiryModal);
   modal.querySelector("[data-viber-link]").addEventListener("click", () => {
     navigator.clipboard?.writeText(inquiryMessage(productName)).then(
@@ -654,28 +685,6 @@ function renderFilters() {
   });
 }
 
-function setupClickableCards() {
-  document.querySelectorAll("[data-card-url]").forEach((card) => {
-    card.addEventListener("click", (event) => {
-      if (event.target.closest("a, button, input, select, textarea")) return;
-      window.location.href = card.dataset.cardUrl;
-    });
-
-    card.addEventListener("auxclick", (event) => {
-      if (event.button !== 1) return;
-      if (event.target.closest("a, button, input, select, textarea")) return;
-      window.open(card.dataset.cardUrl, "_blank", "noopener");
-    });
-
-    card.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      if (event.target.closest("a, button, input, select, textarea")) return;
-      event.preventDefault();
-      window.location.href = card.dataset.cardUrl;
-    });
-  });
-}
-
 function renderProducts() {
   const products = publicProducts();
   const grid = qs("#productGrid");
@@ -693,9 +702,9 @@ function renderProducts() {
       const favoriteActive = currentFavorites.has(product.id);
       const url = productUrl(product);
       return `
-        <article class="product-card clickable-card" data-card-url="${url}" role="link" tabindex="0" aria-label="Otvori proizvod ${escapeHtml(product.name)}">
+        <article class="product-card">
           <a class="card-open-link" href="${url}" aria-label="Otvori proizvod ${escapeHtml(product.name)}"></a>
-          <a class="product-visual ${product.tone === "red" ? "red" : "light"}" href="${url}">
+          <div class="product-visual ${product.tone === "red" ? "red" : "light"}">
             <div>
               <span>${escapeHtml(product.category)}</span>
               <h3>${escapeHtml(product.name)}</h3>
@@ -705,7 +714,7 @@ function renderProducts() {
                 ? `<img class="product-card-image" src="${escapeHtml(window.onesSafeUrl(product.image))}" alt="${escapeHtml(product.name)}" loading="lazy" />`
                 : `<div class="product-shape" aria-hidden="true"></div>`
             }
-          </a>
+          </div>
           <div class="product-body">
             <div class="badge-row">
               <span class="badge red">${escapeHtml(product.status || "Dostupno")}</span>
@@ -734,15 +743,14 @@ function renderProducts() {
     .join("");
 
   document.querySelectorAll("[data-add-cart]").forEach((button) => {
-    button.addEventListener("click", () => addToCart(button.dataset.addCart));
+    button.addEventListener("click", () => addToCart(button.dataset.addCart, button));
   });
   document.querySelectorAll("[data-inquiry-product]").forEach((button) => {
     button.addEventListener("click", () => openInquiryModal(button.dataset.inquiryProduct));
   });
   document.querySelectorAll("[data-favorite]").forEach((button) => {
-    button.addEventListener("click", () => toggleFavorite(button.dataset.favorite));
+    button.addEventListener("click", () => toggleFavorite(button.dataset.favorite, button));
   });
-  setupClickableCards();
 }
 function renderComingSoon() {
   const comingGrid = qs("#comingGrid");
@@ -793,58 +801,62 @@ function renderManuals() {
   const categories = ["Sve", ...new Set(publicManuals.map((manual) => manual.category).filter(Boolean))];
   const types = ["Sve", ...new Set(publicManuals.map((manual) => manual.type).filter(Boolean))];
 
-  const filteredManuals = publicManuals.filter((manual) => {
-    const searchTarget = `${manual.title || ""} ${manual.type || ""} ${manual.status || ""}`.toLowerCase();
-    const matchesSearch = searchTarget.includes(manualSearch.toLowerCase());
-    const matchesCategory = manualCategory === "Sve" || manual.category === manualCategory;
-    const matchesType = manualType === "Sve" || manual.type === manualType;
-    return matchesSearch && matchesCategory && matchesType;
-  });
-
   qs("#manualList").innerHTML = `
     <div class="manual-controls">
-      <input id="manualSearch" type="search" placeholder="Pretraži uputstva..." value="${escapeHtml(manualSearch)}" />
-      <select id="manualCategory">
+      <input id="manualSearch" type="search" aria-label="Pretraži manuale" placeholder="Pretraži uputstva..." value="${escapeHtml(manualSearch)}" />
+      <select id="manualCategory" aria-label="Kategorija manuala">
         ${categories.map((category) => `<option value="${escapeHtml(category)}" ${category === manualCategory ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}
       </select>
-      <select id="manualType">
+      <select id="manualType" aria-label="Tip manuala">
         ${types.map((type) => `<option value="${escapeHtml(type)}" ${type === manualType ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}
       </select>
     </div>
-    ${
-      filteredManuals.length
-        ? filteredManuals
-    .map(
-      (manual) => `
-        <article class="manual-item">
-          <div>
-            <h3>${escapeHtml(manual.title)}</h3>
-            <p>${escapeHtml(manual.type || "PDF")} · ${escapeHtml(manual.category || "Sve kategorije")} · ${escapeHtml(manual.status)}</p>
-          </div>
-          ${
-            manual.file
-              ? `<a class="btn btn-primary" href="${escapeHtml(window.onesSafeUrl(manual.file))}" target="_blank" rel="noreferrer">Preuzmi PDF</a>`
-              : `<a class="btn btn-secondary" href="#kontakt">Zatraži manual</a>`
-          }
-        </article>
-      `
-    )
-    .join("")
-        : `<article class="manual-item"><div><h3>Nema rezultata</h3><p>Promijenite pretragu ili filter.</p></div></article>`
-    }
+    <div class="manual-results" id="manualResults" aria-live="polite"></div>
   `;
+
+  const renderManualResults = () => {
+    const filteredManuals = publicManuals.filter((manual) => {
+      const searchTarget = `${manual.title || ""} ${manual.type || ""} ${manual.status || ""}`.toLowerCase();
+      const matchesSearch = searchTarget.includes(manualSearch.toLowerCase());
+      const matchesCategory = manualCategory === "Sve" || manual.category === manualCategory;
+      const matchesType = manualType === "Sve" || manual.type === manualType;
+      return matchesSearch && matchesCategory && matchesType;
+    });
+
+    qs("#manualResults").innerHTML = filteredManuals.length
+      ? filteredManuals
+          .map(
+            (manual) => `
+              <article class="manual-item">
+                <div>
+                  <h3>${escapeHtml(manual.title)}</h3>
+                  <p>${escapeHtml(manual.type || "PDF")} · ${escapeHtml(manual.category || "Sve kategorije")} · ${escapeHtml(manual.status)}</p>
+                </div>
+                ${
+                  manual.file
+                    ? `<a class="btn btn-primary" href="${escapeHtml(window.onesSafeUrl(manual.file))}" target="_blank" rel="noreferrer">Preuzmi PDF</a>`
+                    : `<a class="btn btn-secondary" href="#kontakt">Zatraži manual</a>`
+                }
+              </article>
+            `
+          )
+          .join("")
+      : `<article class="manual-item"><div><h3>Nema rezultata</h3><p>Promijenite pretragu ili filter.</p></div></article>`;
+  };
+
+  renderManualResults();
 
   qs("#manualSearch").addEventListener("input", (event) => {
     manualSearch = event.target.value;
-    renderManuals();
+    renderManualResults();
   });
   qs("#manualCategory").addEventListener("change", (event) => {
     manualCategory = event.target.value;
-    renderManuals();
+    renderManualResults();
   });
   qs("#manualType").addEventListener("change", (event) => {
     manualType = event.target.value;
-    renderManuals();
+    renderManualResults();
   });
 }
 
@@ -870,22 +882,21 @@ function renderBlogs() {
     .filter(({ post }) => post.enabled !== false && matchesActiveCatalog(post.title, post.tag, post.text))
     .map(
       ({ post, index }) => `
-        <article class="blog-card clickable-card" data-card-url="${blogUrl(post, index)}" role="link" tabindex="0" aria-label="Otvori blog ${escapeHtml(post.title)}">
+        <a class="blog-card" href="${blogUrl(post, index)}" aria-label="Otvori blog ${escapeHtml(post.title)}">
           ${
             post.image
-              ? `<a class="blog-card-image" href="${blogUrl(post, index)}"><img src="${escapeHtml(window.onesSafeUrl(post.image))}" alt="${escapeHtml(post.title)}" loading="lazy" /></a>`
-              : `<a class="blog-card-image empty" href="${blogUrl(post, index)}"><span>oneS blog</span></a>`
+              ? `<div class="blog-card-image"><img src="${escapeHtml(window.onesSafeUrl(post.image))}" alt="${escapeHtml(post.title)}" loading="lazy" /></div>`
+              : `<div class="blog-card-image empty"><span>oneS blog</span></div>`
           }
           <div class="blog-card-copy">
             <span class="badge red">${escapeHtml(post.tag || "Blog")}</span>
             <h3>${escapeHtml(post.title)}</h3>
-            <div class="rich-content blog-content">${window.onesSanitizeRichHtml(post.text)}</div>
+            <div class="rich-content blog-content">${nonInteractiveRichHtml(post.text)}</div>
           </div>
-        </article>
+        </a>
       `
     )
     .join("");
-  setupClickableCards();
 }
 
 function renderFaq() {
@@ -894,11 +905,11 @@ function renderFaq() {
     .map(
       (item, index) => `
         <article class="faq-item" data-faq-card="${index}">
-          <button class="faq-button" type="button" aria-expanded="${index === 0}" data-faq="${index}">
+          <button class="faq-button" id="faq-question-${index}" type="button" aria-expanded="${index === 0}" aria-controls="faq-answer-${index}" data-faq="${index}">
             <span>${escapeHtml(item.q)}</span>
-            <strong>${index === 0 ? "-" : "+"}</strong>
+            <strong aria-hidden="true">${index === 0 ? "-" : "+"}</strong>
           </button>
-          <div class="faq-panel" ${index === 0 ? "" : "hidden"}>${escapeHtml(item.a)}</div>
+          <div class="faq-panel" id="faq-answer-${index}" role="region" aria-labelledby="faq-question-${index}" ${index === 0 ? "" : "hidden"}>${escapeHtml(item.a)}</div>
         </article>
       `
     )

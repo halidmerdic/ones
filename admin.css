@@ -34,6 +34,10 @@
 
 .admin-nav button {
   min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -42,6 +46,22 @@
   font-weight: 800;
   text-align: left;
   cursor: pointer;
+}
+
+.admin-nav-count {
+  min-width: 26px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.admin-nav button.active .admin-nav-count {
+  background: var(--red);
+  color: #fff;
 }
 
 .admin-nav button:hover,
@@ -150,6 +170,87 @@
   gap: 14px;
   align-items: center;
   margin-bottom: 18px;
+}
+
+.admin-list-count {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.admin-list-count strong {
+  color: var(--red);
+}
+
+.admin-list-tools {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.admin-list-tools input,
+.admin-pagination select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--text);
+}
+
+.admin-pagination {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.admin-pagination-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.admin-pagination-actions strong {
+  min-width: 128px;
+  color: var(--heading);
+  text-align: center;
+}
+
+.admin-pagination-actions label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.admin-pagination-actions select {
+  width: 76px;
+}
+
+.admin-pagination .btn:disabled,
+.admin-list-tools .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.admin-loading {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 900;
 }
 
 .admin-card-list {
@@ -762,7 +863,7 @@
 
 .product-admin-filters {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(160px, auto) minmax(160px, auto) minmax(160px, auto);
+  grid-template-columns: minmax(240px, 1fr) minmax(150px, auto) minmax(150px, auto) minmax(150px, auto) auto;
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -1470,7 +1571,7 @@
 }
 
 .password-field input {
-  padding-right: 82px !important;
+  padding-right: 88px !important;
 }
 
 .password-toggle {
@@ -1478,8 +1579,8 @@
   top: 50%;
   right: 8px;
   min-width: 58px;
-  min-height: 30px;
-  padding: 5px 8px;
+  min-height: 40px;
+  padding: 7px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-raised);
@@ -2123,6 +2224,7 @@
   .order-filters,
   .checkout-steps,
   .customer-filters,
+  .admin-list-tools,
   .security-grid,
   .product-admin-row,
   .category-admin-row,
@@ -2135,6 +2237,16 @@
   .customer-detail-body,
   .order-detail-body {
     grid-template-columns: 1fr;
+  }
+
+  .admin-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-pagination-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .product-admin-head {

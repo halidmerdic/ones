@@ -15,6 +15,24 @@ normal code deployment.
 - [ ] Confirm product names, prices, badges, sale dates, delivery times,
       manuals, gallery images, FAQ, blog posts, and contact numbers.
 
+Create a safe deployment archive from the current application files:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy\build-package.ps1
+```
+
+The generated `ones-deployment-YYYYMMDD-HHMMSS.zip` intentionally excludes
+`config.local.php`, the database, tests, deployment helpers, and all CMS media
+inside `uploads/`. Extract its contents over `/var/www/html/` without deleting
+the existing server directories. The archive may update only the protective
+`.htaccess` files inside `data/` and `uploads/`; it does not contain their live
+contents.
+
+Do not use `cp -a staging/. /var/www/html/` for this deployment. That command
+can replace the ownership and mode of the web root, `data/`, and `uploads/`.
+After extracting application files, confirm that Apache can traverse the web
+root and write to the listed CMS directories before opening the CMS.
+
 ## 2. Server requirements
 
 - PHP 8.1 or newer.
@@ -94,10 +112,10 @@ sudo tail -f /var/log/apache2/access.log
 Never configure `RemoteIPHeader` without `RemoteIPTrustedProxy` entries. An
 unrestricted forwarded-IP header can be forged and would weaken rate limits.
 
-## 5. Hetzner Cloud Firewall
+## 5. Server firewall
 
-Create a stateful Cloud Firewall and test each rule before closing the current
-SSH session:
+Use Hetzner Cloud Firewall, UFW on the server, or both. Test each rule before
+closing the current SSH session:
 
 - TCP `22`: allow only the administrator's fixed public IPv4 `/32` and, when
   used, IPv6 `/128`.
@@ -107,6 +125,12 @@ SSH session:
   them; Hetzner then permits outbound traffic.
 - Apply the firewall to the production server and open a second SSH session to
   verify access before disconnecting the first one.
+
+For a fresh UFW configuration, the repository contains
+`deploy/configure-ufw-cloudflare.sh`. Review the current Cloudflare ranges in
+the script, copy it to the server, and run it as root. It leaves TCP `22` open
+for SSH and restricts TCP `80` and `443` to Cloudflare. Restrict SSH to the
+administrator's fixed address separately when that address is available.
 
 After this firewall is active, requests sent directly to the Hetzner origin IP
 on ports 80/443 are blocked, so Cloudflare protection cannot be bypassed.
@@ -175,6 +199,8 @@ or bypassed response instead of `HIT`.
 
 - [ ] Register and sign in as a customer.
 - [ ] Add a product, update quantity, and submit an inquiry.
+- [ ] Double-click the inquiry button once and confirm that only one inquiry is
+      created and the button shows the sending state.
 - [ ] Confirm the inquiry appears in CMS and update its status.
 - [ ] Test product image, blog image, and manual upload.
 - [ ] Open two CMS tabs and confirm that an older tab cannot overwrite a newer
@@ -184,6 +210,24 @@ or bypassed response instead of `HIT`.
 - [ ] Confirm Apache and PHP logs contain no new errors.
 - [ ] Purge only the changed static URLs in Cloudflare when necessary; a purge
       does not delete users, products, CMS data, or uploaded files.
+
+Run the automated public checks from the project directory after deployment.
+Pass the current Hetzner public IP so the script also confirms that the origin
+cannot be reached directly around Cloudflare:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy\verify-production.ps1 -OriginIp "YOUR_HETZNER_IP"
+```
+
+If Windows Schannel cannot initialize TLS credentials, use the equivalent Node
+verifier:
+
+```powershell
+node --use-system-ca .\deploy\verify-production.mjs --origin-ip "YOUR_HETZNER_IP"
+```
+
+Do not consider the Cloudflare setup complete while the direct-origin check
+fails. Fix the Hetzner Cloud Firewall first, then rerun the same command.
 
 SMTP/email verification is intentionally deferred. Do not mark email delivery
 as production-ready until an official sender address and provider are chosen.

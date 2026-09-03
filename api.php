@@ -540,7 +540,79 @@ function has_column(PDO $pdo, string $table, string $column): bool
     return false;
 }
 
+function has_index(PDO $pdo, string $table, string $index): bool
+{
+    if (database_driver($pdo) === 'mysql') {
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name AND INDEX_NAME = :index_name');
+        $stmt->execute([':table_name' => $table, ':index_name' => $index]);
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
+    $indexes = $pdo->query('PRAGMA index_list(' . quote_identifier($pdo, $table) . ')')->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($indexes as $existingIndex) {
+        if (($existingIndex['name'] ?? '') === $index) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function ensure_cart_item_uniqueness(PDO $pdo): void
+{
+    if (has_index($pdo, 'cart_items', 'cart_product')) {
+        return;
+    }
+
+    $duplicates = $pdo->query('SELECT cart_id, product_id, MIN(id) AS keep_id, SUM(quantity) AS total_quantity, COUNT(*) AS row_count FROM cart_items GROUP BY cart_id, product_id HAVING COUNT(*) > 1')->fetchAll(PDO::FETCH_ASSOC);
+    $update = $pdo->prepare('UPDATE cart_items SET quantity = :quantity WHERE id = :id');
+    $delete = $pdo->prepare('DELETE FROM cart_items WHERE cart_id = :cart_id AND product_id = :product_id AND id <> :keep_id');
+    foreach ($duplicates as $duplicate) {
+        $quantity = max(1, min(99, (int)$duplicate['total_quantity']));
+        $update->execute([':quantity' => $quantity, ':id' => (int)$duplicate['keep_id']]);
+        $delete->execute([
+            ':cart_id' => (int)$duplicate['cart_id'],
+            ':product_id' => (string)$duplicate['product_id'],
+            ':keep_id' => (int)$duplicate['keep_id'],
+        ]);
+    }
+
+    $pdo->exec('CREATE UNIQUE INDEX ' . quote_identifier($pdo, 'cart_product') . ' ON cart_items (cart_id, product_id)');
+}
+
+function consolidate_cart_item_rows(array $rows): array
+{
+    $result = [];
+    $positions = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $cartId = (int)($row['cart_id'] ?? 0);
+        $productId = trim((string)($row['product_id'] ?? ''));
+        if ($cartId < 1 || $productId === '') {
+            $result[] = $row;
+            continue;
+        }
+
+        $key = $cartId . ':' . $productId;
+        if (!array_key_exists($key, $positions)) {
+            $positions[$key] = count($result);
+            $row['quantity'] = max(1, min(99, (int)($row['quantity'] ?? 1)));
+            $result[] = $row;
+            continue;
+        }
+
+        $position = $positions[$key];
+        $result[$position]['quantity'] = min(99, (int)$result[$position]['quantity'] + max(1, (int)($row['quantity'] ?? 1)));
+    }
+    return $result;
+}
+
 final class CmsRevisionConflict extends RuntimeException
+{
+}
+
+final class OrderSubmissionConflict extends RuntimeException
 {
 }
 
@@ -571,7 +643,7 @@ function database(array $config): PDO
         $pdo->exec('CREATE TABLE IF NOT EXISTS cms_revisions (id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, revision INT UNSIGNED NOT NULL, value LONGTEXT NOT NULL, created_at VARCHAR(64) NOT NULL, INDEX(revision)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         $pdo->exec('CREATE TABLE IF NOT EXISTS users (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, name VARCHAR(190) NOT NULL, email VARCHAR(190) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, role VARCHAR(40) NOT NULL DEFAULT "customer", created_at VARCHAR(64) NOT NULL, phone VARCHAR(80) NOT NULL DEFAULT "", privacy_accepted_at VARCHAR(64) NOT NULL DEFAULT "", auth_version INT UNSIGNED NOT NULL DEFAULT 0) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         $pdo->exec('CREATE TABLE IF NOT EXISTS carts (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, status VARCHAR(40) NOT NULL DEFAULT "active", created_at VARCHAR(64) NOT NULL, updated_at VARCHAR(64) NOT NULL, INDEX(user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS cart_items (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, cart_id INT UNSIGNED NOT NULL, product_id VARCHAR(190) NOT NULL, quantity INT UNSIGNED NOT NULL DEFAULT 1, created_at VARCHAR(64) NOT NULL, INDEX(cart_id), INDEX(product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS cart_items (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, cart_id INT UNSIGNED NOT NULL, product_id VARCHAR(190) NOT NULL, quantity INT UNSIGNED NOT NULL DEFAULT 1, created_at VARCHAR(64) NOT NULL, UNIQUE KEY cart_product (cart_id, product_id), INDEX(cart_id), INDEX(product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         $pdo->exec('CREATE TABLE IF NOT EXISTS product_favorites (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, product_id VARCHAR(190) NOT NULL, created_at VARCHAR(64) NOT NULL, UNIQUE KEY user_product (user_id, product_id), INDEX(user_id), INDEX(product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         $pdo->exec('CREATE TABLE IF NOT EXISTS orders (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, customer_name VARCHAR(190) NOT NULL, customer_email VARCHAR(190) NOT NULL, phone VARCHAR(80) NOT NULL DEFAULT "", note TEXT NOT NULL, status VARCHAR(40) NOT NULL DEFAULT "Novo", items_json LONGTEXT NOT NULL, created_at VARCHAR(64) NOT NULL, updated_at VARCHAR(64) NOT NULL, admin_note VARCHAR(1000) NOT NULL DEFAULT "", INDEX(user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         $pdo->exec('CREATE TABLE IF NOT EXISTS request_limits (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, action VARCHAR(80) NOT NULL, identifier VARCHAR(190) NOT NULL, created_at VARCHAR(64) NOT NULL, INDEX action_identifier_created (action, identifier, created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
@@ -622,6 +694,7 @@ function database(array $config): PDO
             ? 'ALTER TABLE orders ADD COLUMN admin_note VARCHAR(1000) NOT NULL DEFAULT ""'
             : 'ALTER TABLE orders ADD COLUMN admin_note TEXT NOT NULL DEFAULT ""');
     }
+    ensure_cart_item_uniqueness($pdo);
     seed_database($pdo);
     return $pdo;
 }
@@ -1708,6 +1781,22 @@ function active_cart_id(PDO $pdo, int $userId): int
     return (int)$pdo->lastInsertId();
 }
 
+function add_cart_item(PDO $pdo, int $cartId, string $productId, int $quantity): void
+{
+    $quantity = max(1, min(99, $quantity));
+    if (database_driver($pdo) === 'mysql') {
+        $stmt = $pdo->prepare('INSERT INTO cart_items (cart_id, product_id, quantity, created_at) VALUES (:cart_id, :product_id, :quantity, :created_at) ON DUPLICATE KEY UPDATE quantity = LEAST(99, quantity + VALUES(quantity))');
+    } else {
+        $stmt = $pdo->prepare('INSERT INTO cart_items (cart_id, product_id, quantity, created_at) VALUES (:cart_id, :product_id, :quantity, :created_at) ON CONFLICT(cart_id, product_id) DO UPDATE SET quantity = MIN(99, cart_items.quantity + excluded.quantity)');
+    }
+    $stmt->execute([
+        ':cart_id' => $cartId,
+        ':product_id' => $productId,
+        ':quantity' => $quantity,
+        ':created_at' => date('c'),
+    ]);
+}
+
 function products_by_id(PDO $pdo): array
 {
     $cms = public_cms(get_cms($pdo));
@@ -1771,26 +1860,134 @@ function product_price_label(array $product): string
     return 'Cijena na upit';
 }
 
-function cart_payload(PDO $pdo, int $userId): array
+function phone_validation_error(string $phone, bool $required = false): ?string
 {
-    $cartId = active_cart_id($pdo, $userId);
+    $phone = trim($phone);
+    if ($phone === '') {
+        return $required ? 'Unesite broj telefona.' : null;
+    }
+    if (cms_text_length($phone) > 30 || preg_match('/[^0-9+()\/ .-]/', $phone)) {
+        return 'Unesite ispravan broj telefona.';
+    }
+    if (substr_count($phone, '+') > 1 || (strpos($phone, '+') !== false && $phone[0] !== '+')) {
+        return 'Unesite ispravan broj telefona.';
+    }
+
+    $digits = preg_replace('/\D/', '', $phone) ?? '';
+    if (strlen($digits) < 6 || strlen($digits) > 15) {
+        return 'Unesite ispravan broj telefona.';
+    }
+    return null;
+}
+
+function cart_payload_by_id(PDO $pdo, int $userId, int $cartId): array
+{
+    $cartStmt = $pdo->prepare('SELECT id, status FROM carts WHERE id = :id AND user_id = :user_id LIMIT 1');
+    $cartStmt->execute([':id' => $cartId, ':user_id' => $userId]);
+    $cart = $cartStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$cart) {
+        return ['cartId' => 0, 'status' => '', 'items' => [], 'count' => 0];
+    }
+
     $products = products_by_id($pdo);
     $stmt = $pdo->prepare('SELECT id, product_id, quantity FROM cart_items WHERE cart_id = :cart_id ORDER BY id DESC');
     $stmt->execute([':cart_id' => $cartId]);
     $items = [];
-
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $productId = (string)$row['product_id'];
-        $product = $products[$productId] ?? ['id' => $productId, 'name' => 'Nedostupan proizvod', 'summary' => '', 'enabled' => false];
+        $product = $products[$productId] ?? ['id' => $productId, 'name' => 'Nedostupan proizvod', 'summary' => 'Ovaj proizvod više nije u javnoj ponudi.', 'status' => 'Nije dostupno', 'enabled' => false];
         $items[] = [
             'id' => (int)$row['id'],
             'productId' => $productId,
-            'quantity' => (int)$row['quantity'],
+            'quantity' => max(1, min(99, (int)$row['quantity'])),
             'product' => $product,
         ];
     }
 
-    return ['cartId' => $cartId, 'items' => $items, 'count' => array_sum(array_column($items, 'quantity'))];
+    return [
+        'cartId' => (int)$cart['id'],
+        'status' => (string)$cart['status'],
+        'items' => $items,
+        'count' => array_sum(array_column($items, 'quantity')),
+    ];
+}
+
+function cart_payload(PDO $pdo, int $userId): array
+{
+    $cartId = active_cart_id($pdo, $userId);
+    return cart_payload_by_id($pdo, $userId, $cartId);
+}
+
+function create_order_from_cart(PDO $pdo, int $userId, int $cartId, array $user, string $phone, string $note, bool $updateProfilePhone): int
+{
+    try {
+        $pdo->beginTransaction();
+        if (database_driver($pdo) === 'sqlite') {
+            $sqliteLock = $pdo->prepare('UPDATE carts SET updated_at = updated_at WHERE id = :id AND user_id = :user_id');
+            $sqliteLock->execute([':id' => $cartId, ':user_id' => $userId]);
+        }
+        $lockSql = 'SELECT id, status FROM carts WHERE id = :id AND user_id = :user_id LIMIT 1';
+        if (database_driver($pdo) === 'mysql') {
+            $lockSql .= ' FOR UPDATE';
+        }
+        $lock = $pdo->prepare($lockSql);
+        $lock->execute([':id' => $cartId, ':user_id' => $userId]);
+        $lockedCart = $lock->fetch(PDO::FETCH_ASSOC);
+        if (!$lockedCart || (string)$lockedCart['status'] !== 'active') {
+            throw new OrderSubmissionConflict('Ovaj upit je već poslan ili korpa više nije aktivna. Osvježite korpu.');
+        }
+
+        $cart = cart_payload_by_id($pdo, $userId, $cartId);
+        if (!$cart['items']) {
+            throw new OrderSubmissionConflict('Korpa je prazna.');
+        }
+        foreach ($cart['items'] as $cartItem) {
+            if (($cartItem['product']['enabled'] ?? true) === false) {
+                throw new OrderSubmissionConflict('Jedan od proizvoda u korpi više nije dostupan. Uklonite ga prije slanja upita.');
+            }
+        }
+
+        $items = array_map(static function (array $item): array {
+            $product = is_array($item['product'] ?? null) ? $item['product'] : [];
+            return [
+                'productId' => (string)$item['productId'],
+                'name' => (string)($product['name'] ?? 'Proizvod'),
+                'quantity' => (int)$item['quantity'],
+                'price' => product_price_label($product),
+            ];
+        }, $cart['items']);
+
+        $now = date('c');
+        $insert = $pdo->prepare('INSERT INTO orders (user_id, customer_name, customer_email, phone, note, status, items_json, created_at, updated_at) VALUES (:user_id, :customer_name, :customer_email, :phone, :note, "Novo", :items_json, :created_at, :updated_at)');
+        $insert->execute([
+            ':user_id' => $userId,
+            ':customer_name' => (string)$user['name'],
+            ':customer_email' => (string)$user['email'],
+            ':phone' => $phone,
+            ':note' => $note,
+            ':items_json' => encode_json_or_fail($items),
+            ':created_at' => $now,
+            ':updated_at' => $now,
+        ]);
+        $orderId = (int)$pdo->lastInsertId();
+
+        $closeCart = $pdo->prepare('UPDATE carts SET status = "submitted", updated_at = :updated_at WHERE id = :id AND user_id = :user_id AND status = "active"');
+        $closeCart->execute([':updated_at' => $now, ':id' => $cartId, ':user_id' => $userId]);
+        if ($closeCart->rowCount() !== 1) {
+            throw new OrderSubmissionConflict('Upit nije poslan jer korpa više nije aktivna. Osvježite korpu.');
+        }
+
+        if ($updateProfilePhone) {
+            $pdo->prepare('UPDATE users SET phone = :phone WHERE id = :id AND role = "customer"')->execute([':phone' => $phone, ':id' => $userId]);
+        }
+        $pdo->commit();
+        return $orderId;
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $error;
+    }
 }
 
 function favorites_payload(PDO $pdo, int $userId): array
@@ -1880,25 +2077,26 @@ function customers_payload(PDO $pdo): array
 {
     $stmt = $pdo->query('SELECT id, name, email, phone, created_at FROM users WHERE role = "customer" ORDER BY id DESC');
     $customers = [];
-    $orderStmt = $pdo->prepare('SELECT id, phone, note, admin_note, status, items_json, created_at, updated_at FROM orders WHERE user_id = :user_id ORDER BY id DESC');
+    $ordersByUser = [];
+    $orderStmt = $pdo->query('SELECT id, user_id, phone, note, admin_note, status, items_json, created_at, updated_at FROM orders ORDER BY user_id, id DESC');
+
+    foreach ($orderStmt->fetchAll(PDO::FETCH_ASSOC) as $order) {
+        $userId = (int)$order['user_id'];
+        $items = json_decode((string)$order['items_json'], true);
+        $ordersByUser[$userId][] = [
+            'id' => (int)$order['id'],
+            'phone' => $order['phone'],
+            'note' => $order['note'],
+            'adminNote' => $order['admin_note'],
+            'status' => $order['status'],
+            'items' => is_array($items) ? $items : [],
+            'createdAt' => $order['created_at'],
+            'updatedAt' => $order['updated_at'],
+        ];
+    }
 
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $orderStmt->execute([':user_id' => (int)$row['id']]);
-        $orders = [];
-
-        foreach ($orderStmt->fetchAll(PDO::FETCH_ASSOC) as $order) {
-            $items = json_decode((string)$order['items_json'], true);
-            $orders[] = [
-                'id' => (int)$order['id'],
-                'phone' => $order['phone'],
-                'note' => $order['note'],
-                'adminNote' => $order['admin_note'],
-                'status' => $order['status'],
-                'items' => is_array($items) ? $items : [],
-                'createdAt' => $order['created_at'],
-                'updatedAt' => $order['updated_at'],
-            ];
-        }
+        $orders = $ordersByUser[(int)$row['id']] ?? [];
 
         $customers[] = [
             'id' => (int)$row['id'],
@@ -2020,7 +2218,7 @@ function restore_backup_payload(PDO $pdo, array $backup): int
         $pdo->exec('DELETE FROM users');
         insert_rows($pdo, 'users', $users);
         insert_rows($pdo, 'carts', $backup['tables']['carts']);
-        insert_rows($pdo, 'cart_items', $backup['tables']['cart_items']);
+        insert_rows($pdo, 'cart_items', consolidate_cart_item_rows($backup['tables']['cart_items']));
         insert_rows($pdo, 'product_favorites', $backup['tables']['product_favorites'] ?? []);
         insert_rows($pdo, 'orders', $backup['tables']['orders']);
         $pdo->commit();
@@ -2204,8 +2402,12 @@ try {
         $phone = trim((string)($body['phone'] ?? ''));
         $currentPassword = (string)($body['currentPassword'] ?? '');
 
-        if (strlen($name) < 2 || strlen($name) > 120 || strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($phone) > 30) {
+        if (cms_text_length($name) < 2 || cms_text_length($name) > 120 || strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             respond(['ok' => false, 'message' => 'Unesite ime i ispravan email.'], 400);
+        }
+        $phoneError = phone_validation_error($phone);
+        if ($phoneError !== null) {
+            respond(['ok' => false, 'message' => $phoneError], 400);
         }
 
         $current = $pdo->prepare('SELECT id, name, email, password_hash, auth_version FROM users WHERE id = :id AND role = "customer" LIMIT 1');
@@ -2404,27 +2606,33 @@ try {
         $userId = require_customer();
         $body = body_json();
         $productId = trim((string)($body['productId'] ?? ''));
-        $quantity = max(1, min(99, (int)($body['quantity'] ?? 1)));
+        $quantityValue = $body['quantity'] ?? 1;
+        if (!is_int($quantityValue) || $quantityValue < 1 || $quantityValue > 99) {
+            respond(['ok' => false, 'message' => 'Količina mora biti između 1 i 99.'], 400);
+        }
+        $quantity = $quantityValue;
         $products = products_by_id($pdo);
 
         if ($productId === '' || !isset($products[$productId]) || ($products[$productId]['enabled'] ?? true) === false) {
             respond(['ok' => false, 'message' => 'Proizvod nije pronađen.'], 404);
         }
 
-        $cartId = active_cart_id($pdo, $userId);
-        $existing = $pdo->prepare('SELECT id, quantity FROM cart_items WHERE cart_id = :cart_id AND product_id = :product_id LIMIT 1');
-        $existing->execute([':cart_id' => $cartId, ':product_id' => $productId]);
-        $item = $existing->fetch(PDO::FETCH_ASSOC);
-
-        if ($item) {
-            $update = $pdo->prepare('UPDATE cart_items SET quantity = :quantity WHERE id = :id');
-            $update->execute([':quantity' => min(99, (int)$item['quantity'] + $quantity), ':id' => (int)$item['id']]);
-        } else {
-            $insert = $pdo->prepare('INSERT INTO cart_items (cart_id, product_id, quantity, created_at) VALUES (:cart_id, :product_id, :quantity, :created_at)');
-            $insert->execute([':cart_id' => $cartId, ':product_id' => $productId, ':quantity' => $quantity, ':created_at' => date('c')]);
+        try {
+            $pdo->beginTransaction();
+            $cartId = active_cart_id($pdo, $userId);
+            add_cart_item($pdo, $cartId, $productId, $quantity);
+            $pdo->prepare('UPDATE carts SET updated_at = :updated_at WHERE id = :id AND user_id = :user_id')->execute([
+                ':updated_at' => date('c'),
+                ':id' => $cartId,
+                ':user_id' => $userId,
+            ]);
+            $pdo->commit();
+        } catch (Throwable $error) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $error;
         }
-
-        $pdo->prepare('UPDATE carts SET updated_at = :updated_at WHERE id = :id')->execute([':updated_at' => date('c'), ':id' => $cartId]);
         respond(['ok' => true, 'cart' => cart_payload($pdo, $userId)]);
     }
 
@@ -2432,10 +2640,19 @@ try {
         $userId = require_customer();
         $body = body_json();
         $itemId = (int)($body['itemId'] ?? 0);
-        $quantity = min(99, (int)($body['quantity'] ?? 1));
+        $quantityValue = $body['quantity'] ?? null;
+        if ($itemId < 1 || !is_int($quantityValue) || $quantityValue < 0 || $quantityValue > 99) {
+            respond(['ok' => false, 'message' => 'Stavka ili količina nisu ispravni.'], 400);
+        }
+        $quantity = $quantityValue;
         $cartId = active_cart_id($pdo, $userId);
+        $exists = $pdo->prepare('SELECT id FROM cart_items WHERE id = :id AND cart_id = :cart_id LIMIT 1');
+        $exists->execute([':id' => $itemId, ':cart_id' => $cartId]);
+        if (!$exists->fetchColumn()) {
+            respond(['ok' => false, 'message' => 'Stavka korpe nije pronađena. Osvježite korpu.'], 404);
+        }
 
-        if ($quantity < 1) {
+        if ($quantity === 0) {
             $stmt = $pdo->prepare('DELETE FROM cart_items WHERE id = :id AND cart_id = :cart_id');
             $stmt->execute([':id' => $itemId, ':cart_id' => $cartId]);
         } else {
@@ -2450,9 +2667,16 @@ try {
     if ($action === 'cart-remove') {
         $userId = require_customer();
         $body = body_json();
+        $itemId = (int)($body['itemId'] ?? 0);
+        if ($itemId < 1) {
+            respond(['ok' => false, 'message' => 'Stavka korpe nije ispravna.'], 400);
+        }
         $cartId = active_cart_id($pdo, $userId);
         $stmt = $pdo->prepare('DELETE FROM cart_items WHERE id = :id AND cart_id = :cart_id');
-        $stmt->execute([':id' => (int)($body['itemId'] ?? 0), ':cart_id' => $cartId]);
+        $stmt->execute([':id' => $itemId, ':cart_id' => $cartId]);
+        if ($stmt->rowCount() !== 1) {
+            respond(['ok' => false, 'message' => 'Stavka korpe nije pronađena. Osvježite korpu.'], 404);
+        }
         $pdo->prepare('UPDATE carts SET updated_at = :updated_at WHERE id = :id')->execute([':updated_at' => date('c'), ':id' => $cartId]);
         respond(['ok' => true, 'cart' => cart_payload($pdo, $userId)]);
     }
@@ -2485,55 +2709,23 @@ try {
 
         if ($phone === '') {
             $phone = (string)($user['phone'] ?? '');
-        } elseif ($updateProfilePhone) {
-            $pdo->prepare('UPDATE users SET phone = :phone WHERE id = :id')->execute([':phone' => $phone, ':id' => $userId]);
         }
-
-        if ($phone === '') {
-            respond(['ok' => false, 'message' => 'Unesite broj telefona prije slanja upita.'], 400);
+        $phoneError = phone_validation_error($phone, true);
+        if ($phoneError !== null) {
+            respond(['ok' => false, 'message' => $phoneError], 400);
         }
-        if (strlen($phone) < 6 || strlen($phone) > 30) {
-            respond(['ok' => false, 'message' => 'Unesite ispravan broj telefona.'], 400);
-        }
-        if (strlen($note) > 1000) {
+        if (cms_text_length($note) > 1000) {
             respond(['ok' => false, 'message' => 'Napomena može imati najviše 1000 znakova.'], 400);
         }
 
         require_action_rate_limit($pdo, 'order-submit', 'user:' . $userId, 3, 600, 'Poslali ste više upita u kratkom periodu. Pokušajte ponovo za nekoliko minuta.');
         require_action_rate_limit($pdo, 'order-submit', 'user-day:' . $userId, 10, 86400, 'Dnevni limit upita je dostignut. Pokušajte ponovo sutra ili nas kontaktirajte direktno.');
-        require_action_rate_limit($pdo, 'order-submit', 'ip:' . client_ip(), 20, 86400, 'Previše upita dolazi sa ove mreže. Pokušajte ponovo kasnije.');
-
-        $items = array_map(static function (array $item): array {
-            $product = is_array($item['product'] ?? null) ? $item['product'] : [];
-            return [
-                'productId' => $item['productId'],
-                'name' => $product['name'] ?? 'Proizvod',
-                'quantity' => (int)$item['quantity'],
-                'price' => product_price_label($product),
-            ];
-        }, $cart['items']);
+        require_action_rate_limit($pdo, 'order-submit', login_identifier(client_ip(), 'order-submit'), 20, 86400, 'Previše upita dolazi sa ove mreže. Pokušajte ponovo kasnije.');
 
         try {
-            $pdo->beginTransaction();
-            $insert = $pdo->prepare('INSERT INTO orders (user_id, customer_name, customer_email, phone, note, status, items_json, created_at, updated_at) VALUES (:user_id, :customer_name, :customer_email, :phone, :note, "Novo", :items_json, :created_at, :updated_at)');
-            $insert->execute([
-                ':user_id' => $userId,
-                ':customer_name' => $user['name'],
-                ':customer_email' => $user['email'],
-                ':phone' => $phone,
-                ':note' => $note,
-                ':items_json' => json_encode($items, JSON_UNESCAPED_UNICODE),
-                ':created_at' => date('c'),
-                ':updated_at' => date('c'),
-            ]);
-            $orderId = (int)$pdo->lastInsertId();
-            $pdo->prepare('UPDATE carts SET status = "submitted", updated_at = :updated_at WHERE id = :id')->execute([':updated_at' => date('c'), ':id' => (int)$cart['cartId']]);
-            $pdo->commit();
-        } catch (Throwable $error) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $error;
+            $orderId = create_order_from_cart($pdo, $userId, (int)$cart['cartId'], $user, $phone, $note, $updateProfilePhone);
+        } catch (OrderSubmissionConflict $error) {
+            respond(['ok' => false, 'message' => $error->getMessage()], 409);
         }
 
         respond(['ok' => true, 'order' => ['id' => $orderId], 'cart' => cart_payload($pdo, $userId)]);
@@ -2564,6 +2756,11 @@ try {
         if ($orderId < 1 || !in_array($status, $allowed, true)) {
             respond(['ok' => false, 'message' => 'Neispravan status narudžbe.'], 400);
         }
+        $exists = $pdo->prepare('SELECT id FROM orders WHERE id = :id LIMIT 1');
+        $exists->execute([':id' => $orderId]);
+        if (!$exists->fetchColumn()) {
+            respond(['ok' => false, 'message' => 'Upit nije pronađen.'], 404);
+        }
 
         $stmt = $pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :id');
         $stmt->execute([':status' => $status, ':updated_at' => date('c'), ':id' => $orderId]);
@@ -2578,6 +2775,14 @@ try {
 
         if ($orderId < 1) {
             respond(['ok' => false, 'message' => 'Narudžba nije pronađena.'], 400);
+        }
+        if (cms_text_length($note) > 1000) {
+            respond(['ok' => false, 'message' => 'Interna napomena može imati najviše 1000 znakova.'], 400);
+        }
+        $exists = $pdo->prepare('SELECT id FROM orders WHERE id = :id LIMIT 1');
+        $exists->execute([':id' => $orderId]);
+        if (!$exists->fetchColumn()) {
+            respond(['ok' => false, 'message' => 'Upit nije pronađen.'], 404);
         }
 
         $stmt = $pdo->prepare('UPDATE orders SET admin_note = :note, updated_at = :updated_at WHERE id = :id');

@@ -7,8 +7,8 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#111216" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=20260808-1" />
-    <link rel="stylesheet" href="styles.css?v=20260902-visibility-1" />
-    <link rel="stylesheet" href="admin.css?v=20260808-section-faq-favicon-1" />
+    <link rel="stylesheet" href="styles.css?v=20260903-ui-1" />
+    <link rel="stylesheet" href="admin.css?v=20260903-ui-1" />
   </head>
   <body class="admin-body">
     <main class="auth-page">
@@ -18,7 +18,7 @@
       <button class="theme-toggle auth-theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
 
       <section class="auth-grid">
-        <article class="login-panel">
+        <form class="login-panel" id="customerLoginForm">
           <p class="eyebrow">Kupac</p>
           <h1>Prijavi se</h1>
           <p>Profil će se koristiti za sačuvanu korpu, omiljene proizvode i buduće narudžbe.</p>
@@ -33,10 +33,10 @@
               <button type="button" class="password-toggle" data-password-toggle="loginPassword" aria-label="Prikazi lozinku">Vidi</button>
             </span>
           </label>
-          <button class="btn btn-primary" type="button" id="customerLoginBtn">Prijava</button>
-        </article>
+          <button class="btn btn-primary" type="submit" id="customerLoginBtn">Prijava</button>
+        </form>
 
-        <article class="login-panel">
+        <form class="login-panel" id="customerRegisterForm">
           <p class="eyebrow">Novi profil</p>
           <h2>Registracija</h2>
           <p>Kreirajte profil da kasnije možete čuvati korpu i podatke za upit.</p>
@@ -63,8 +63,8 @@
             Website
             <input id="registerWebsite" type="text" name="website" tabindex="-1" autocomplete="off" />
           </label>
-          <button class="btn btn-secondary" type="button" id="customerRegisterBtn">Registruj se</button>
-        </article>
+          <button class="btn btn-secondary" type="submit" id="customerRegisterBtn">Registruj se</button>
+        </form>
       </section>
 
       <section class="login-panel profile-panel" id="profilePanel" hidden>
@@ -81,6 +81,6 @@
 
     <script src="theme.js?v=20260803-load-1"></script>
     <script src="api-client.js?v=20260723-priority-2"></script>
-    <script src="login.js?v=20260902-auth-1"></script>
+    <script src="login.js?v=20260903-ui-1"></script>
   </body>
 </html>

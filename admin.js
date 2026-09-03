@@ -118,9 +118,18 @@ let orderFilters = {
 let customerFilters = {
   search: "",
 };
+const listViews = {
+  products: { page: 1, pageSize: 25 },
+  orders: { page: 1, pageSize: 25 },
+  customers: { page: 1, pageSize: 25 },
+};
+const contentListViews = {};
 let productSearchTimer = null;
 let orderSearchTimer = null;
 let customerSearchTimer = null;
+const contentSearchTimers = {};
+let ordersLoaded = false;
+let customersLoaded = false;
 let passwordNeedsChange = false;
 let cmsBaseline = "";
 let cmsRevision = 0;
@@ -143,6 +152,80 @@ const panels = [
   { id: "security", label: "Sigurnost" },
   { id: "launch", label: "Provjera" },
 ];
+
+const panelCountSources = {
+  products: () => cms.products?.length || 0,
+  orders: () => (ordersLoaded ? orders.length : null),
+  customers: () => (customersLoaded ? customers.length : null),
+  manuals: () => cms.manuals?.length || 0,
+  locations: () => cms.locations?.length || 0,
+  blogs: () => cms.blogs?.length || 0,
+  faq: () => cms.faq?.length || 0,
+};
+
+function listView(panelId, defaultPageSize = 10) {
+  if (!listViews[panelId]) {
+    listViews[panelId] = { page: 1, pageSize: defaultPageSize };
+  }
+  return listViews[panelId];
+}
+
+function paginated(items, panelId, defaultPageSize = 10) {
+  const view = listView(panelId, defaultPageSize);
+  const pageCount = Math.max(1, Math.ceil(items.length / view.pageSize));
+  view.page = Math.max(1, Math.min(view.page, pageCount));
+  const start = (view.page - 1) * view.pageSize;
+  return {
+    items: items.slice(start, start + view.pageSize),
+    page: view.page,
+    pageCount,
+    pageSize: view.pageSize,
+    start,
+    total: items.length,
+  };
+}
+
+function paginationHtml(panelId, pageData) {
+  if (!pageData.total) return "";
+  const first = pageData.start + 1;
+  const last = Math.min(pageData.start + pageData.pageSize, pageData.total);
+  return `
+    <div class="admin-pagination" data-pagination="${panelId}">
+      <span>Prikaz ${first}-${last} od ${pageData.total}</span>
+      <div class="admin-pagination-actions">
+        <button class="btn btn-secondary" type="button" data-page-change="previous" ${pageData.page <= 1 ? "disabled" : ""}>Prethodna</button>
+        <strong>Stranica ${pageData.page} od ${pageData.pageCount}</strong>
+        <button class="btn btn-secondary" type="button" data-page-change="next" ${pageData.page >= pageData.pageCount ? "disabled" : ""}>Sljedeća</button>
+        <label>
+          Po stranici
+          <select data-page-size>
+            ${[10, 25, 50].map((size) => `<option value="${size}" ${size === pageData.pageSize ? "selected" : ""}>${size}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+    </div>
+  `;
+}
+
+function bindPagination(panelId, renderFn) {
+  const container = document.querySelector(`[data-pagination="${panelId}"]`);
+  if (!container) return;
+  const view = listView(panelId);
+
+  container.querySelector('[data-page-change="previous"]')?.addEventListener("click", () => {
+    view.page = Math.max(1, view.page - 1);
+    renderFn();
+  });
+  container.querySelector('[data-page-change="next"]')?.addEventListener("click", () => {
+    view.page += 1;
+    renderFn();
+  });
+  container.querySelector("[data-page-size]")?.addEventListener("change", (event) => {
+    view.pageSize = Number(event.target.value) || 10;
+    view.page = 1;
+    renderFn();
+  });
+}
 
 function setAdminMenu(open) {
   document.body.classList.toggle("admin-menu-open", open);
@@ -400,24 +483,44 @@ async function loadCms() {
   }
 }
 
-async function loadOrders() {
+async function loadOrders(force = false) {
+  if (ordersLoaded && !force) return;
   try {
     const data = await api("admin-orders");
     orders = data.orders || [];
+    ordersLoaded = true;
   } catch (error) {
     orders = [];
+    ordersLoaded = true;
     console.warn("Narudžbe nisu učitane.", error);
   }
 }
 
-async function loadCustomers() {
+async function loadCustomers(force = false) {
+  if (customersLoaded && !force) return;
   try {
     const data = await api("admin-customers");
     customers = data.customers || [];
+    customersLoaded = true;
   } catch (error) {
     customers = [];
+    customersLoaded = true;
     console.warn("Kupci nisu učitani.", error);
   }
+}
+
+async function loadActivePanelData(force = false) {
+  if (activePanel === "orders") await loadOrders(force);
+  if (activePanel === "customers") await loadCustomers(force);
+}
+
+async function activatePanel(panelId) {
+  activePanel = panelId;
+  rememberActivePanel();
+  closeAdminMenu();
+  renderAll();
+  await loadActivePanelData();
+  renderAll();
 }
 
 async function saveCms() {
@@ -447,9 +550,7 @@ async function saveCms() {
   if (productsMissingSaleDate.length) {
     activePanel = "products";
     rememberActivePanel();
-    renderProducts();
-    showPanel();
-    renderCmsValidationBanner();
+    renderAll();
     const currentProductIsMissing = productsMissingSaleDate.some((product) => product.id === editingProductId);
     if (!currentProductIsMissing) {
       openProductEditor(productsMissingSaleDate[0].id);
@@ -517,8 +618,7 @@ function renderCmsValidationBanner() {
   $("#reviewMissingSaleDateBtn").addEventListener("click", () => {
     activePanel = "products";
     rememberActivePanel();
-    renderProducts();
-    showPanel();
+    renderAll();
     openProductEditor(missingProducts[0].id);
   });
 }
@@ -1233,16 +1333,14 @@ function renderProductEditorModal() {
 
 function renderNav() {
   $("#adminNav").innerHTML = panels
-    .map((panel) => `<button type="button" class="${panel.id === activePanel ? "active" : ""}" data-panel-btn="${panel.id}">${panel.label}</button>`)
+    .map((panel) => {
+      const count = panelCountSources[panel.id]?.();
+      return `<button type="button" class="${panel.id === activePanel ? "active" : ""}" data-panel-btn="${panel.id}"><span>${panel.label}</span>${count === null || count === undefined ? "" : `<span class="admin-nav-count">${count}</span>`}</button>`;
+    })
     .join("");
 
   document.querySelectorAll("[data-panel-btn]").forEach((button) => {
-    button.addEventListener("click", () => {
-      activePanel = button.dataset.panelBtn;
-      rememberActivePanel();
-      closeAdminMenu();
-      renderAll();
-    });
+    button.addEventListener("click", () => activatePanel(button.dataset.panelBtn));
   });
 }
 
@@ -1349,15 +1447,48 @@ function renderSections() {
 
 function renderArrayPanel(panelId, title, items, emptyItem, renderItem) {
   const panel = $(`[data-panel="${panelId}"]`);
-  panel.innerHTML = `<div class="admin-panel-heading"><h2>${title}</h2><button class="btn btn-primary" type="button">Dodaj</button></div>`;
-  panel.querySelector("button").addEventListener("click", () => {
+  const contentView = contentListViews[panelId] || { search: "" };
+  contentListViews[panelId] = contentView;
+  const search = contentView.search.toLowerCase().trim();
+  const filteredItems = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => !search || JSON.stringify(item).toLowerCase().includes(search));
+  const pageData = paginated(filteredItems, panelId, 10);
+
+  panel.innerHTML = `
+    <div class="admin-panel-heading">
+      <div>
+        <h2>${title}</h2>
+        <p class="admin-list-count"><strong>${filteredItems.length}</strong> prikazano od ${items.length}</p>
+      </div>
+      <button class="btn btn-primary" type="button" id="add-${panelId}">Dodaj</button>
+    </div>
+    <div class="admin-list-tools">
+      <input id="${panelId}ContentSearch" type="search" placeholder="Pretraži sadržaj..." value="${escapeHtml(contentView.search)}" />
+      <button class="btn btn-secondary" type="button" id="clear-${panelId}-search" ${contentView.search ? "" : "disabled"}>Očisti</button>
+    </div>
+  `;
+  panel.querySelector(`#add-${panelId}`).addEventListener("click", () => {
     items.unshift(structuredClone(emptyItem));
+    contentView.search = "";
+    listView(panelId).page = 1;
+    renderAll();
+  });
+  panel.querySelector(`#${panelId}ContentSearch`).addEventListener("input", (event) => {
+    contentView.search = event.target.value;
+    listView(panelId).page = 1;
+    clearTimeout(contentSearchTimers[panelId]);
+    contentSearchTimers[panelId] = setTimeout(() => rerenderAfterTyping(event.target, renderAll), 350);
+  });
+  panel.querySelector(`#clear-${panelId}-search`).addEventListener("click", () => {
+    contentView.search = "";
+    listView(panelId).page = 1;
     renderAll();
   });
 
   const list = document.createElement("div");
   list.className = "admin-card-list";
-  items.forEach((item, index) => {
+  pageData.items.forEach(({ item, index }) => {
     const itemCard = card(item.name || item.title || item.q || "Novi unos", () => {
       items.splice(index, 1);
       renderAll();
@@ -1365,7 +1496,12 @@ function renderArrayPanel(panelId, title, items, emptyItem, renderItem) {
     renderItem(itemCard, item, index);
     list.appendChild(itemCard);
   });
+  if (!pageData.total) {
+    list.innerHTML = `<div class="product-admin-empty">Nema sadržaja za ovu pretragu.</div>`;
+  }
   panel.appendChild(list);
+  panel.insertAdjacentHTML("beforeend", paginationHtml(panelId, pageData));
+  bindPagination(panelId, renderAll);
 }
 
 function checkboxField(label, checked, onChange) {
@@ -1669,10 +1805,14 @@ function renderProducts() {
     const matchesVisibility = productFilters.visibility === "Sve" || visibility === productFilters.visibility;
     return matchesName && matchesCategory && matchesBadge && matchesVisibility;
   });
+  const pageData = paginated(filteredProducts, "products", 25);
 
   panel.innerHTML = `
     <div class="admin-panel-heading">
-      <h2>Proizvodi</h2>
+      <div>
+        <h2>Proizvodi</h2>
+        <p class="admin-list-count"><strong>${filteredProducts.length}</strong> prikazano od ${cms.products.length}</p>
+      </div>
       <button class="btn btn-primary" type="button" id="addProductBtn">Dodaj</button>
     </div>
     <div class="product-admin-filters">
@@ -1686,6 +1826,7 @@ function renderProducts() {
       <select id="productVisibilityFilter">
         ${["Sve", "Aktivan", "Neaktivan"].map((visibility) => `<option value="${visibility}" ${visibility === productFilters.visibility ? "selected" : ""}>${visibility === "Sve" ? "Svi proizvodi" : visibility}</option>`).join("")}
       </select>
+      <button class="btn btn-secondary" type="button" id="clearProductFiltersBtn">Očisti</button>
     </div>
     <div class="product-admin-list">
       <div class="product-admin-row product-admin-head">
@@ -1697,8 +1838,8 @@ function renderProducts() {
         <span></span>
       </div>
       ${
-        filteredProducts.length
-          ? filteredProducts
+        pageData.total
+          ? pageData.items
               .map((product) => {
                 const index = cms.products.indexOf(product);
                 const categoryOptions = [...categoryOptionsBase];
@@ -1731,30 +1872,42 @@ function renderProducts() {
           : `<div class="product-admin-empty">Nema proizvoda za odabrane filtere.</div>`
       }
     </div>
+    ${paginationHtml("products", pageData)}
   `;
 
   $("#addProductBtn").addEventListener("click", () => {
     const defaultProduct = createDefaultProduct();
     cms.products.unshift(structuredClone(defaultProduct));
+    productFilters = { search: "", category: "Sve", badge: "Sve", visibility: "Sve" };
+    listView("products").page = 1;
     editingProductId = cms.products[0].id;
     renderProducts();
     openProductEditor(editingProductId);
   });
   $("#productSearch").addEventListener("input", (event) => {
     productFilters.search = event.target.value;
+    listView("products").page = 1;
     clearTimeout(productSearchTimer);
     productSearchTimer = setTimeout(() => rerenderAfterTyping(event.target, renderProducts), 500);
   });
   $("#productCategoryFilter").addEventListener("change", (event) => {
     productFilters.category = event.target.value;
+    listView("products").page = 1;
     renderProducts();
   });
   $("#productBadgeFilter").addEventListener("change", (event) => {
     productFilters.badge = event.target.value;
+    listView("products").page = 1;
     renderProducts();
   });
   $("#productVisibilityFilter").addEventListener("change", (event) => {
     productFilters.visibility = event.target.value;
+    listView("products").page = 1;
+    renderProducts();
+  });
+  $("#clearProductFiltersBtn").addEventListener("click", () => {
+    productFilters = { search: "", category: "Sve", badge: "Sve", visibility: "Sve" };
+    listView("products").page = 1;
     renderProducts();
   });
 
@@ -1783,47 +1936,7 @@ function renderProducts() {
       openProductEditor(button.dataset.editProduct);
     });
   });
-
-  return;
-
-  if (!editorProduct) {
-    editorWrap.innerHTML = `<div class="product-admin-empty">Odaberite proizvod iz liste za detaljno uređivanje.</div>`;
-    return;
-  }
-
-  const itemCard = card(`Uredi: ${editorProduct.name || "Proizvod"}`, () => {
-    const index = cms.products.indexOf(editorProduct);
-    cms.products.splice(index, 1);
-    editingProductId = null;
-    renderProducts();
-  });
-  const categoryOptions = [...categoryOptionsBase];
-  if (!categoryOptions.includes(editorProduct.category)) {
-    categoryOptions.unshift(editorProduct.category || "Bez kategorije");
-  }
-
-  itemCard.append(field("ID", editorProduct.id, (value) => {
-    editorProduct.id = value;
-    editingProductId = value;
-  }));
-  itemCard.append(field("Naziv", editorProduct.name, (value) => (editorProduct.name = value)));
-  itemCard.append(selectField("Kategorija", editorProduct.category, categoryOptions, (value) => (editorProduct.category = value)));
-  itemCard.append(selectField("Status", editorProduct.status, statusOptions.includes(editorProduct.status) ? statusOptions : [editorProduct.status, ...statusOptions], (value) => (editorProduct.status = value)));
-  itemCard.append(selectField("Badge", editorProduct.badge || "-", badgeOptions, (value) => (editorProduct.badge = value)));
-  itemCard.append(numberField("MPC - maloprodajna cijena", editorProduct.mpcPrice, (value) => (editorProduct.mpcPrice = value)));
-  itemCard.append(numberField("Cijena s popustom", editorProduct.discountPrice, (value) => (editorProduct.discountPrice = value)));
-  itemCard.append(numberField("Akcijska cijena", editorProduct.salePrice, (value) => (editorProduct.salePrice = value)));
-  itemCard.append(field("Akcija traje do", editorProduct.saleUntil, (value) => (editorProduct.saleUntil = value), "date"));
-  itemCard.append(field("Badge traje do", editorProduct.badgeUntil, (value) => (editorProduct.badgeUntil = value), "date"));
-  itemCard.append(field("Rok isporuke", editorProduct.deliveryTime, (value) => (editorProduct.deliveryTime = value)));
-  itemCard.append(selectField("Boja kartice", editorProduct.tone === "dark" ? "light" : editorProduct.tone, ["red", "light"], (value) => (editorProduct.tone = value)));
-  itemCard.append(imageUploadField("Glavna slika proizvoda", editorProduct.image, (path) => (editorProduct.image = path)));
-  itemCard.append(galleryField(editorProduct));
-  itemCard.append(productManualField(editorProduct));
-  itemCard.append(field("Kratak opis", editorProduct.summary, (value) => (editorProduct.summary = value), "textarea"));
-  itemCard.append(richTextField("Detaljan opis artikla", editorProduct.detailedDescription, (value) => (editorProduct.detailedDescription = value)));
-  itemCard.append(field("Specifikacije, jedna po redu: Naziv: vrijednost", specsToText(editorProduct.specs), (value) => (editorProduct.specs = textToSpecs(value)), "textarea"));
-  editorWrap.appendChild(itemCard);
+  bindPagination("products", renderProducts);
 }
 
 function normalizePhone(phone) {
@@ -1895,7 +2008,8 @@ async function updateOrderStatus(orderId, status) {
   try {
     const data = await api("admin-order-status", { orderId: Number(orderId), status });
     orders = data.orders || [];
-    await loadCustomers();
+    ordersLoaded = true;
+    customersLoaded = false;
     renderOrders();
     if ($("#orderDetailModal")) renderOrderDetailModal(Number(orderId));
     flash("Status narudžbe je ažuriran.");
@@ -1908,7 +2022,8 @@ async function updateOrderNote(orderId, note) {
   try {
     const data = await api("admin-order-note", { orderId: Number(orderId), note });
     orders = data.orders || [];
-    await loadCustomers();
+    ordersLoaded = true;
+    customersLoaded = false;
     renderOrders();
     if ($("#orderDetailModal")) renderOrderDetailModal(Number(orderId));
     flash("Interna napomena je sačuvana.");
@@ -2016,12 +2131,17 @@ function renderOrderDetailModal(orderId) {
 
 function renderOrders() {
   const panel = $('[data-panel="orders"]');
+  if (!ordersLoaded) {
+    panel.innerHTML = `<div class="admin-loading" role="status">Učitavanje narudžbi i upita...</div>`;
+    return;
+  }
   const statuses = ["Novo", "U obradi", "Kontaktiran", "Završeno", "Otkazano"];
   const productOptions = [
     "Sve",
     ...new Set(orders.flatMap((order) => (order.items || []).map((item) => item.name).filter(Boolean))),
   ];
   const visibleOrders = filteredOrders();
+  const pageData = paginated(visibleOrders, "orders", 25);
 
   panel.innerHTML = `
     <div class="admin-panel-heading">
@@ -2044,14 +2164,14 @@ function renderOrders() {
       <button class="btn btn-secondary" type="button" id="clearOrderFiltersBtn">Očisti</button>
     </div>
     <div class="order-stats-strip">
-      <span><strong>${visibleOrders.length}</strong> prikazano</span>
+      <span><strong>${visibleOrders.length}</strong> odgovara filterima</span>
       <span><strong>${orders.length}</strong> ukupno</span>
       <span><strong>${orders.filter((order) => order.status === "Novo").length}</strong> novih</span>
     </div>
     <div class="orders-list">
       ${
-        visibleOrders.length
-          ? visibleOrders
+        pageData.total
+          ? pageData.items
               .map((order) => {
                 const itemCount = (order.items || []).reduce((total, item) => total + (Number(item.quantity) || 1), 0);
                 const itemsPreview = (order.items || [])
@@ -2078,42 +2198,50 @@ function renderOrders() {
           : `<div class="product-admin-empty">Nema upita za odabrane filtere.</div>`
       }
     </div>
+    ${paginationHtml("orders", pageData)}
   `;
 
   $("#orderSearch").addEventListener("input", (event) => {
     orderFilters.search = event.target.value;
+    listView("orders").page = 1;
     clearTimeout(orderSearchTimer);
     orderSearchTimer = setTimeout(() => rerenderAfterTyping(event.target, renderOrders), 500);
   });
   $("#orderStatusFilter").addEventListener("change", (event) => {
     orderFilters.status = event.target.value;
+    listView("orders").page = 1;
     renderOrders();
   });
   $("#orderProductFilter").addEventListener("change", (event) => {
     orderFilters.product = event.target.value;
+    listView("orders").page = 1;
     renderOrders();
   });
   $("#orderDateFilter").addEventListener("change", (event) => {
     orderFilters.date = event.target.value;
+    listView("orders").page = 1;
     renderOrders();
   });
   $("#orderDateToFilter").addEventListener("change", (event) => {
     orderFilters.dateTo = event.target.value;
+    listView("orders").page = 1;
     renderOrders();
   });
   $("#clearOrderFiltersBtn").addEventListener("click", () => {
     orderFilters = { search: "", status: "Sve", date: "", dateTo: "", product: "Sve" };
+    listView("orders").page = 1;
     renderOrders();
   });
 
   $("#refreshOrdersBtn").addEventListener("click", async () => {
-    await loadOrders();
+    await loadOrders(true);
     renderOrders();
   });
 
   document.querySelectorAll("[data-order-detail]").forEach((button) => {
     button.addEventListener("click", () => renderOrderDetailModal(Number(button.dataset.orderDetail)));
   });
+  bindPagination("orders", renderOrders);
 }
 function filteredCustomers() {
   const search = customerFilters.search.toLowerCase().trim();
@@ -2199,11 +2327,11 @@ function renderCustomerDetailModal(customerId) {
 
   $("#closeCustomerDetailBtn").addEventListener("click", closeCustomerDetail);
   document.querySelectorAll("[data-customer-order]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       closeCustomerDetail();
-      activePanel = "orders";
       orderFilters.search = String(button.dataset.customerOrder);
-      renderAll();
+      listView("orders").page = 1;
+      await activatePanel("orders");
       renderOrderDetailModal(Number(button.dataset.customerOrder));
     });
   });
@@ -2211,7 +2339,12 @@ function renderCustomerDetailModal(customerId) {
 
 function renderCustomers() {
   const panel = $('[data-panel="customers"]');
+  if (!customersLoaded) {
+    panel.innerHTML = `<div class="admin-loading" role="status">Učitavanje kupaca...</div>`;
+    return;
+  }
   const visibleCustomers = filteredCustomers();
+  const pageData = paginated(visibleCustomers, "customers", 25);
 
   panel.innerHTML = `
     <div class="admin-panel-heading">
@@ -2222,10 +2355,14 @@ function renderCustomers() {
       <input id="customerSearch" type="search" placeholder="Pretraži ime, email ili telefon..." value="${escapeHtml(customerFilters.search)}" />
       <button class="btn btn-secondary" type="button" id="clearCustomerFiltersBtn">Očisti</button>
     </div>
+    <div class="order-stats-strip">
+      <span><strong>${visibleCustomers.length}</strong> odgovara pretrazi</span>
+      <span><strong>${customers.length}</strong> ukupno</span>
+    </div>
     <div class="customers-list">
       ${
-        visibleCustomers.length
-          ? visibleCustomers
+        pageData.total
+          ? pageData.items
               .map(
                 (customer) => `
                   <article class="customer-row">
@@ -2245,24 +2382,28 @@ function renderCustomers() {
           : `<div class="product-admin-empty">Nema kupaca za odabranu pretragu.</div>`
       }
     </div>
+    ${paginationHtml("customers", pageData)}
   `;
 
   $("#customerSearch").addEventListener("input", (event) => {
     customerFilters.search = event.target.value;
+    listView("customers").page = 1;
     clearTimeout(customerSearchTimer);
     customerSearchTimer = setTimeout(() => rerenderAfterTyping(event.target, renderCustomers), 500);
   });
   $("#clearCustomerFiltersBtn").addEventListener("click", () => {
     customerFilters = { search: "" };
+    listView("customers").page = 1;
     renderCustomers();
   });
   $("#refreshCustomersBtn").addEventListener("click", async () => {
-    await loadCustomers();
+    await loadCustomers(true);
     renderCustomers();
   });
   document.querySelectorAll("[data-customer-detail]").forEach((button) => {
     button.addEventListener("click", () => renderCustomerDetailModal(Number(button.dataset.customerDetail)));
   });
+  bindPagination("customers", renderCustomers);
 }
 
 function renderComingSoon() {
@@ -2512,21 +2653,24 @@ function renderLaunchChecklist() {
 function renderAll() {
   rememberActivePanel();
   renderNav();
-  renderSettings();
-  renderSections();
-  renderCategories();
-  renderBadges();
-  renderProducts();
-  renderOrders();
-  renderCustomers();
-  renderComingSoon();
-  renderParts();
-  renderManuals();
-  renderLocations();
-  renderBlogs();
-  renderFaq();
-  renderSecurity();
-  renderLaunchChecklist();
+  const renderer = {
+    settings: renderSettings,
+    sections: renderSections,
+    categories: renderCategories,
+    badges: renderBadges,
+    products: renderProducts,
+    orders: renderOrders,
+    customers: renderCustomers,
+    comingSoon: renderComingSoon,
+    parts: renderParts,
+    manuals: renderManuals,
+    locations: renderLocations,
+    blogs: renderBlogs,
+    faq: renderFaq,
+    security: renderSecurity,
+    launch: renderLaunchChecklist,
+  }[activePanel];
+  renderer?.();
   showPanel();
   renderCmsValidationBanner();
 }
@@ -2555,8 +2699,8 @@ async function showEditor() {
   $("#loginPanel").hidden = true;
   $("#adminEditor").hidden = false;
   const requestedProduct = applyAdminUrlContext();
-  await loadOrders();
-  await loadCustomers();
+  renderAll();
+  await loadActivePanelData();
   renderAll();
   captureCmsBaseline();
   if (requestedProduct && cms.products.some((product) => product.id === requestedProduct)) {
@@ -2570,6 +2714,8 @@ async function adminLogout() {
     $("#adminEditor").hidden = true;
     $("#loginPanel").hidden = false;
     $("#passwordInput").value = "";
+    ordersLoaded = false;
+    customersLoaded = false;
     flash("Admin je odjavljen.");
   } catch (error) {
     flash(error.message);
@@ -2582,7 +2728,6 @@ async function resetCmsDemo() {
     const data = await api("reset-cms", { revision: cmsRevision });
     cmsRevision = Number(data.revision) || cmsRevision + 1;
     cms = data.cms;
-    await loadCustomers();
     captureCmsBaseline();
     renderAll();
     captureCmsBaseline();
@@ -2597,20 +2742,19 @@ function downloadBackup() {
   flash("Backup se preuzima.");
 }
 
-$("#loginBtn").addEventListener("click", async () => {
+$("#loginPanel").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = $("#loginBtn");
+  if (button.disabled) return;
+  button.disabled = true;
   try {
     await api("admin-login", { password: $("#passwordInput").value });
     await loadCms();
     await showEditor();
   } catch (error) {
     flash(error.message || "Pogrešna lozinka.");
-  }
-});
-
-$("#passwordInput").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    $("#loginBtn").click();
+  } finally {
+    button.disabled = false;
   }
 });
 
@@ -2674,7 +2818,8 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
     cmsRevision = Number(data.revision) || cmsRevision + 1;
     cms = { ...structuredClone(defaultCms), ...data.cms };
     orders = data.orders || [];
-    await loadCustomers();
+    ordersLoaded = true;
+    customersLoaded = false;
     captureCmsBaseline();
     renderAll();
     captureCmsBaseline();
@@ -2693,8 +2838,9 @@ window.addEventListener("storage", async (event) => {
   }
 
   await loadCms();
-  await loadOrders();
-  await loadCustomers();
+  ordersLoaded = false;
+  customersLoaded = false;
+  await loadActivePanelData();
   renderAll();
   captureCmsBaseline();
 });

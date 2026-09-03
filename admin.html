@@ -7,8 +7,8 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#111216" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=20260808-1" />
-    <link rel="stylesheet" href="styles.css?v=20260902-visibility-1" />
-    <link rel="stylesheet" href="admin.css?v=20260902-reliability-1" />
+    <link rel="stylesheet" href="styles.css?v=20260903-ui-1" />
+    <link rel="stylesheet" href="admin.css?v=20260903-ui-1" />
   </head>
   <body class="admin-body cms-page">
     <button class="admin-menu-toggle" type="button" id="adminMenuToggle" aria-label="Otvori CMS meni" aria-expanded="false">
@@ -46,7 +46,7 @@
 
         <section class="cms-validation-banner" id="cmsValidationBanner" role="alert" aria-live="assertive" hidden></section>
 
-        <div class="login-panel" id="loginPanel" hidden>
+        <form class="login-panel" id="loginPanel" hidden>
           <h2>Admin prijava</h2>
           <p>Prijavite se za upravljanje proizvodima, sadržajem i upitima kupaca.</p>
           <label>
@@ -56,8 +56,8 @@
               <button type="button" class="password-toggle" data-password-toggle="passwordInput" aria-label="Prikazi lozinku">Vidi</button>
             </span>
           </label>
-          <button class="btn btn-primary" type="button" id="loginBtn">Prijava</button>
-        </div>
+          <button class="btn btn-primary" type="submit" id="loginBtn">Prijava</button>
+        </form>
 
         <div class="admin-editor" id="adminEditor" hidden>
           <section class="admin-panel" data-panel="settings"></section>
@@ -81,6 +81,6 @@
 
     <script src="theme.js?v=20260803-load-1"></script>
     <script src="api-client.js?v=20260723-priority-2"></script>
-    <script src="admin.js?v=20260902-reliability-1"></script>
+    <script src="admin.js?v=20260903-ui-1"></script>
   </body>
 </html>

@@ -1,6 +1,8 @@
 let cms = null;
 let cart = { items: [], count: 0 };
 let currentCustomer = null;
+let cartMutationPending = false;
+let orderSubmitting = false;
 const bottomProfileIcon = '<span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span><strong>Profil</strong>';
 const customerPreviewKey = "onesCustomerPreview";
 const cartCountPreviewKey = "onesCartCountPreview";
@@ -81,6 +83,17 @@ function cartTotal() {
 
 function cartHasInquiryPrice() {
   return cart.items.some((item) => priceText(item.product) === "Cijena na upit");
+}
+
+function cartHasUnavailableProducts() {
+  return cart.items.some((item) => item.product?.enabled === false);
+}
+
+function setCartMutationPending(pending) {
+  cartMutationPending = pending;
+  document.querySelectorAll("[data-qty], [data-remove]").forEach((button) => {
+    button.disabled = pending;
+  });
 }
 
 function inquiryMessage() {
@@ -230,11 +243,10 @@ function renderCart() {
         `
       )
       .join("");
-    $("#cartSummaryText").innerHTML = `
-      <strong>${cart.count} proizvoda</strong>
-      <span>Procjena ukupno: ${cartHasInquiryPrice() ? "Cijena na upit" : money(cartTotal())}</span>
-    `;
-    if (submitButton) submitButton.disabled = false;
+    $("#cartSummaryText").innerHTML = cartHasUnavailableProducts()
+      ? `<strong>Jedan proizvod više nije dostupan</strong><span>Uklonite ga iz korpe prije slanja upita.</span>`
+      : `<strong>${cart.count} proizvoda</strong><span>Procjena ukupno: ${cartHasInquiryPrice() ? "Cijena na upit" : money(cartTotal())}</span>`;
+    if (submitButton) submitButton.disabled = orderSubmitting || cartHasUnavailableProducts();
   }
 
   $("#cartWhatsapp").href = contactUrl("whatsapp");
@@ -257,6 +269,7 @@ function renderCart() {
 }
 
 async function submitOrder() {
+  if (orderSubmitting) return;
   if (!cart.items.length) {
     flash("Korpa je prazna.");
     return;
@@ -279,6 +292,13 @@ async function submitOrder() {
     );
   }
 
+  const submitButton = $("#submitOrderBtn");
+  const originalLabel = submitButton?.textContent || "Pošalji upit";
+  orderSubmitting = true;
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "Šaljem upit...";
+  }
   try {
     const data = await api("order-submit", {
       phone,
@@ -333,10 +353,18 @@ async function loadCart() {
       return;
     }
     flash(error.message);
+  } finally {
+    orderSubmitting = false;
+    if (submitButton) {
+      submitButton.textContent = originalLabel;
+      submitButton.disabled = !cart.items.length || cartHasUnavailableProducts();
+    }
   }
 }
 
 async function updateQuantity(itemId, quantity) {
+  if (cartMutationPending) return;
+  setCartMutationPending(true);
   try {
     const data = await api("cart-update", { itemId: Number(itemId), quantity: Number(quantity) });
     cart = data.cart;
@@ -344,10 +372,14 @@ async function updateQuantity(itemId, quantity) {
     renderCart();
   } catch (error) {
     flash(error.message);
+  } finally {
+    setCartMutationPending(false);
   }
 }
 
 async function removeItem(itemId) {
+  if (cartMutationPending) return;
+  setCartMutationPending(true);
   try {
     const data = await api("cart-remove", { itemId: Number(itemId) });
     cart = data.cart;
@@ -355,6 +387,8 @@ async function removeItem(itemId) {
     renderCart();
   } catch (error) {
     flash(error.message);
+  } finally {
+    setCartMutationPending(false);
   }
 }
 
