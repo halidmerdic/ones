@@ -83,7 +83,14 @@
 
   function sanitizeRichHtml(value) {
     const template = document.createElement("template");
-    template.innerHTML = String(value || "");
+    // Fail closed if the sanitizer failed to load.
+    if (!window.DOMPurify?.isSupported) return escapeHtml(value || "");
+    template.innerHTML = window.DOMPurify.sanitize(String(value || ""), {
+      ALLOWED_TAGS: ["p", "div", "br", "strong", "b", "em", "i", "u", "ul", "ol", "li", "h2", "h3", "h4", "a", "blockquote", "span", "font"],
+      ALLOWED_ATTR: ["href", "size"],
+      ALLOW_DATA_ATTR: false,
+      ALLOW_ARIA_ATTR: false,
+    });
     const allowedTags = new Set(["P", "DIV", "BR", "STRONG", "B", "EM", "I", "U", "UL", "OL", "LI", "H2", "H3", "H4", "A", "BLOCKQUOTE", "SPAN", "FONT"]);
 
     [...template.content.querySelectorAll("*")].forEach((element) => {

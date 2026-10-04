@@ -1,0 +1,15 @@
+{
+  "noteAfterStatus": "",
+  "loadFailure": {
+    "ordersLoaded": true,
+    "orderCount": 0
+  },
+  "hiddenBlog": false,
+  "storageBlocked": {
+    "errors": [
+      "Blocked storage",
+      "Blocked storage"
+    ],
+    "products": 0
+  }
+}

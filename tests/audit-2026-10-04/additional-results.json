@@ -1,0 +1,134 @@
+{
+  "saleDate": {
+    "now": "Sun Oct 04 2026 14:52:04 GMT-0700 (Pacific Daylight Time)",
+    "cartDateActive": false,
+    "productDateActive": true
+  },
+  "disabledBadge": {
+    "inPublicList": false,
+    "rendered": "Audit disabled badge"
+  },
+  "phone": "061123456",
+  "dark": [
+    {
+      "width": 360,
+      "path": "index.html",
+      "scroll": 360,
+      "theme": "dark"
+    },
+    {
+      "width": 360,
+      "path": "product.html?id=scooter-f3",
+      "scroll": 360,
+      "theme": "dark"
+    },
+    {
+      "width": 360,
+      "path": "cart.html",
+      "scroll": 360,
+      "theme": "dark"
+    },
+    {
+      "width": 360,
+      "path": "profile.html",
+      "scroll": 360,
+      "theme": "dark"
+    },
+    {
+      "width": 360,
+      "path": "admin.html?panel=products",
+      "scroll": 360,
+      "theme": "dark"
+    },
+    {
+      "width": 768,
+      "path": "index.html",
+      "scroll": 768,
+      "theme": "dark"
+    },
+    {
+      "width": 768,
+      "path": "product.html?id=scooter-f3",
+      "scroll": 768,
+      "theme": "dark"
+    },
+    {
+      "width": 768,
+      "path": "cart.html",
+      "scroll": 768,
+      "theme": "dark"
+    },
+    {
+      "width": 768,
+      "path": "profile.html",
+      "scroll": 768,
+      "theme": "dark"
+    },
+    {
+      "width": 768,
+      "path": "admin.html?panel=products",
+      "scroll": 768,
+      "theme": "dark"
+    },
+    {
+      "width": 1024,
+      "path": "index.html",
+      "scroll": 1024,
+      "theme": "dark"
+    },
+    {
+      "width": 1024,
+      "path": "product.html?id=scooter-f3",
+      "scroll": 1024,
+      "theme": "dark"
+    },
+    {
+      "width": 1024,
+      "path": "cart.html",
+      "scroll": 1024,
+      "theme": "dark"
+    },
+    {
+      "width": 1024,
+      "path": "profile.html",
+      "scroll": 1024,
+      "theme": "dark"
+    },
+    {
+      "width": 1024,
+      "path": "admin.html?panel=products",
+      "scroll": 1136,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "path": "index.html",
+      "scroll": 1440,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "path": "product.html?id=scooter-f3",
+      "scroll": 1440,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "path": "cart.html",
+      "scroll": 1440,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "path": "profile.html",
+      "scroll": 1440,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "path": "admin.html?panel=products",
+      "scroll": 1440,
+      "theme": "dark"
+    }
+  ]
+}

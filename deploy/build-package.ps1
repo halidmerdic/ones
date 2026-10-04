@@ -28,6 +28,7 @@ $runtimeFiles = @(
   "admin.js",
   "api-client.js",
   "api.php",
+  "backup-validation.php",
   "app.js",
   "blog.html",
   "blog.js",
@@ -57,7 +58,10 @@ $assetRoot = Join-Path $projectRoot "assets"
 $assetFiles = Get-ChildItem -LiteralPath $assetRoot -File -Recurse | ForEach-Object {
   $_.FullName.Substring($projectRoot.Length).TrimStart([char[]]"\/").Replace("\", "/")
 }
-$packageFiles = @($runtimeFiles + $assetFiles | Sort-Object -Unique)
+$vendorFiles = Get-ChildItem -LiteralPath (Join-Path $projectRoot "vendor/htmlpurifier") -File -Recurse | ForEach-Object {
+  $_.FullName.Substring($projectRoot.Length).TrimStart([char[]]"\/").Replace("\", "/")
+}
+$packageFiles = @($runtimeFiles + $assetFiles + $vendorFiles | Sort-Object -Unique)
 
 $missingFiles = @($packageFiles | Where-Object {
   -not (Test-Path -LiteralPath (Join-Path $projectRoot ($_ -replace "/", "\")) -PathType Leaf)

@@ -1,0 +1,97 @@
+SEGMENT 1 — T01, T02, T03 — 05.10.2026.
+Status: T01–T03 završeni i provjereni lokalno. Nije objavljeno na produkciju.
+
+T01:
+- HTMLPurifier 4.19.1 na serveru; DOMPurify 3.4.16 u browseru, lokalne
+  verzionirane kopije s licencama i izvorima u vendor/htmlpurifier/UPSTREAM.txt.
+- HTML proizvoda/bloga se čisti pri čitanju i spremanju, uključujući restore.
+- Sigurni DOM čvorovi za naslove, slike, galeriju i PDF linkove.
+- Editor čisti početni HTML, paste i drop. Server odbija sumnjive asset URL-ove.
+- Stroži CSP za admin.html u Apache/IIS konfiguraciji. Javne stranice imaju
+  postojeće inline skripte i njihova globalna CSP politika nije mijenjana.
+- Deployment builder uključuje serversku biblioteku; HTML resursi dobijaju
+  novu verziju api-client/admin skripti da stari cache ne izostavi zaštitu.
+- PHP XSS provjere: 28. Browser XSS provjere: 112, na 7 širina u obje teme.
+  Sanitizacija testirana bez CSP-a, da CSP ne sakrije propust sanitizatora.
+  Zasebno testirano blokiranje inline skripti uz dopuštenu lokalnu skriptu.
+- Izolovani Apache: konfiguracija Syntax OK; HEAD /admin.html potvrdio
+  stvarno CSP zaglavlje sa script-src 'self' i script-src-attr 'none'.
+
+T02:
+- Nova lokalna auth_state tabela s nasumičnom generacijom od 256 bita.
+  Ne ulazi u JSON backup. Restore je rotira u istoj transakciji s podacima.
+- Sesije bez generacije ili s prethodnom generacijom se odbijaju.
+- Generacija se bilježi prije čitanja kredencijala, da paralelna prijava
+  započeta prije restorea ne dobije novu generaciju za stari identitet.
+- Nakon uspješnog restorea admin se vraća na prijavu; odgovor ne izlaže
+  obnovljene privatne podatke poništenoj sesiji.
+- Deployment ove promjene jednokratno odjavljuje i postojeće sesije.
+
+T03:
+- backup-validation.php provjerava verziju, list strukture, dozvoljene kolone,
+  tipove, ID/email jedinstvenost, password hash, upotrebljiv admin identitet,
+  korisničke/korpa reference, statuse, datume i snapshot artikala narudžbi.
+- Podržani formati 1 i 2. Eksplicitna v1 migracija dodaje kasnije kolone,
+  sekcije/postavke, registar starih tekstualnih oznaka i ID-eve starih blogova.
+  Samo v1 spaja duple stavke korpe, kao prethodni legacy mehanizam.
+- Više nema preuzimanja hashova iz trenutne baze ni generisanja slučajne
+  nepoznate lozinke pri uvozu. Backup mora sadržavati potpune važeće hashove.
+- Validacija i u direktnom library restore pozivu. Svi upisi + opoziv sesija
+  unutar jedne transakcije. Nema seed_database poslije commita.
+- MySQL restore provjerava da sve uključene tabele koriste InnoDB.
+- Pre-restore kopije imaju nasumični sufiks i ne prepisuju se u istoj sekundi.
+- Namjerno dopušteni stari product ID-evi u korpama/favoritima/snapshotima:
+  obrisan proizvod može postojati u historiji; ne brišemo te podatke.
+- Postojeći ones-sqlite-restore-backup.json ima korpu čiji korisnik nedostaje.
+  Sada se pravilno odbija prije izmjena. Original nije mijenjan. Legacy CMS
+  migracija provjerena zasebno s testnom kopijom bez tog nevažećeg reda.
+
+Izolovani testovi:
+- PHP C:\xampp\php\php.exe (7.4.27); podržani PHP upgrade ostaje T08.
+- SQLite testovi koriste memorijsku/privremenu bazu.
+- MariaDB 10.4.22 / PDO mysql test na 127.0.0.1:13376, zaseban TEMP datadir,
+  nije produkcijski MySQL niti postojeća lokalna baza. Testni server ugašen.
+- Browser: Chrome/Playwright, emulacija veličina i dodira, ne fizički uređaji.
+
+Regresijske skripte:
+tests/cms-xss.php
+tests/cms-xss-browser.cjs (NODE_PATH do Playwrighta, PHP_BINARY do PHP-a)
+tests/restore-security.php
+tests/backup-atomicity.php (opcioni ONES_TEST_MYSQL_PORT samo za izolovanu bazu)
+tests/segment1-integration.cjs (isključivo izolovani lokalni testni server)
+tests/smoke.ps1 uključuje nove PHP provjere.
+
+Vanjski izvori:
+https://github.com/ezyang/htmlpurifier/tree/v4.19.1
+https://github.com/cure53/DOMPurify/tree/3.4.16
+https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
+
+KONAČNI REZULTATI
+- 28 PHP XSS provjera.
+- 112 browser XSS/CSP provjera (320, 360, 390, 768, 820, 1024, 1440 px;
+  svijetla/tamna tema, emulacija dodira do 1024 px).
+- 9 provjera opoziva sesija: zamjena korisnika na istom ID-u, admin sesija,
+  ponovno vraćanje istog backupa, prijava započeta prije restorea, nove sesije.
+- 115 SQLite backup provjera uključujući postojeći legacy primjer.
+- 113 PDO mysql/MariaDB backup provjera. Injektirane greške pri unosu
+  narudžbe i nakon promjene auth epoch-a vraćaju sve podatke i revizije.
+- 161 stvarna HTTP/browser provjera na paketu u izolovanom PHP serveru:
+  spremanje/sanitizacija, neispravan backup, poništavanje više sesija,
+  otvoren modal pri restoreu, prijava nakon uspjeha, 7 širina × 2 teme.
+- 233 smoke provjere; ovaj broj uključuje pozive PHP testnih grupa i ne
+  predstavlja dodatnih 233 nezavisna sigurnosna scenarija.
+- PHP/JS sintaksne provjere i git diff --check prošli.
+- Deployment ZIP ima 426 datoteka; sadrži obje biblioteke i novi validator,
+  a ne sadrži config.local.php, baze, testove ili korisničke uploadove.
+- IIS XML sintaksa provjerena; stvarni IIS nije dostupan.
+- Testni PHP, MariaDB i Apache procesi ugašeni nakon provjera.
+
+OGRANIČENJA I NASTAVAK
+- Promjene su lokalne. Produkcijski rollout i provjera tamo nisu izvršeni.
+- PHP 7.4.27 i testna MariaDB 10.4.22 su zatečeni lokalni alati; podržani PHP
+  i provjera stvarnog produkcijskog okruženja ostaju T08/deployment provjera.
+- Chrome emulacija nije potvrda rada na fizičkim iOS/Android uređajima.
+- Globalni dosljedan snapshot backupa tokom konkurentnih upisa ostaje T15.
+  U ovom segmentu popravljeni su validacija i atomska zamjena pri restoreu.
+- Po dogovoru se ovdje staje radi korisničkog pregleda. Predloženi naredni
+  segment T04–T06: demo admin lozinka, neuspjela odjava, zaglavljeno slanje korpe.

@@ -670,6 +670,45 @@ function imageRecommendation(text) {
   return note;
 }
 
+function safeAssetUrl(value) {
+  const path = typeof value === "string" ? value.trim() : "";
+  if (!path || /[\u0000-\u0020\u007f<>"'\x60\\]/.test(path) || path.startsWith("//")) return "";
+  try {
+    if (/(^|\/)\.\.(\/|$)/.test(decodeURIComponent(path))) return "";
+    const url = new URL(path, window.location.href);
+    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function renderImagePreview(container, path, label) {
+  container.replaceChildren();
+  const url = safeAssetUrl(path);
+  const child = document.createElement(url ? "img" : "span");
+  if (url) {
+    child.src = url;
+    child.alt = label;
+  } else {
+    child.textContent = "Nema slike";
+  }
+  container.append(child);
+}
+
+function renderManualLink(container, path, label, emptyLabel) {
+  container.replaceChildren();
+  const url = safeAssetUrl(path);
+  const child = document.createElement(url ? "a" : "span");
+  child.textContent = url ? label : emptyLabel;
+  if (url) {
+    child.href = url;
+    child.className = "btn btn-secondary";
+    child.target = "_blank";
+    child.rel = "noopener noreferrer";
+  }
+  container.append(child);
+}
+
 function imageUploadField(label, currentPath, onUploaded, recommendation = "Preporuka: WEBP format, 1200 x 1200 px. PNG samo ako treba providna pozadina, JPG ako je fotografija.") {
   const wrapper = document.createElement("label");
   wrapper.className = "image-upload-field";
@@ -677,9 +716,7 @@ function imageUploadField(label, currentPath, onUploaded, recommendation = "Prep
 
   const preview = document.createElement("div");
   preview.className = "image-upload-preview";
-  preview.innerHTML = currentPath
-    ? `<img src="${currentPath}" alt="${label}" />`
-    : `<span>Nema slike</span>`;
+  renderImagePreview(preview, currentPath, label);
 
   const input = document.createElement("input");
   input.type = "file";
@@ -691,7 +728,7 @@ function imageUploadField(label, currentPath, onUploaded, recommendation = "Prep
     try {
       const path = await uploadProductImage(file);
       onUploaded(path);
-      preview.innerHTML = `<img src="${path}" alt="${label}" />`;
+      renderImagePreview(preview, path, label);
       flash("Slika je uploadovana. Ne zaboravite sačuvati CMS.");
     } catch (error) {
       flash(error.message);
@@ -709,9 +746,7 @@ function blogImageUploadField(item) {
 
   const preview = document.createElement("div");
   preview.className = "image-upload-preview";
-  preview.innerHTML = item.image
-    ? `<img src="${item.image}" alt="${item.title || "Blog slika"}" />`
-    : `<span>Nema slike</span>`;
+  renderImagePreview(preview, item.image, item.title || "Blog slika");
 
   const input = document.createElement("input");
   input.type = "file";
@@ -723,7 +758,7 @@ function blogImageUploadField(item) {
     try {
       const path = await uploadBlogImage(file);
       item.image = path;
-      preview.innerHTML = `<img src="${path}" alt="${item.title || "Blog slika"}" />`;
+      renderImagePreview(preview, path, item.title || "Blog slika");
       flash("Blog slika je uploadovana. Ne zaboravite sačuvati CMS.");
     } catch (error) {
       flash(error.message);
@@ -741,9 +776,7 @@ function manualUploadField(item) {
 
   const current = document.createElement("div");
   current.className = "manual-current";
-  current.innerHTML = item.file
-    ? `<a class="btn btn-secondary" href="${item.file}" target="_blank" rel="noreferrer">Otvori trenutno uputstvo</a>`
-    : `<span>Nema uploadovanog PDF-a</span>`;
+  renderManualLink(current, item.file, "Otvori trenutno uputstvo", "Nema uploadovanog PDF-a");
 
   const input = document.createElement("input");
   input.type = "file";
@@ -756,7 +789,7 @@ function manualUploadField(item) {
       const path = await uploadManualFile(file);
       item.file = path;
       item.status = "Dostupno za preuzimanje";
-      current.innerHTML = `<a class="btn btn-secondary" href="${path}" target="_blank" rel="noreferrer">Otvori trenutno uputstvo</a>`;
+      renderManualLink(current, path, "Otvori trenutno uputstvo", "Nema uploadovanog PDF-a");
       flash("Uputstvo je uploadovano. Ne zaboravite sačuvati CMS.");
     } catch (error) {
       flash(error.message);
@@ -781,9 +814,7 @@ function productManualField(product) {
 
   function renderCurrent() {
     const manual = findManual();
-    current.innerHTML = manual?.file
-      ? `<a class="btn btn-secondary" href="${manual.file}" target="_blank" rel="noreferrer">Otvori povezano uputstvo</a>`
-      : `<span>Nema povezanog uputstva za ovaj proizvod</span>`;
+    renderManualLink(current, manual?.file, "Otvori povezano uputstvo", "Nema povezanog uputstva za ovaj proizvod");
   }
 
   const input = document.createElement("input");
@@ -852,7 +883,7 @@ function galleryField(item) {
           <div class="gallery-thumb" draggable="true" data-gallery-index="${index}">
             <span class="gallery-thumb-order">${index + 1}</span>
             <button class="gallery-remove-btn" type="button" data-remove-gallery="${index}" aria-label="Ukloni sliku ${index + 1}">&times;</button>
-            <img src="${path}" alt="Slika ${index + 1}" />
+            <img alt="Slika ${index + 1}" />
             <div class="gallery-reorder-controls" aria-label="Promijeni redoslijed slike ${index + 1}">
               <button type="button" data-step-gallery="${index}" data-direction="-1" ${index === 0 ? "disabled" : ""} aria-label="Pomjeri sliku lijevo">&larr;</button>
               <button type="button" data-step-gallery="${index}" data-direction="1" ${index === item.gallery.length - 1 ? "disabled" : ""} aria-label="Pomjeri sliku desno">&rarr;</button>
@@ -861,6 +892,11 @@ function galleryField(item) {
         `
       )
       .join("");
+
+    list.querySelectorAll(".gallery-thumb img").forEach((image, index) => {
+      const url = safeAssetUrl(item.gallery[index]);
+      if (url) image.src = url;
+    });
 
     list.querySelectorAll("[data-step-gallery]").forEach((button) => {
       button.addEventListener("click", (event) => {
@@ -986,14 +1022,35 @@ function richTextField(label, value, onInput) {
   const editor = document.createElement("div");
   editor.className = "rich-text-editor";
   editor.contentEditable = "true";
-  editor.innerHTML = value || "";
-  editor.addEventListener("input", () => onInput(editor.innerHTML));
+  editor.innerHTML = window.onesSanitizeRichHtml(value || "");
+  const notifyInput = () => onInput(window.onesSanitizeRichHtml(editor.innerHTML));
+  editor.addEventListener("input", notifyInput);
+  editor.addEventListener("paste", (event) => {
+    event.preventDefault();
+    const clipboard = event.clipboardData;
+    if (!clipboard) return;
+    const html = clipboard.getData("text/html");
+    document.execCommand("insertHTML", false, html
+      ? window.onesSanitizeRichHtml(html)
+      : escapeHtml(clipboard.getData("text/plain")).replace(/\r?\n/g, "<br>"));
+    notifyInput();
+  });
+  // HTML drops bypass paste; sanitize before inserting into the live document.
+  editor.addEventListener("drop", (event) => {
+    event.preventDefault();
+    editor.focus();
+    const html = event.dataTransfer?.getData("text/html");
+    document.execCommand("insertHTML", false, html
+      ? window.onesSanitizeRichHtml(html)
+      : escapeHtml(event.dataTransfer?.getData("text/plain") || ""));
+    notifyInput();
+  });
 
   toolbar.querySelectorAll("[data-command]").forEach((button) => {
     button.addEventListener("click", () => {
       editor.focus();
       document.execCommand(button.dataset.command, false, null);
-      onInput(editor.innerHTML);
+      notifyInput();
     });
   });
 
@@ -1001,7 +1058,7 @@ function richTextField(label, value, onInput) {
     if (!event.target.value) return;
     editor.focus();
     document.execCommand("fontSize", false, event.target.value);
-    onInput(editor.innerHTML);
+    notifyInput();
     event.target.value = "";
   });
 
@@ -1101,7 +1158,9 @@ function card(title, onDelete) {
   item.className = "admin-card";
   const header = document.createElement("div");
   header.className = "admin-card-header";
-  header.innerHTML = `<h3>${title}</h3>`;
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  header.append(heading);
   const deleteBtn = document.createElement("button");
   deleteBtn.className = "btn btn-secondary";
   deleteBtn.type = "button";
@@ -2814,17 +2873,29 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
   }
 
   try {
-    const data = await restoreBackupFile(file);
-    cmsRevision = Number(data.revision) || cmsRevision + 1;
-    cms = { ...structuredClone(defaultCms), ...data.cms };
-    orders = data.orders || [];
-    ordersLoaded = true;
+    await restoreBackupFile(file);
+    cms = structuredClone(defaultCms);
+    cmsRevision = 0;
+    cmsBaseline = "";
+    editingProductId = null;
+    editingCategoryIndex = null;
+    editingCategoryAttributeIndex = null;
+    orders = [];
+    customers = [];
+    ordersLoaded = false;
     customersLoaded = false;
-    captureCmsBaseline();
-    renderAll();
-    captureCmsBaseline();
-    localStorage.setItem("onesCmsUpdatedAt", String(Date.now()));
-    flash("Backup je vraćen u bazu.");
+    document.querySelectorAll(".product-edit-modal").forEach((modal) => modal.remove());
+    document.body.classList.remove("modal-open");
+    $("#adminNav").replaceChildren();
+    document.querySelectorAll("#adminEditor .admin-panel").forEach((panel) => panel.replaceChildren());
+    $("#saveBtn").disabled = true;
+    $("#cmsValidationBanner").hidden = true;
+    closeAdminMenu();
+    $("#adminEditor").hidden = true;
+    $("#loginPanel").hidden = false;
+    $("#passwordInput").value = "";
+    $("#passwordInput").focus();
+    flash("Backup je uspješno vraćen. Sve prethodne sesije su poništene. Prijavite se lozinkom iz vraćenog backupa.", 12000);
   } catch (error) {
     flash(error.message);
   }

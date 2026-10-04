@@ -1,0 +1,8 @@
+HTMLPurifier 4.19.1 — LGPL-2.1-or-later (see LICENSE)
+Source: https://github.com/ezyang/htmlpurifier/tree/v4.19.1
+Unmodified library/ from the tagged GitHub source archive, downloaded 2026-10-05.
+Only runtime library and license are shipped. Cache.DefinitionImpl is disabled.
+DOMPurify 3.4.16 is in assets/vendor with its upstream license.
+Source: https://github.com/cure53/DOMPurify/tree/3.4.16
+SHA256 purify-3.4.16.min.js: 2c90a9b46d6463f26038a29b686e82bc91de01fdac9d5229e7cfe3b360134ea2
+Check upstream security advisories and releases before updating either dependency.

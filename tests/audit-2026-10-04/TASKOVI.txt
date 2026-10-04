@@ -1,0 +1,47 @@
+PLAN POPRAVKI — odobren 05.10.2026.
+Rad u segmentima od 2–4 povezana taska. Jedan task = jedan problem.
+Odobren trenutni segment: T01–T03. Nakon segmenta stati radi pregleda korisnika.
+Status se odnosi na lokalni kod. Produkcijska objava nije izvršena.
+
+T01 [ZAVRŠENO LOKALNO] F01 XSS u administraciji
+T02 [ZAVRŠENO LOKALNO] F02 Poništavanje sesija nakon vraćanja backupa
+T03 [ZAVRŠENO LOKALNO] F03 Potpuna validacija i atomsko vraćanje backupa
+T04 [ČEKA] F28 Demonstracijska administratorska lozinka
+T05 [ČEKA] F04 Lažno uspješna odjava
+T06 [ČEKA] F05 Zaglavljeno slanje korpe
+T07 [ČEKA] F06 Gubitak CMS izmjena tokom spremanja
+T08 [ČEKA] F29 Nepodržani PHP
+T09 [ČEKA] F27 Zaobilaženje ograničenja prijave
+T10 [ČEKA] F18 Unicode dužina lozinke
+T11 [ČEKA] F30 Potvrda email identiteta
+T12 [ČEKA] F09 Tumačenje cijena
+T13 [ČEKA] F10 Vremenska zona akcijskih cijena
+T14 [ČEKA] F25 Paralelne izmjene korpe
+T15 [ČEKA] F26 Dosljedan snimak backupa
+T16 [ČEKA] F12 Tipovi CMS kolekcija pri redovnom spremanju
+T17 [ČEKA] F11 Dosljednost referenci
+T18 [ČEKA] dio F13 Nepromjenjivi ID proizvoda
+T19 [ČEKA] dio F13 Brisanje proizvoda i zavisnosti
+T20 [ČEKA] dio F13 Brisanje kategorije i zavisnosti
+T21 [ČEKA] dio F13 Preimenovanje/brisanje oznaka
+T22 [ČEKA] F07 Automatsko brisanje praznih kategorija
+T23 [ČEKA] F08 Prikaz isključenih oznaka
+T24 [ČEKA] F14 Gubitak napomene pri promjeni statusa
+T25 [ČEKA] F15 API greške prikazane kao prazna evidencija
+T26 [ČEKA] F22 Skriveni filter po ključnim riječima
+T27 [ČEKA] F21 Telefonski linkovi
+T28 [ČEKA] F23 Povratak iz prijave u korpu
+T29 [ČEKA] F16 Nedostupan browser storage
+T30 [ČEKA] F17 Email u lokalnoj pohrani
+T31 [ČEKA] F19 Tablet prelijevanje administracije
+T32 [ČEKA] dio F20 Fokus modalnih prozora
+T33 [ČEKA] dio F20 Fokus zatvorenog bočnog menija
+T34 [ČEKA] dio F24 Migracije baze pri svakom zahtjevu
+T35 [ČEKA] dio F24 Serverska paginacija
+T36 [ČEKA] F31 Verzije CSS resursa
+T37 [ČEKA] dio F32 Razvojni artefakti u javnom direktoriju
+T38 [ČEKA] dio F32 IIS zaštita privatnih datoteka
+
+Postojeće korisnikove izmjene prije segmenta: admin.css, admin.html,
+login.html, profile.html, profile.js. Sačuvati ih; ne vraćati checkout na HEAD.
+Detalji i rezultati prvog segmenta: SEGMENT-01.txt.

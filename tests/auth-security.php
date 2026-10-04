@@ -59,13 +59,13 @@ try {
     clear_request_limit($pdo, 'test-login', $identifier);
     assert_auth_test(request_limit_count($pdo, 'test-login', $identifier, 900) === 0, 'uspješna prijava može očistiti vezani brojač');
 
-    establish_auth_session('customer', ['id' => $userId, 'name' => 'Test Kupac', 'auth_version' => 0]);
+    establish_auth_session('customer', ['id' => $userId, 'name' => 'Test Kupac', 'auth_version' => 0], auth_epoch($pdo));
     assert_auth_test(customer_session_active($pdo), 'nova korisnička sesija je aktivna');
 
     $pdo->prepare('UPDATE users SET auth_version = auth_version + 1 WHERE id = :id')->execute([':id' => $userId]);
     assert_auth_test(!customer_session_active($pdo), 'promjena verzije poništava staru sesiju');
 
-    establish_auth_session('customer', ['id' => $userId, 'name' => 'Test Kupac', 'auth_version' => 1]);
+    establish_auth_session('customer', ['id' => $userId, 'name' => 'Test Kupac', 'auth_version' => 1], auth_epoch($pdo));
     $_SERVER['HTTP_USER_AGENT'] = 'changed-user-agent';
     assert_auth_test(!customer_session_active($pdo), 'promjena user-agent vrijednosti poništava sesiju');
 

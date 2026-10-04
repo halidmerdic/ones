@@ -40,6 +40,12 @@ DirectoryIndex index.html
   Header always set Strict-Transport-Security "max-age=31536000" "expr=%{HTTPS} == 'on'"
 </IfModule>
 
+<Files "admin.html">
+  <IfModule mod_headers.c>
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
+  </IfModule>
+</Files>
+
 <FilesMatch "^(api\.php|admin\.html|cart\.html|login\.html|profile\.html)$">
   <IfModule mod_headers.c>
     Header always set Cache-Control "no-store, no-cache, must-revalidate, private, max-age=0"

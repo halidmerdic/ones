@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/backup-validation.php';
 
 function request_host(): string
 {
@@ -695,6 +696,7 @@ function database(array $config): PDO
             : 'ALTER TABLE orders ADD COLUMN admin_note TEXT NOT NULL DEFAULT ""');
     }
     ensure_cart_item_uniqueness($pdo);
+    initialize_auth_state($pdo);
     seed_database($pdo);
     return $pdo;
 }
@@ -753,7 +755,7 @@ function get_cms(PDO $pdo): array
         }
     }
 
-    return $cms;
+    return cms_sanitize_content($cms);
 }
 
 function get_cms_revision(PDO $pdo): int
@@ -886,6 +888,56 @@ function cms_add_error(array &$errors, string $path, string $message): void
     }
 }
 
+function cms_sanitize_rich_html(string $html): string
+{
+    static $purifier = null;
+    if ($purifier === null) {
+        require_once __DIR__ . '/vendor/htmlpurifier/library/HTMLPurifier.auto.php';
+        $policy = HTMLPurifier_Config::createDefault();
+        $policy->set('Core.Encoding', 'UTF-8');
+        $policy->set('HTML.Doctype', 'HTML 4.01 Transitional');
+        $policy->set('HTML.Allowed', 'p,div,br,strong,b,em,i,u,ul,ol,li,h2,h3,h4,a[href],blockquote,span,font[size]');
+        $policy->set('URI.AllowedSchemes', ['http' => true, 'https' => true]);
+        $policy->set('Cache.DefinitionImpl', null);
+        $purifier = new HTMLPurifier($policy);
+    }
+    return $purifier->purify($html);
+}
+
+function cms_sanitize_content(array $cms): array
+{
+    foreach (['products' => 'detailedDescription', 'blogs' => 'text'] as $collection => $field) {
+        foreach (is_array($cms[$collection] ?? null) ? $cms[$collection] : [] as $index => $item) {
+            if (is_array($item) && isset($item[$field]) && is_string($item[$field])) {
+                $cms[$collection][$index][$field] = cms_sanitize_rich_html($item[$field]);
+            }
+        }
+    }
+    return $cms;
+}
+
+function cms_safe_asset_reference(string $value): bool
+{
+    if ($value === '') {
+        return true;
+    }
+    // Reject ambiguous browser URL parsing and HTML attribute delimiters.
+    if (preg_match('/[\x00-\x20\x7f<>"\x27\x60\\\\]/', $value)
+        || preg_match('~(^|/)\.\.(/|$)~', rawurldecode($value))
+        || strpos($value, '//') === 0) {
+        return false;
+    }
+    $parts = parse_url($value);
+    if ($parts === false) {
+        return false;
+    }
+    if (isset($parts['scheme'])) {
+        return in_array(strtolower($parts['scheme']), ['http', 'https'], true)
+            && !empty($parts['host']) && !isset($parts['user']) && !isset($parts['pass']);
+    }
+    return !preg_match('~^[^/?#]*:~', $value);
+}
+
 function cms_validate_string(array &$errors, $value, string $path, int $maxLength, bool $required = false, bool $richText = false): void
 {
     if (!is_string($value)) {
@@ -940,8 +992,7 @@ function cms_validate_asset_reference(array &$errors, array $item, string $key, 
         return;
     }
     $value = trim($item[$key]);
-    $scheme = strtolower((string)parse_url($value, PHP_URL_SCHEME));
-    if (($scheme !== '' && !in_array($scheme, ['http', 'https'], true)) || preg_match('~(^|[\\/])\.\.([\\/]|$)~', $value)) {
+    if (!cms_safe_asset_reference($value)) {
         cms_add_error($errors, $path . '.' . $key, 'mora biti sigurna relativna putanja ili HTTP(S) adresa.');
     }
 }
@@ -1356,6 +1407,7 @@ function prune_cms_revisions(PDO $pdo, int $keep = 25): void
 
 function save_cms(PDO $pdo, array $cms, ?int $expectedRevision = null): int
 {
+    $cms = cms_sanitize_content($cms);
     $ownsTransaction = !$pdo->inTransaction();
     if ($ownsTransaction) {
         $pdo->beginTransaction();
@@ -1657,9 +1709,42 @@ function upload_manual_file(): array
     ];
 }
 
+function initialize_auth_state(PDO $pdo): void
+{
+    // This local generation is deliberately excluded from JSON backups.
+    $pdo->exec(database_driver($pdo) === 'mysql'
+        ? 'CREATE TABLE IF NOT EXISTS auth_state (id INT PRIMARY KEY, epoch VARCHAR(64) NOT NULL) ENGINE=InnoDB'
+        : 'CREATE TABLE IF NOT EXISTS auth_state (id INTEGER PRIMARY KEY, epoch TEXT NOT NULL)');
+    $sql = database_driver($pdo) === 'mysql'
+        ? 'INSERT IGNORE INTO auth_state (id, epoch) VALUES (1, :epoch)'
+        : 'INSERT OR IGNORE INTO auth_state (id, epoch) VALUES (1, :epoch)';
+    $pdo->prepare($sql)->execute([':epoch' => bin2hex(random_bytes(32))]);
+}
+
+function auth_epoch(PDO $pdo): string
+{
+    $epoch = (string)$pdo->query('SELECT epoch FROM auth_state WHERE id = 1')->fetchColumn();
+    if (!preg_match('/^[a-f0-9]{64}$/D', $epoch)) {
+        throw new RuntimeException('Sigurnosno stanje prijave nije dostupno.');
+    }
+    return $epoch;
+}
+
+function rotate_auth_epoch(PDO $pdo): void
+{
+    if (!$pdo->inTransaction()) {
+        throw new LogicException('Session revocation must share the restore transaction.');
+    }
+    $stmt = $pdo->prepare('UPDATE auth_state SET epoch = :epoch WHERE id = 1');
+    $stmt->execute([':epoch' => bin2hex(random_bytes(32))]);
+    if ($stmt->rowCount() !== 1) {
+        throw new RuntimeException('Sesije nije moguće sigurno poništiti.');
+    }
+}
+
 function clear_auth_session(string $scope, bool $regenerate = true): void
 {
-    foreach (['id', 'name', 'issued_at', 'last_activity', 'user_agent', 'auth_version'] as $suffix) {
+    foreach (['id', 'name', 'issued_at', 'last_activity', 'user_agent', 'auth_version', 'auth_epoch'] as $suffix) {
         unset($_SESSION[$scope . '_' . $suffix]);
     }
     if ($regenerate && session_status() === PHP_SESSION_ACTIVE) {
@@ -1667,7 +1752,7 @@ function clear_auth_session(string $scope, bool $regenerate = true): void
     }
 }
 
-function establish_auth_session(string $scope, array $user): void
+function establish_auth_session(string $scope, array $user, string $requestEpoch): void
 {
     session_regenerate_id(true);
     $now = time();
@@ -1677,6 +1762,9 @@ function establish_auth_session(string $scope, array $user): void
     $_SESSION[$scope . '_last_activity'] = $now;
     $_SESSION[$scope . '_user_agent'] = hash('sha256', (string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
     $_SESSION[$scope . '_auth_version'] = (int)($user['auth_version'] ?? 0);
+    // Captured BEFORE credential reads. A concurrent restore cannot give a
+    // pre-restore identity the new generation, even when IDs are reused.
+    $_SESSION[$scope . '_auth_epoch'] = $requestEpoch;
 }
 
 function authenticated_session_active(PDO $pdo, string $scope, string $role, int $idleTimeout, int $absoluteTimeout): bool
@@ -1699,10 +1787,11 @@ function authenticated_session_active(PDO $pdo, string $scope, string $role, int
         return false;
     }
 
-    $stmt = $pdo->prepare('SELECT id, name, auth_version FROM users WHERE id = :id AND role = :role LIMIT 1');
+    $stmt = $pdo->prepare('SELECT users.id, users.name, users.auth_version, auth_state.epoch FROM users CROSS JOIN auth_state WHERE users.id = :id AND role = :role AND auth_state.id = 1 LIMIT 1');
     $stmt->execute([':id' => $userId, ':role' => $role]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$user) {
+    $sessionEpoch = (string)($_SESSION[$scope . '_auth_epoch'] ?? '');
+    if (!$user || $sessionEpoch === '' || !hash_equals((string)$user['epoch'], $sessionEpoch)) {
         clear_auth_session($scope);
         return false;
     }
@@ -1710,7 +1799,7 @@ function authenticated_session_active(PDO $pdo, string $scope, string $role, int
     $databaseVersion = (int)($user['auth_version'] ?? 0);
     $sessionVersion = array_key_exists($scope . '_auth_version', $_SESSION)
         ? (int)$_SESSION[$scope . '_auth_version']
-        : $databaseVersion;
+        : -1;
     if ($sessionVersion !== $databaseVersion) {
         clear_auth_session($scope);
         return false;
@@ -2145,21 +2234,11 @@ function backup_dir(): string
 
 function validate_backup_payload($backup): array
 {
-    if (!is_array($backup) || !isset($backup['cms']) || !is_array($backup['cms']) || !isset($backup['tables']) || !is_array($backup['tables'])) {
-        return [false, 'Backup fajl nema ispravnu strukturu.'];
+    try {
+        normalize_backup_payload($backup);
+    } catch (InvalidArgumentException $error) {
+        return [false, $error->getMessage()];
     }
-
-    foreach (['users', 'carts', 'cart_items', 'orders'] as $table) {
-        if (!isset($backup['tables'][$table]) || !is_array($backup['tables'][$table])) {
-            return [false, 'Backup fajl nema tabelu: ' . $table . '.'];
-        }
-    }
-
-    $cmsErrors = cms_validate_payload($backup['cms']);
-    if ($cmsErrors) {
-        return [false, 'CMS podaci u backupu nisu ispravni. ' . $cmsErrors[0]];
-    }
-
     return [true, ''];
 }
 
@@ -2188,24 +2267,23 @@ function insert_rows(PDO $pdo, string $table, array $rows): void
     }
 }
 
-function restore_backup_payload(PDO $pdo, array $backup): int
+function restore_backup_payload(PDO $pdo, array $backup, ?string $backupDirectory = null): int
 {
-    $existingHashes = [];
-    foreach (table_rows($pdo, 'users') as $user) {
-        if (!empty($user['email']) && !empty($user['password_hash'])) {
-            $existingHashes[(string)$user['email']] = (string)$user['password_hash'];
+    // Revalidate here as well: library callers must not bypass the HTTP checks.
+    $backup = normalize_backup_payload($backup);
+    if ($pdo->inTransaction()) {
+        throw new LogicException('Restore requires its own transaction.');
+    }
+    if (database_driver($pdo) === 'mysql') {
+        $engines = $pdo->query("SELECT TABLE_NAME, ENGINE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE()")->fetchAll(PDO::FETCH_KEY_PAIR);
+        foreach (['cms_store', 'cms_revisions', 'users', 'carts', 'cart_items', 'product_favorites', 'orders', 'auth_state'] as $table) {
+            if (strtolower((string)($engines[$table] ?? '')) !== 'innodb') {
+                throw new RuntimeException('Restore zahtijeva InnoDB transakcijsku tabelu: ' . $table);
+            }
         }
     }
-
-    $users = array_map(static function (array $user) use ($existingHashes): array {
-        if (empty($user['password_hash'])) {
-            $email = (string)($user['email'] ?? '');
-            $user['password_hash'] = $existingHashes[$email] ?? hash_password(bin2hex(random_bytes(12)));
-        }
-        return $user;
-    }, $backup['tables']['users']);
-
-    $preRestorePath = backup_dir() . DIRECTORY_SEPARATOR . 'pre-restore-' . date('Y-m-d-His') . '.json';
+    $directory = $backupDirectory === null ? backup_dir() : ensure_writable_directory($backupDirectory, 'Backup');
+    $preRestorePath = $directory . DIRECTORY_SEPARATOR . 'pre-restore-' . date('Y-m-d-His') . '-' . bin2hex(random_bytes(8)) . '.json';
     atomic_write_file($preRestorePath, encode_json_or_fail(backup_payload($pdo), true));
 
     try {
@@ -2216,11 +2294,12 @@ function restore_backup_payload(PDO $pdo, array $backup): int
         $pdo->exec('DELETE FROM orders');
         $pdo->exec('DELETE FROM carts');
         $pdo->exec('DELETE FROM users');
-        insert_rows($pdo, 'users', $users);
+        insert_rows($pdo, 'users', $backup['tables']['users']);
         insert_rows($pdo, 'carts', $backup['tables']['carts']);
-        insert_rows($pdo, 'cart_items', consolidate_cart_item_rows($backup['tables']['cart_items']));
-        insert_rows($pdo, 'product_favorites', $backup['tables']['product_favorites'] ?? []);
+        insert_rows($pdo, 'cart_items', $backup['tables']['cart_items']);
+        insert_rows($pdo, 'product_favorites', $backup['tables']['product_favorites']);
         insert_rows($pdo, 'orders', $backup['tables']['orders']);
+        rotate_auth_epoch($pdo);
         $pdo->commit();
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) {
@@ -2229,7 +2308,6 @@ function restore_backup_payload(PDO $pdo, array $backup): int
         throw $error;
     }
 
-    seed_database($pdo);
     return $revision;
 }
 
@@ -2239,6 +2317,7 @@ if (defined('ONES_API_LIBRARY_ONLY') && ONES_API_LIBRARY_ONLY) {
 
 try {
     $pdo = database(is_array($config) ? $config : []);
+    $requestAuthEpoch = auth_epoch($pdo);
 
     if ($action === 'csrf-token') {
         respond(['ok' => true, 'csrfToken' => csrf_token()]);
@@ -2312,7 +2391,7 @@ try {
 
         clear_request_limit($pdo, 'admin-login', $rateIdentifier);
         rehash_password_if_needed($pdo, $user, $password);
-        establish_auth_session('admin', $user);
+        establish_auth_session('admin', $user, $requestAuthEpoch);
         respond(['ok' => true, 'user' => ['name' => $user['name'], 'email' => $user['email'], 'role' => $user['role']]]);
     }
 
@@ -2348,7 +2427,7 @@ try {
         ]);
         clear_request_limit($pdo, 'admin-password-update', $rateIdentifier);
         $user['auth_version'] = (int)($user['auth_version'] ?? 0) + 1;
-        establish_auth_session('admin', $user);
+        establish_auth_session('admin', $user, $requestAuthEpoch);
         respond(['ok' => true]);
     }
 
@@ -2436,7 +2515,7 @@ try {
             $_SESSION['customer_name'] = $name;
             if ($emailChanged) {
                 $currentUser['name'] = $name;
-                establish_auth_session('customer', $currentUser);
+                establish_auth_session('customer', $currentUser, $requestAuthEpoch);
             }
             respond(['ok' => true, 'profile' => ['name' => $name, 'email' => $email, 'phone' => $phone]]);
         } catch (PDOException $error) {
@@ -2476,7 +2555,7 @@ try {
         $update->execute([':password_hash' => hash_password($newPassword), ':id' => $userId]);
         clear_request_limit($pdo, 'customer-password-update', $rateIdentifier);
         $user['auth_version'] = (int)($user['auth_version'] ?? 0) + 1;
-        establish_auth_session('customer', $user);
+        establish_auth_session('customer', $user, $requestAuthEpoch);
         respond(['ok' => true]);
     }
 
@@ -2515,7 +2594,7 @@ try {
             $cart->execute([':user_id' => $userId, ':created_at' => date('c'), ':updated_at' => date('c')]);
             $pdo->commit();
 
-            establish_auth_session('customer', ['id' => $userId, 'name' => $name, 'auth_version' => 0]);
+            establish_auth_session('customer', ['id' => $userId, 'name' => $name, 'auth_version' => 0], $requestAuthEpoch);
             respond(['ok' => true, 'user' => ['name' => $name, 'email' => $email, 'role' => 'customer']]);
         } catch (Throwable $error) {
             if ($pdo->inTransaction()) {
@@ -2556,7 +2635,7 @@ try {
 
         clear_request_limit($pdo, 'customer-login-pair', $pairIdentifier);
         rehash_password_if_needed($pdo, $user, $password);
-        establish_auth_session('customer', $user);
+        establish_auth_session('customer', $user, $requestAuthEpoch);
         respond(['ok' => true, 'user' => ['name' => $user['name'], 'email' => $user['email'], 'role' => 'customer']]);
     }
 
@@ -2827,7 +2906,10 @@ try {
         }
 
         $revision = restore_backup_payload($pdo, $backup);
-        respond(['ok' => true, 'cms' => get_cms($pdo), 'revision' => $revision, 'orders' => orders_payload($pdo)]);
+        clear_auth_session('admin', false);
+        clear_auth_session('customer', false);
+        session_regenerate_id(true);
+        respond(['ok' => true, 'reauthenticate' => true, 'revision' => $revision]);
     }
 
     if ($action === 'upload-product-image') {

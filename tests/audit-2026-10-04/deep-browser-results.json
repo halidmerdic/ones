@@ -1,0 +1,55 @@
+{
+  "failedLogout": {
+    "uiGuest": true,
+    "serverLoggedIn": true,
+    "toast": [
+      "Odjavljeni ste."
+    ]
+  },
+  "adminMenuClosedFocus": {
+    "menuOpen": false,
+    "active": "Postavke",
+    "bounds": {
+      "x": -336.16015625,
+      "y": 142,
+      "width": 302.390625,
+      "height": 46,
+      "top": 142,
+      "right": -33.76953125,
+      "bottom": 188,
+      "left": -336.16015625
+    },
+    "inert": false
+  },
+  "adminModalFocus": {
+    "focusInside": false,
+    "active": "<a class=\"btn btn-secondary\" href=\"admin.html?panel=products&amp;product=scooter-f3\" data-edit-product=\"scooter-f3\">Uredi</a>"
+  },
+  "adminModalTab": {
+    "focusInside": false,
+    "active": "<input data-product-field=\"name\" data-product-index=\"1\" value=\"oneS električni multicooker\" style=\"\">"
+  },
+  "pruneEmpty": {
+    "removed": 1,
+    "stillExists": false
+  },
+  "xssSave": {
+    "ok": true,
+    "revision": 2
+  },
+  "storedXss": {
+    "attribute": 2,
+    "rich": 1
+  },
+  "editDuringSave": {
+    "field": "Audit first edit",
+    "dirty": false
+  },
+  "badge": {
+    "name": "Brzo punjenje",
+    "rendered": ""
+  },
+  "themeStorage": [
+    "onesTheme:customer:audit20261004@example.invalid"
+  ]
+}

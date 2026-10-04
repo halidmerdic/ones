@@ -4,6 +4,25 @@ Use this checklist for the Hetzner server and `ones.ba`. The live database,
 `config.local.php`, `data/`, and `uploads/` must never be replaced during a
 normal code deployment.
 
+Security segment T01–T03 (2026-10-05):
+
+- Deploy the complete package, including `backup-validation.php`,
+  `vendor/htmlpurifier/` and `assets/vendor/`. The sanitizers are local,
+  versioned dependencies; no CDN or Composer installation is needed.
+- The new `auth_state` table is created by the existing database initialization
+  mechanism. Existing browser sessions are invalidated once on this upgrade.
+  Every successful CMS JSON restore then revokes all older sessions atomically;
+  log in again using the administrator password contained in the restored backup.
+- Restore accepts complete version 1/2 backups with a valid `admin@ones.local`
+  account and password hashes. Incomplete/redacted or inconsistent backups are
+  rejected before replacement. Legacy version 1 fields are migrated explicitly.
+- MySQL/MariaDB restore requires InnoDB for every affected table. Test restoration
+  on a disposable database before production rollout. Safety JSON copies still
+  belong in private `data/backups/`; media files remain a separate backup.
+- `admin.html` has a stricter CSP that disables inline scripts and event handlers.
+  Recheck that header on the deployed server; IIS configuration also needs an
+  IIS runtime check. These changes do not replace the later PHP upgrade task.
+
 ## 1. Before every deployment
 
 - [ ] Download a CMS backup from `CMS -> Sigurnost -> Preuzmi backup`.

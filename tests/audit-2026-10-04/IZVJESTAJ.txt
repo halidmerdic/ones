@@ -1,0 +1,251 @@
+DETALJNI SIGURNOSNI I LOGIČKI PREGLED — oneS
+Datum pregleda: 04–05.10.2026. (Europe/Sarajevo)
+Radni direktorij: C:\Users\Korisnik\Desktop\halid\codex\ones
+
+OBUHVAT I METODA
+Pregledano trenutno radno stablo, uključujući postojeće lokalne izmjene admin.css, admin.html, login.html, profile.html i profile.js. Aplikacijski kod i postojeći podaci nisu mijenjani. Testovi koji pišu u bazu izvršeni su u odvojenoj kopiji u privremenom direktoriju ili SQLite memorijskoj bazi. Produkcija je provjeravana samo javnim HEAD zahtjevima.
+
+Pregledani su PHP API i sitemap; autentifikacija, autorizacija, CSRF, sesije, registracija, promjene profila/lozinke; CMS validacija, upload slika/PDF-a, backup/restore; proizvodi, kategorije, cijene, akcije, badgevi, favoriti, korpa i upiti; frontend JS, HTML/CSS, responzivnost i tastatura; Apache/IIS pravila, deployment paket i postojeći testovi.
+
+Prioriteti: P1 = prvo ispraviti; P2 = ispraviti u sljedećem krugu; P3 = manji problem ili preventivna dorada.
+Dokazi: R = reproducirano u izolovanoj kopiji; K = utvrđeno iz koda; U = uslovni rizik koji zahtijeva navedenu dodatnu provjeru. Stavke označene U nisu dokaz kompromitovane produkcije.
+
+SAŽETAK PROVJERA
+- PHP testovi: autentifikacija 11, mreža 13, pouzdanost pohrane 13, poslovna logika 20; svi prolaze.
+- CMS validacija postojećih podataka i njeni negativni slučajevi prolaze.
+- Smoke skripta: 226 provjera prolazi. Broj uključuje provjere fajlova i pozive navedenih testnih grupa; ne sabirati ga kao 226 dodatnih nezavisnih sigurnosnih testova.
+- PHP lint za api.php/sitemap.php i node --check za aplikacijski JS prolaze.
+- Browser matrica: 9 stranica × 7 širina = 63 otvaranja; još 20 otvaranja glavnih stranica u tamnoj temi. Širine: 320, 360, 390, 768, 820, 1024, 1440 CSS px. Visine 740–1180 px. Desktop Chrome u headless režimu, dodir emuliran do 1024 px; ovo nisu fizički Android/iOS uređaji niti Safari.
+- Stranice: početna, proizvod, blog, korpa, profil, prijava, privatnost, uslovi, CMS proizvodi. Dodatno testirani CMS modal, napomena upita, simulirani kvar mreže, onemogućen localStorage, vremenska zona America/Los_Angeles i spremanje tokom kucanja.
+- Sedam privatnih read akcija i devet admin write akcija odbijaju neprijavljenog korisnika sa 401 uz validan CSRF token. Pokušaj promjene/brisanja tuđe stavke korpe vraća 404. Validan upit uspijeva; ponavljanje prazne već poslane korpe ne pravi drugi upit. PHP upload kao slika i HTML predstavljen kao PDF odbijeni su sa 400.
+- Nije potvrđen SQL injection, pristup tuđoj korpi kroz testirane IDOR slučajeve, niti anonimni upload ili anonimni pristup administraciji. Ovo nije tvrdnja da je svaka moguća varijanta isključena.
+
+PRODUKCIJA — SAMO JAVNE PROVJERE
+https://ones.ba/, /api.php?action=cms, /admin.html i /sitemap.php: HEAD 200. Cloudflare je prisutan. HSTS, X-Content-Type-Options i X-Frame-Options su postavljeni. API i admin.html imaju no-store i CF-Cache-Status: DYNAMIC. CSP postoji, ali script-src dopušta unsafe-inline.
+HEAD /config.local.php, /data/ones.sqlite, /data/backups/, /.git/config, /.env, /tests/auth-security.php i /ones-sqlite-restore-backup.json: 403.
+HEAD /ones-deployment-ready.zip: 404.
+Nisu testirani produkcijska prijava, upis podataka, XSS payloadi, restore ili opterećenje. Nema potvrde produkcijske PHP verzije, MySQL transakcijskog ponašanja, firewall pravila, direktnog pristupa origin IP-u, SSH pristupa niti prava na fajlovima.
+
+NALAZI
+
+F01 — P1 — R — Pohranjeni XSS u administraciji
+Lokacije: admin.js:680, 712, 745, 849, 989, 1104; api.php:889, 933; .htaccess:40.
+CMS ubacuje putanje, dio naslova i rich HTML neposredno u innerHTML. Serverska validacija putanje dopušta navodnike, a regex za rich HTML se može zaobići. U izolovanom API-ju prihvaćena je slika s vrijednošću x" onerror="window.__auditXss=2 i opis <img src=x /onerror="window.__auditRich=1">. Nakon ponovnog učitavanja i otvaranja editora oba bezopasna markera su postavljena u browseru.
+Uticaj: sadržaj može izvršavati radnje u aktivnoj admin sesiji, čitati podatke dostupne adminu ili mijenjati CMS. Potreban je unos kroz ovlašteni CMS/API ili uvoz zlonamjernog backupa; nije potvrđen anonimni put od javnog korisnika do ovog polja. CSP unsafe-inline ne blokira takve handlere.
+Ispravka: običan tekst postavljati preko textContent; slike/linkove stvarati DOM metodama i validirati URL; rich HTML sanitizirati allowlist parserom i u editoru i na serveru. Ukloniti inline skripte/handlere i uvesti strožiji CSP nakon prilagodbe frontend koda. Regresija mora pokriti naslov, putanju, galeriju, manual, blog i HTML opis.
+
+F02 — P1 — R — Restore može staru sesiju povezati s drugim korisnikom
+Lokacije: api.php:1682, 1709, 2191, 2216.
+Sesija se potvrđuje preko user ID-a, role i auth_version. Restore zamjenjuje tabelu users i vraća auth_version iz backupa, bez globalnog poništavanja sesija.
+Dokaz: prijava korisnika A sa ID-em X i auth_version=0; restore backupa u kojem ID X pripada korisniku B s drugom lozinkom i istim auth_version; stara sesija A prolazi customer_session_active i dobija ime B. Isti mehanizam se koristi za admin sesije. Vraćanje starijeg auth_version može oživjeti ranije opozvanu sesiju.
+Ispravka: globalni nasumični auth epoch izvan obnovljivog backupa ili sigurno poništavanje svih postojećih sesija pri restoreu; ponovno prijavljivanje nakon restorea. Samo povećavanje vraćene verzije za 1 nije dovoljno jer može pogoditi neku postojeću sesiju.
+
+F03 — P1 — R — Restore javlja grešku nakon već izvršenog brisanja i commita
+Lokacije: api.php:2146, 2191, 2224, 2232.
+Validacija backupa prihvata praznu users tabelu i ne potvrđuje prisustvo upotrebljivog admina, verziju formata ili integritet svih redova. seed_database se poziva poslije commita.
+Dokaz: validan CMS backup bez korisnika, produkcijski režim i prazna početna admin lozinka. Restore baca izuzetak, ali izmijenjen CMS ostaje sačuvan i users tabela je prazna. Izuzetak ne može vratiti već potvrđenu transakciju. Postoji pre-restore fajl, ali aplikacija ostaje u neispravnom stanju i prijava može biti blokirana.
+Ispravka: potpuna validacija šeme, tipova, verzije, referenci i admin identiteta prije izmjena; sve obavezne korake završiti u jednoj transakciji. Backupe v1/v2 migrirati eksplicitno. Ne prikazivati neuspjeh kao da stanje nije promijenjeno ako se ne može garantovati rollback.
+
+F04 — P1 — R — Neuspjela odjava prikazuje uspjeh
+Lokacije: app.js:478; product.js:114; blog.js:102.
+catch samo zapisuje upozorenje; funkcija zatim obriše frontend stanje i prikaže „Odjavljeni ste“ bez potvrde servera.
+Dokaz: blokiran samo customer-logout HTTP zahtjev; UI pokazuje gosta i poruku uspjeha, dok naredni customer-status vraća loggedIn=true. Posljedica je posebno opasna na dijeljenom računaru ili tabletu.
+Ispravka: potvrditi server odjavu prije poruke uspjeha; pri grešci jasno ponuditi novi pokušaj i zadržati stanje kao prijavljeno/nepoznato. Ujednačiti funkciju odjave u svim stranicama; profile.js već ima drugačiji, sigurniji tok.
+
+F05 — P1 — R — Korpa se zaglavi poslije neuspjelog slanja
+Lokacije: cart.js:271, 299, 326, 355.
+submitOrder postavi orderSubmitting=true i deaktivira dugme, ali nema finally koji vraća stanje. Taj finally je pogrešno smješten u loadCart, gdje submitButton i originalLabel ne postoje.
+Dokaz: svako otvaranje korpe generiše ReferenceError: submitButton is not defined. Unos telefona 123 i klik Pošalji upit vraća serversku validacijsku poruku, ali dugme ostaje „Šaljem upit...“, disabled=true. Ni ispravka telefona ne omogućava ponovno slanje bez osvježavanja. Potvrđeno na svih sedam širina.
+Ispravka: premjestiti finally u submitOrder, resetovati zastavicu i tekst nakon svakog ishoda, pa pravilno izračunati disabled stanje iz korpe i aktivnih mutacija. Testirati validaciju, 429, istek sesije, mrežni prekid i uspjeh.
+
+F06 — P1 — R — Kucanje tokom spremanja CMS-a se tiho gubi
+Lokacije: admin.js:258, 526, 564–575.
+Tokom zahtjeva onemogućen je glavni Save, ali polja ostaju aktivna. Odgovor zatim zamjenjuje cijeli cms i snima novu baseline vrijednost.
+Dokaz: poslana izmjena „Audit first edit“; tokom zadržanog HTTP zahtjeva unesena „Audit later unsaved edit“; nakon odgovora drugo stanje nestaje, a dirty=false. Nema upozorenja da je izmjena izgubljena.
+Ispravka: blokirati sva relevantna polja dok se sprema, ili pratiti verziju lokalnih promjena i spojiti samo potvrđeni snapshot bez prepisivanja kasnijeg rada. Sačuvati dirty stanje ako je bilo novih izmjena.
+
+F07 — P2 — R — Spremanje automatski briše kategorije bez proizvoda
+Lokacije: admin.js:534, 1520.
+pruneEmptyCategories zadržava samo kategorije čije se ime trenutno pojavljuje na proizvodu. Ne provjerava da li kategorija ima atribute, opis, povezane manuale ili svrhu pripreme novih proizvoda.
+Dokaz: dodana nova kategorija bez proizvoda; pruneEmptyCategories vrati 1 i kategorija nestane. To se dešava u svakom saveCms pozivu.
+Ispravka: prazna kategorija je validan entitet; uklanjati je isključivo namjernim brisanjem i uz provjeru zavisnosti. Ne vezivati njeno trajno postojanje za trenutni broj proizvoda.
+
+F08 — P2 — R — Isključeni badgevi se i dalje prikazuju
+Lokacije: api.php:811; app.js:218; product.js:240.
+public_cms uklanja isključene badgeve iz liste, ali ostavlja naziv na proizvodu/kategoriji. visibleBadge skriva badge samo ako je pronađen i enabled=false; odsustvo iz liste tumači kao dozvolu za prikaz.
+Dokaz: proizvodu dodijeljen „Audit disabled badge“, a badge označen enabled=false. U javnoj listi ga nema, ali visibleBadge vrati taj naziv.
+Ispravka: javni proizvod treba dobiti već izračunat vidljivi badge ili frontend mora zahtijevati prisustvo u javnoj listi. Primijeniti i na kategorijske badgeve i datum isteka.
+
+F09 — P2 — R — Parser cijene mijenja vrijednost validnog broja
+Lokacije: api.php:949, 1813; admin.js:273, 351; app.js:189; cart.js:32.
+Validacija prihvata is_numeric zapis, a dalja obrada briše sve osim cifara i tačke. Zapis 1e3 zato postaje 13, iako broj znači 1000. Frontend parser briše i znak minus umjesto da odbije negativan unos.
+Dokaz: mpcPrice='1e3' prolazi cms_validate_payload bez greške; product_price_label vraća '13'.
+Ispravka: definisati jedan strogi decimalni format; odbiti eksponente, višestruke separatore i negativne cijene ili ih ispravno parsirati. Pohraniti iznos u najmanjoj novčanoj jedinici, uz jasno pravilo preciznosti; frontend i server moraju dati isti rezultat.
+
+F10 — P2 — R — Akcija ističe različito u korpi i na proizvodu
+Lokacije: cart.js:47; app.js:210; product.js:252; profile.js:84; api.php:1833.
+Korpa koristi new Date('YYYY-MM-DD'), koji predstavlja UTC ponoć, pa naknadno postavlja lokalno vrijeme. Ostale stranice dodaju lokalni T23:59:59, a PHP koristi serversku vremensku zonu.
+Dokaz: 04.10.2026. u America/Los_Angeles za saleUntil='2026-10-04' korpa kaže false, detalj proizvoda true. Korisnik vidi različite aktivne cijene. Server i Bosna mogu se dodatno razlikovati oko ponoći ako server radi u UTC.
+Ispravka: poslovnu zonu eksplicitno odrediti kao Europe/Sarajevo, računati efektivnu cijenu na serveru i vratiti je svim prikazima. Ne oslanjati odluku o akciji na korisnikov sat ili lokalnu zonu.
+
+F11 — P2 — R — Validacija referenci i javni prikaz koriste različita poređenja
+Lokacije: api.php:876, 796–805, 1142–1180, 841–849.
+Validacija poredi normalizovana imena i ID-eve bez razlike u velikim/malim slovima i okolnim razmacima. public_cms koristi originalne stringove i tačno poređenje.
+Dokaz: kategorija proizvoda izmijenjena u velika slova; payload prolazi bez greške, a proizvod nestaje iz javnog CMS-a. Sličan nesklad postoji za veze manuala i proizvod/kategoriju.
+Ispravka: koristiti stabilne categoryId i productId reference sa jednim pravilom normalizacije, ili odbiti nekanonski zapis. Validacija i prikaz moraju dijeliti isto pravilo.
+
+F12 — P2 — K/R — JSON objekat može proći kao CMS lista i pokvariti editor
+Lokacije: api.php:991; admin.js:535, 538, 1180, 1452.
+PHP is_array ne razlikuje očekivanu listu od JSON objekta sa string ključevima. Kolekcija products={'key0':...} prolazi validaciju. Sačuvani puni CMS vraća objekat, a editor očekuje JS Array i poziva forEach/find/map.
+Dokaz validacije: imenovani ključevi proizvoda prihvaćeni bez greške. Posljedica za editor potvrđena je njegovim pozivima array metoda; ovaj slučaj nije trajno upisan u glavni browser fixture.
+Ispravka: provjeriti list strukturu i indekse na svakoj kolekciji i ugniježđenim listama; po potrebi eksplicitno normalizovati array_values prije pohrane. Za object mape koristiti odvojenu validaciju.
+
+F13 — P2 — K — Izmjena i brisanje referenciranih entiteta nisu cjeloviti
+Lokacije: admin.js:1221, 1231–1234, 1587, 1785; api.php:1174, 1230.
+ID proizvoda se direktno mijenja, a manuali, favoriti i korpe ostaju vezani za stari ID. Brisanje proizvoda ne obrađuje povezane manuale. Preimenovanje/brisanje badgea ne ažurira dodjele. Brisanje korištene kategorije ostavlja proizvode na nepostojećoj kategoriji.
+Posljedica: validator blokira spremanje cijelog CMS-a kada ostanu reference manuala/badgea/kategorije; bez takve reference stari favoriti i korpe mogu postati „Nedostupan proizvod“. Nema transakcijske migracije referenci.
+Ispravka: tehničke ID-eve učiniti nepromjenjivim; uređivati poseban slug/naziv. Za brisanje ponuditi premještanje ili jasno uklanjanje zavisnosti. Sve reference ažurirati zajedno na serveru.
+
+F14 — P2 — R — Promjena statusa briše nespremljenu internu napomenu
+Lokacije: admin.js:2007, 2014, 2064, 2128.
+Odgovor na promjenu statusa ponovo iscrtava modal iz serverskog order objekta. Tekst u textarea nije sačuvan prije zamjene.
+Dokaz: upisana „AUDIT UNSAVED NOTE“, odabran status U obradi; nakon odgovora textarea postaje prazna.
+Ispravka: promjenu statusa primijeniti bez zamjene lokalnih polja ili zajedno spremiti status i napomenu. Čuvati draft po order ID-u i upozoriti prije zatvaranja sa nespremljenim tekstom.
+
+F15 — P2 — R — Kvar API-ja u CMS-u izgleda kao prazna evidencija
+Lokacije: admin.js:469, 486, 499.
+loadOrders/loadCustomers u catch postavljaju prazne nizove i loaded=true. CMS ne razlikuje da nije bilo upita/kupaca od toga da server nije odgovorio. loadCms također proguta grešku i može ostaviti početni ili ranije učitani sadržaj u editoru.
+Dokaz: blokiran admin-orders zahtjev; rezultat ordersLoaded=true i orderCount=0.
+Ispravka: koristiti zasebna loading/error/empty stanja, zadržati zadnje poznate podatke označene kao zastarjele i prikazati retry. Ne dozvoliti uređivanje kao da je početno učitavanje uspjelo. Početni cmsRevision=0 trenutačno blokira save, što ublažava prepisivanje demo sadržajem, ali ne ispravlja pogrešan prikaz.
+
+F16 — P2 — R — Blokiran localStorage ruši inicijalizaciju stranice
+Lokacije: theme.js:48, 113; app.js:421, 1348; product.js:48; cart.js:187; admin.js:2682.
+Dio pristupa storageu nema try/catch. Storage je opcionalna browser mogućnost i može baciti SecurityError zbog korisničkih/enterprise pravila ili konteksta učitavanja.
+Dokaz: Storage.getItem simulirano baca SecurityError. Početna dobija dvije JS greške i učita nula kartica proizvoda.
+Ispravka: zajednički safe storage wrapper s memorijskim fallbackom. Tema i preview broja korpe ne smiju biti uslov za API učitavanje kataloga ili rad korpe.
+
+F17 — P2 — R — Email se trajno čuva u browseru, protivno obavijesti o privatnosti
+Lokacije: theme.js:24–28, 80–82, 104; privacy.html:34.
+Ime storage ključa uključuje cijeli korisnički email: onesTheme:customer:<email>. Ključ ostaje nakon odjave. Obavijest eksplicitno tvrdi da se email ne čuva u pohrani preglednika.
+Dokaz: nakon promjene teme postoji onesTheme:customer:audit20261004@example.invalid. To je identifikator iako se vrijednost ključa sastoji samo od naziva teme.
+Ispravka: pohraniti opću temu ili neidentifikujući nasumični ID uz politiku čišćenja; uskladiti dokument s stvarnim ponašanjem. Ovo je tehnički nalaz privatnosti, ne ocjena usklađenosti sa svim važećim zakonima.
+
+F18 — P2 — R — Pravilo minimalne dužine lozinke broji bajtove umjesto znakova
+Lokacije: api.php:337–361; login.html:67; profile.html:123.
+strlen se koristi za minimum 15, dok UI govori o 15 znakova. Višebajtni UTF-8 znakovi brzo zadovolje uslov; regex za ponovljeni znak blokira tek najmanje 15 ponavljanja.
+Dokaz: osam ponovljenih slova č ima 16 bajtova i password_validation_error vraća null. Pravilo na serveru može se zaobići direktnim API zahtjevom iako browser minlength za taj primjer ne dopušta submit.
+Ispravka: minimum brojati po Unicode znakovima i provjeriti ponavljajuće/slabe lozinke. Maksimum prilagoditi algoritmu: bcrypt ima ograničenje u bajtovima koje ne treba prikazivati kao neograničen broj Unicode znakova.
+
+F19 — P2 — R — Tablet u landscape rasporedu ima horizontalno prelivanje CMS-a
+Lokacije: admin.css:11, 876, 2487–2508, 2510.
+Sidebar zauzima 270 px, a raspored reda proizvoda između 921 i 1200 px zadržava pet širokih kolona. Njihovi minimumi ne stanu u ostatak ekrana.
+Dokaz: viewport 1024 px, scrollWidth 1136 px u svijetloj i tamnoj temi. Akcije proizvoda izlaze desno iz vidljivog prostora. Screenshot: screen-1024-admin-overflow.png.
+Ispravka: promijeniti breakpoint ili koristiti container queries; prijeći na kartice čim raspoloživa širina panela nije dovoljna. Ponoviti provjeru i na manjim laptopima te sa zoomom.
+
+F20 — P2 — R — CMS modali i bočni meni nemaju ispravan fokus
+Lokacije: admin.js:229, 1179, 1541, 2064, 2261; admin.css:2804.
+Otvaranje modala ne pomjera fokus u dialog i nema Tab trap. Mobilni zatvoreni sidebar je samo pomjeren transformacijom, pa njegovi linkovi i dugmad ostaju fokusabilni i dostupni asistivnim tehnologijama.
+Dokaz: nakon otvaranja proizvoda fokus ostaje na pozadinskom „Uredi“; Tab ode na polje drugog proizvoda iza modala. Zatvoren mobilni meni dopušta fokus na dugme Postavke čija je desna ivica na x=-34 px. Uticaj postoji i na tabletu s tastaturom i na desktopu.
+Ispravka: postaviti početni fokus, ograničiti Tab, vratiti fokus na okidač; koristiti inert/hidden za zatvoreni meni i inert za pozadinu modalnog prikaza. Već postojeći javni lightbox/inquiry fokus mehanizam može poslužiti kao osnova.
+
+F21 — P2 — R — CMS WhatsApp/Viber linkovi ne normalizuju domaći telefonski broj
+Lokacije: admin.js:1942, 2070, 2261; nasuprot app.js:321 i cart.js:117.
+Kupcu je dozvoljen i primjerom ponuđen broj 061 123 456. Admin normalizePhone samo ukloni znakove i napravi wa.me/061123456 ili viber broj +061123456, bez pozivnog broja 387. Javni kontakt ima drugi normalizator.
+Dokaz: normalizePhone('061 123 456') vrati '061123456'. Nije slana stvarna poruka niti otvaran tuđi razgovor.
+Ispravka: jedan normalizator u E.164 uz poznatu zemlju; čuvati kanonski broj i odvojeno lijep prikaz. Testirati +387, 00387 i domaći 0 prefiks.
+
+F22 — P2 — R/K — CMS „aktivan“ sadržaj dodatno se skriva prema riječima iz kataloga
+Lokacije: app.js:285, 777, 792, 879; blog.js:195, 294; sitemap.php:112.
+Blog, dijelovi i neki manuali filtriraju se po podudaranju naziva/teksta s ključnim riječima proizvoda. Aktivna objava bez takve riječi ne mora biti prikazana, a blog direktno po ID-u može pokazati „nije pronađen“. Skriveno pravilo nije izraženo kao jasna CMS postavka.
+Dokaz: aktivni primjer „Radno vrijeme / Obavijesti / Od ponedjeljka radimo do 18 sati“ ne prolazi matchesActiveCatalog u postojećem katalogu.
+Ispravka: ako je ovo željeno pravilo, napraviti eksplicitnu vezu s kategorijom/proizvodom i objašnjenje u editoru; inače aktivni blog prikazati bez keyword filtera. Keyword matching koristiti za preporuke, a ne za pravo objave.
+
+F23 — P3 — K — Prijava otvorena iz korpe gubi povratak u korpu
+Lokacije: cart.js:352; login.js:38–41.
+Neprijavljeni korisnik iz korpe ide na login.html bez next. Nakon prijave dobija početnu, dok profil i detalj proizvoda koriste povratni URL.
+Ispravka: proslijediti isti provjereni same-origin next i iz korpe. Za nedovršeni klik Dodaj u korpu odlučiti da li se radnja nakon prijave nastavlja ili korisniku jasno tražiti ponavljanje.
+
+F24 — P2 — K — Svaki API poziv radi provjere šeme, a liste rastu bez serverske paginacije
+Lokacije: api.php:619–699, 2029, 2054, 2076, 2240.
+database poziva CREATE TABLE IF NOT EXISTS i provjere/migracije pri svakom zahtjevu, čak i za csrf-token i javni cms. orders/customers endpointi čitaju kompletnu historiju; paginacija u admin.js skraćuje samo prikaz nakon preuzimanja svega.
+Uticaj: nepotrebni upiti i DDL prava web korisnika baze, rast latencije/memorije s brojem kupaca i upita; sporija mobilna mreža to jače osjeti. Nije proveden produkcijski load test niti je dokazan trenutni pad zbog opterećenja.
+Ispravka: migracije pokretati odvojeno pri deployu; web DB nalogu dati samo potrebna runtime prava. Uvesti serversku paginaciju i filtere, agregate za brojače i odgovarajuće indekse. Ne zamijeniti zaštitu no-store za privatne podatke javnim keširanjem.
+
+F25 — P2 — U/K — Operacije nad korpom nisu potpuno usklađene za više uređaja
+Lokacije: api.php:1769–1800, 1921, 2601–2676.
+Zatvaranje korpe ima zaključavanje i sprečava duplo slanje iste korpe, ali add/update/remove ne zaključavaju i ne provjeravaju isti red korpe pod istim protokolom. Nema ograničenja „jedna aktivna korpa po korisniku“.
+Mogući raspored: sesija s telefona pročita aktivnu korpu; sesija s desktopa je pošalje; prva sesija upiše stavku u sada submitted korpu, pa njen uspješni odgovor prikazuje novu praznu korpu. Dvije sesije također mogu istovremeno kreirati aktivne korpe. PHP zaključavanje iste sesije ne štiti dva različita uređaja.
+Status: rizik utvrđen pregledom transakcija i šeme, nije reproduciran pod konkurentnim MySQL opterećenjem jer testni runtime koristi SQLite i jednonitni PHP server.
+Ispravka: sve mutacije prvo zaključavaju isti parent cart/user red, nakon toga provjeravaju status i verziju; uvesti DB invariant jedne aktivne korpe i konflikt 409 za zastarjelu verziju. Obavezno testirati paralelne stvarne MySQL konekcije.
+
+F26 — P2 — U/K — Backup nema jedinstven konzistentan snapshot svih tabela
+Lokacije: api.php:2117, 2122, 2210, 2791.
+backup_payload radi više SELECT * poziva bez zajedničke read transakcije. Druga sesija može registrovati korisnika ili poslati upit između čitanja users, carts, cart_items i orders. Pre-restore backup koristi isti pristup.
+Posljedica: backup može sadržavati kombinaciju različitih trenutaka, npr. referencu na korisnika koji nije u njegovoj users tabeli. MySQL šema dodatno nema iste strane ključeve kao SQLite. Nije izazivano produkcijsko preplitanje zahtjeva.
+Ispravka: konzistentna read transakcija/snapshot za backup i provjera referencijalnog integriteta pri uvozu. Medije i dalje posebno kopirati jer JSON backup ne sadrži sadržaj uploadova; to je već ispravno dokumentovano.
+
+F27 — P2 — K — Limit pokušaja prijave se može raspodijeliti po IP adresama
+Lokacije: api.php:326, 2295–2313, 2535–2553, 302–324.
+Admin limit je IP+admin; kupac ima IP i IP+email. Ne postoji brojilo po računu nezavisno od IP-a. Svaki novi izvor IP-a dobija nove pokušaje za isti račun. Provjera limita i upis pokušaja također nisu jedna atomska rezervacija.
+Uticaj: ograničenje djeluje protiv jednostavnog napada s jedne adrese, ali samo po sebi ne pokriva distribuirano pogađanje lozinke. Cloudflare može imati dodatna pravila, koja nisu poznata iz repozitorija.
+Ispravka: slojeviti limiti po nalogu, IP-u i sistemu uz progresivno usporavanje; bez jednostavne trajne blokade koju napadač može iskoristiti da zaključa žrtvu. Za admina uvesti MFA/passkey i sigurnosne događaje. Višefaktorska zaštita je preporučeno poboljšanje, njeno odsustvo samo po sebi nije dokaz preuzimanja računa.
+
+F28 — P1 ako uslov postoji — U/K — Već postojeći admin s demo lozinkom nije blokiran u produkciji
+Lokacije: api.php:702–736, 2279–2287, 2294–2316.
+Pravilo jake početne lozinke primjenjuje se samo kada admin ne postoji. Ako se migrira baza/backup s poznatom lokalnom lozinkom onesadmin, prijava je i dalje dozvoljena. admin-status daje passwordNeedsChange upozorenje, ali backend ne ograničava upravljanje dok se lozinka ne promijeni.
+Status: nije pokušavana produkcijska prijava tom lozinkom i nije utvrđeno da je produkcija koristi.
+Ispravka: produkcijska provjera poznatih demo vjerodajnica i obavezna promjena prije pristupa ostalim admin radnjama; deployment/import mora odbiti nesigurnu početnu konfiguraciju. Ne resetovati postojeću lozinku pri običnom deployu.
+
+F29 — P2 za lokalni razvoj; P1 ako isto vrijedi na serveru — R/U — Zastarjeli PHP runtime i zastarjeli minimum u dokumentaciji
+Lokacija: lokalni php -v; DEPLOYMENT.md odjeljak Server requirements.
+Lokalni runtime je PHP 7.4.27. Dokumentacija navodi PHP 8.1 ili noviji. U oktobru 2026. ni 7.4 ni 8.1 više nisu podržane PHP grane. Trenutno podržane grane su navedene na zvaničnoj PHP stranici; za planiranje nadogradnje razumno je testirati 8.4 ili 8.5.
+Status: produkcijska verzija nije poznata. Prolazak testova na 7.4 ne zamjenjuje provjeru na produkcijskom PHP-u i MySQL-u.
+Ispravka: uskladiti razvoj, CI i produkciju s podržanom verzijom; provjeriti ekstenzije i ponoviti testove nakon nadogradnje. Ne instalirati novu verziju bez odvojenog plana migracije.
+
+F30 — P2 — K / dokumentovano odgođeno — Email identitet se ne potvrđuje
+Lokacije: api.php:2389–2449, 2482–2529; DEPLOYMENT.md završna napomena.
+Registracija automatski aktivira račun na osnovu sintaktički validnog emaila. Promjena emaila traži trenutnu lozinku, ali ne potvrđuje pristup novom sandučetu niti šalje obavijest starom. SMTP i verifikacija su eksplicitno odgođeni u dokumentaciji.
+Uticaj: osoba može zauzeti tuđi email i slati upite pod tom adresom. To ne daje pristup već postojećem tuđem računu ili pošti; takav pristup nije potvrđen. Korisnik nema ni dovršen samostalni oporavak zaboravljene lozinke.
+Ispravka: pending email/verifikacijski token s rokom i jednokratnom upotrebom; odgovarajući limiti, potvrda nove adrese i obavijest o promjeni. Do implementacije email jasno tretirati kao neprovjeren kontakt i ne dodavati ručni nesigurni password-reset zaobilazni put.
+
+F31 — P3 — K — Zajednički CSS se učitava pod različitim verzijama nakon izmjene
+Lokacije: admin.html:11, login.html:11, profile.html:11 nasuprot cart.html:28, product.html:40, blog.html:14; .htaccess ExpiresByType text/css.
+admin.css je lokalno promijenjen i tri stranice koriste novu oznaku 20260905-auth-2, dok druge tri zadržavaju 20260903-ui-1. Cache za CSS traje 30 dana. Postojeći posjetilac može na različitim stranicama koristiti različit sadržaj istog CSS-a.
+Status: potvrđene reference i cache pravilo; nije simuliran stvarni stari Cloudflare/browser cache. Novi browser u testovima učitava trenutni fajl pa ne pokriva ovaj rizik.
+Ispravka: jedinstven build/content hash za sve reference promijenjenog zajedničkog resursa; pri deployu provjeriti navigaciju sa već popunjenim cacheom.
+
+F32 — P2 preventivno — U/K — Deployment artefakti i IIS zaštita nisu jednako ograničeni
+Lokacije: .htaccess:28–35; web.config; korijenski ones-*.zip i deployment-* direktoriji.
+U radnom web rootu nalaze se ZIP paketi i stare deployment kopije. Root Apache pravila blokiraju deploy/ i tests/, ali ne sve deployment-* direktorije ili *.zip fajlove. ZIP pregled nije pokazao config.local.php, SQLite ili backup JSON unutar pregledanih arhiva; one ipak sadrže izvorni kod/stare verzije. IIS web.config ima uži skup zabrana od Apache pravila i nije ekvivalentna zaštita za sve JSON backup/razvojne putanje.
+Produkcijska provjera: poznati /ones-deployment-ready.zip je 404; privatne testirane putanje su 403. Nema dokaza da su arhive ili stare kopije trenutno izložene.
+Ispravka: javni document root treba sadržati samo dozvoljene runtime fajlove; zadržati postojeći allowlist deploy/build-package.ps1 tok. Arhive/staging izvana web root-a ili eksplicitno zabranjene. Za IIS definisati i testirati ekvivalentne zabrane ako se taj hosting stvarno podržava; inače jasno navesti Apache kao podržani produkcijski target.
+
+REDOSLIJED POPRAVKI
+1. F01–F06: XSS, opoziv sesija pri restoreu, atomski restore, pouzdana odjava, korpa, očuvanje CMS izmjena. Provjeriti F28/F29 na produkciji bez oslanjanja na lokalne pretpostavke.
+2. F07–F18 i F21: integritet kataloga/referenci, cijene, vremenska zona, napomene, oporavak od greške i privatnost/lozinke.
+3. F19–F20: tablet layout i fokus. F23/F31: povratni tok i cache.
+4. F24–F27 i F30/F32: skaliranje, MySQL konkurentnost, konzistentan backup, slojevita zaštita prijave, email identitet i deployment politika.
+5. F22: potvrditi poslovnu namjeru i zamijeniti implicitno keyword skrivanje eksplicitnim pravilom.
+
+OGRANIČENJA I PREOSTALA VERIFIKACIJA
+Ne može se pošteno garantovati da nijedan propust ne postoji. Ovaj pregled daje konkretne pronađene probleme i jasno označene granice. Produkcija može sadržavati drugu verziju koda od lokalnog radnog stabla.
+Prije zatvaranja audita treba provjeriti stvarne Safari/iOS i Android uređaje, softversku tastaturu, landscape promjene tokom unosa, čitač ekrana, desktop zoom 200%, stvarne WhatsApp/Viber/email handoff tokove bez neželjenog slanja, MySQL konkurentne zahtjeve i restore sa reprezentativnim volumenom, PHP/server verzije, prava i tajne, backup proceduru izvan web root-a, Cloudflare pravila i blokadu direktnog origin pristupa. Nisu rađeni DoS ili invazivni produkcijski testovi.
+Nisu proglašeni propustima: nedostatak online plaćanja i zaliha (ovo je katalog s upitima), javne putanje uploadovanih manuala (dokumentovan javni upload prostor), niti postojanje admin.html bez login zida oko samog HTML-a (osjetljivi API-ji provjeravaju admin sesiju).
+
+PRILOZI
+browser-results.json — 63 pregleda, JS greške, širine i slike.
+deep-browser-results.json — XSS markeri, lažna odjava, fokus, gubitak izmjena i storage ključ.
+additional-results.json — neusklađen datum akcije, isključen badge, broj telefona i tamna tema.
+edge-results.json — izgubljena napomena, API failure, skrivanje bloga i blokiran storage.
+screen-1024-admin-overflow.png — tablet CMS problem.
+screen-390-admin-modal.png — izgled mobilnog editora.
+screen-390-profile-dark.png — provjeren izgled profila u tamnoj temi.
+Prilozi sadrže testne identitete/example.invalid, bez produkcijskih lozinki ili izvoda stvarnih korisničkih podataka.
+
+REFERENTNE SMJERNICE
+OWASP XSS Prevention — kontekstualno kodiranje, sigurni DOM izlazi i HTML sanitizacija:
+https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
+OWASP Authentication — zaštita prijave i promjena email adrese:
+https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+PHP — trenutno podržane verzije i sigurnosni životni ciklus:
+https://www.php.net/supported-versions.php

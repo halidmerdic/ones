@@ -41,7 +41,7 @@ try {
     $packageArchive.Dispose()
   }
 
-  $requiredPackageEntries = @(".htaccess", "api.php", "assets/favicon.svg", "data/.htaccess", "uploads/.htaccess")
+  $requiredPackageEntries = @(".htaccess", "api.php", "backup-validation.php", "vendor/htmlpurifier/library/HTMLPurifier.auto.php", "assets/vendor/purify-3.4.16.min.js", "assets/favicon.svg", "data/.htaccess", "uploads/.htaccess")
   $missingPackageEntries = @($requiredPackageEntries | Where-Object { $_ -notin $packageEntries })
   $privatePackageEntries = @($packageEntries | Where-Object {
     $_ -eq "config.local.php" -or
@@ -92,6 +92,11 @@ Assert-True ($LASTEXITCODE -eq 0) "postojeći CMS podaci prolaze serversku valid
 
 $networkSecurity = & php (Join-Path $PSScriptRoot "network-security.php")
 Assert-True ($LASTEXITCODE -eq 0) "proxy, HTTPS i IP sigurnosne provjere prolaze"
+
+foreach ($securityTest in @("cms-xss.php", "restore-security.php", "backup-atomicity.php")) {
+  & php (Join-Path $PSScriptRoot $securityTest) | Out-Null
+  Assert-True ($LASTEXITCODE -eq 0) "$securityTest prolazi sigurnosnu regresiju"
+}
 
 $sitemapLint = & php -l (Join-Path $projectRoot "sitemap.php")
 Assert-True ($LASTEXITCODE -eq 0) "sitemap.php prolazi PHP lint"
