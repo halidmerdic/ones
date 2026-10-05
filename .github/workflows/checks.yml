@@ -36,3 +36,8 @@ jobs:
           node tests/public-badges.cjs
           node tests/contact-navigation.cjs
           node tests/storage.cjs
+      - name: Deployment and asset policy
+        shell: pwsh
+        run: |
+          ./deploy/sync-css.ps1 -Check
+          ./tests/deployment-policy.ps1

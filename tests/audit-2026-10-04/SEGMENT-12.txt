@@ -8,8 +8,11 @@ PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37302201010
 Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37302200357
 Obje provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
 
-T34–T35 su završeni lokalno, bez novog commita/pusha. Ukupno 36/40 taskova:
-34 na GitHubu, 2 lokalno. T11 čeka službeni email servis i aktivaciju prema
+T34–T35 su poslani na GitHub main: 8f0d74adde104404adfb6c62b9aee9a2ad090c80.
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37307369765
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37307369294
+Obje provjere su prošle. Svih 36 tada završenih taskova su na GitHubu.
+T11 čeka službeni email servis i aktivaciju prema
 dogovoru. Privremeni app password nije postavljan.
 
 T34 — MIGRACIJE IZVAN WEB ZAHTJEVA

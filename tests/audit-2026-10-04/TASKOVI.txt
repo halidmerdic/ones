@@ -1,10 +1,10 @@
 PLAN POPRAVKI — odobren 05.10.2026.
 Rad u segmentima od 2–4 povezana taska. Jedan task = jedan problem.
-Trenutni segment: T34–T35; završen lokalno 05.10.2026.
+Posljednji segment: T36–T38; završen 05.10.2026. i obuhvaćen ovim commitom.
 T10/T12 i pripremljeni kod T11 poslani su na GitHub: 8f79f61.
 T11 čeka službeni email servis i aktivaciju, prema korisnikovom izboru.
 Privremeni app password ne postavljamo, prema dogovoru.
-Ukupno 36/40 taskova završeno: 34 na GitHubu, 2 lokalno.
+Ukupno 39/40 taskova završeno; ovaj commit uključuje posljednja tri taska.
 T40 je novi zasebni nalaz otkriven i popravljen tokom testiranja T28.
 T01–T03 poslani na GitHub main: 2a5eb82, 05.10.2026.
 T04–T06 poslani na GitHub main: aa274da, 05.10.2026.
@@ -48,11 +48,11 @@ T30 [GITHUB d42ad22] F17 Email u lokalnoj pohrani
 T31 [GITHUB d42ad22] F19 Tablet prelijevanje administracije
 T32 [GITHUB cd2399e] dio F20 Fokus modalnih prozora
 T33 [GITHUB cd2399e] dio F20 Fokus zatvorenog bočnog menija
-T34 [ZAVRŠENO LOKALNO] dio F24 Migracije baze pri svakom zahtjevu
-T35 [ZAVRŠENO LOKALNO] dio F24 Serverska paginacija
-T36 [ČEKA] F31 Verzije CSS resursa
-T37 [ČEKA] dio F32 Razvojni artefakti u javnom direktoriju
-T38 [ČEKA] dio F32 IIS zaštita privatnih datoteka
+T34 [GITHUB 8f0d74a] dio F24 Migracije baze pri svakom zahtjevu
+T35 [GITHUB 8f0d74a] dio F24 Serverska paginacija
+T36 [ZAVRŠENO — OVAJ COMMIT] F31 Verzije CSS resursa
+T37 [ZAVRŠENO — OVAJ COMMIT] dio F32 Razvojni artefakti u javnom direktoriju
+T38 [ZAVRŠENO — OVAJ COMMIT; APACHE PODRŠKA, IIS ODBIJEN] dio F32 IIS zaštita privatnih datoteka
 T39 [GITHUB e73afa4] Novi nalaz: broj u nazivu proizvoda ruši sitemap
 T40 [GITHUB d228a24] Novi nalaz: link kartice prekriva dugmad za upit/korpu/favorite
 
@@ -76,4 +76,10 @@ T26–T28 i T40 poslani na GitHub main: d228a24, 05.10.2026. PHP/JS CI i statič
 T29–T31 poslani na GitHub main: d42ad22, 05.10.2026. PHP/JS CI i statički Pages build prošli.
 T32–T33 poslani na GitHub main: cd2399e, 05.10.2026. PHP/JS CI i statički Pages build prošli.
 Detalji dvanaestog segmenta: SEGMENT-12.txt.
-Sljedeći segment: T36–T38 (CSS verzije, razvojni artefakti i IIS zaštita).
+T34–T35 poslani na GitHub main: 8f0d74a, 05.10.2026. PHP/JS CI i statički Pages build prošli.
+Detalji trinaestog segmenta: SEGMENT-13.txt.
+Preostaje T11: službeni email servis i aktivacija. Privremeni app password nije dogovoren.
+Nema narednog otvorenog segmenta nezavisnog od T11. Nakon email aktivacije slijede
+produkcijski rollout i provjere izvan lokalnog testnog okruženja kao zasebni
+operativni koraci; nijedan PHP deploy nije izvršen. Rezultati CI/Pages provjera
+vezani su za commit i dostupni u GitHub Actions nakon pusha.

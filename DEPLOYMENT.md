@@ -24,8 +24,9 @@ Security segment T01–T03 (2026-10-05):
   on a disposable database before production rollout. Safety JSON copies still
   belong in private `data/backups/`; media files remain a separate backup.
 - `admin.html` has a stricter CSP that disables inline scripts and event handlers.
-  Recheck that header on the deployed server; IIS configuration also needs an
-  IIS runtime check. These changes do not replace the later PHP upgrade task.
+  Recheck that header on the deployed server. Current server support and the IIS
+  rejection guard are described in section 21. These changes do not replace the
+  later PHP upgrade task.
 
 Security segment T04–T06 (2026-10-05):
 
@@ -108,7 +109,9 @@ Create a safe deployment archive from the current application files:
 powershell -ExecutionPolicy Bypass -File .\deploy\build-package.ps1
 ```
 
-The generated `ones-deployment-YYYYMMDD-HHMMSS.zip` intentionally excludes
+The archive defaults to `.runtime/packages/ones-deployment-YYYYMMDD-HHMMSS.zip`.
+An explicit output inside the project must also be under `.runtime/`; alternatively
+use an absolute path outside the project. The generated package intentionally excludes
 `config.local.php`, the database, tests, deployment helpers, and all CMS media
 inside `uploads/`. Extract its contents over `/var/www/html/` without deleting
 the existing server directories. The archive may update only the protective
@@ -126,6 +129,9 @@ root and write to the listed CMS directories before opening the CMS.
 - MariaDB/MySQL with `pdo_mysql`, plus `dom`, `mbstring`, `gd`, `fileinfo`,
   `openssl`, `json`, and `session`. Local tests also require `pdo_sqlite`.
 - Apache modules: `headers`, `rewrite`, `expires`, `deflate`, and `remoteip`.
+- Apache 2.4 is the supported production target. Allow the application directory
+  to apply `.htaccess` (`AllowOverride All`), with PHP 8.5 configured to execute
+  PHP entry points. IIS is deliberately disabled by the guard in section 21.
 - Writable directories for the Apache user:
   - `data/`
   - `data/backups/`
@@ -849,3 +855,103 @@ expects those exact counts and then changes a status/note. Recreate the fixture
 before repeating it. Existing focus/restore suites create their own local test
 records. Optional `ONES_TEST_SCREENSHOTS` captures layout evidence. See the
 segment 12 report for completed results and platform limitations.
+
+## 21. CSS versions, deployment artifacts and server support (T36–T38)
+
+CSS references use the first 16 hexadecimal characters of SHA-256 over UTF-8
+content with canonical LF line endings. Every page uses the same fingerprint
+for the same stylesheet. After a CSS change, run:
+
+```powershell
+./deploy/sync-css.ps1
+./deploy/sync-css.ps1 -Check
+./tests/deployment-policy.ps1
+```
+
+The package builder independently calculates these values and rewrites HTML
+references inside the ZIP. CSS and HTML in the ZIP are canonical UTF-8/LF;
+their fingerprints are independent of Windows/Linux checkout line endings.
+Source files are not changed by building a package. A CSS-only edit therefore
+gets a new URL even if the operator forgot to refresh source HTML. CI also
+checks source references so the GitHub Pages static preview stays consistent.
+Upload HTML and matching CSS together; let HTML revalidate. For existing open
+tabs, reload to fetch new HTML. If a CDN cache rule ignores query strings or
+overrides HTML revalidation, correct that rule and purge its old entries before
+rollout. The local test verifies actual Chrome caching and Apache headers;
+it does not modify or prove the configuration of Cloudflare.
+
+The six managed stylesheets are declared in `deploy/css-versions.ps1`. Add new
+stylesheets there and new pages to `Get-OneSPublicPages`; add their public URLs
+to the Apache/local-router and static Pages allowlists. Unknown CSS references
+fail the build. `deploy/verify-production.ps1` checks equal fingerprint-shaped
+URLs on deployed pages in addition to private path and cache header checks.
+
+Deployment archives default to `.runtime/packages/` and never belong in a public
+upload directory. The builder retains its explicit runtime list, excludes live
+configuration/data/media and rejects unexpected public asset extensions or
+symbolic links/junctions under asset/vendor source trees. DOMPurify's license is
+kept in the archive as a non-public dependency notice. Create a new archive from
+the current checkout; do not deploy a historical ZIP. Existing local archives,
+old deployment trees, test-upload folders, a backup JSON and server logs were
+preserved in `.runtime/legacy-artifacts/20261005-T37/`. `inventory.json` records
+their contents' SHA-256 values. This local archive is ignored by Git and excluded
+from deployment. Never delete it as part of temporary test cleanup.
+
+Apache now allows only the known HTML/JS/CSS runtime files, `api.php`,
+`sitemap.php`, `robots.txt`, public media/assets and ACME challenge tokens.
+Everything else is denied, including old staging directories, ZIPs, backups,
+tests, developer scripts, PHP library files, vendor code and server configuration.
+`AcceptPathInfo Off`, hidden-path rejection and executable-suffix checks also
+cover path suffixes and disguised files such as `uploads/test.PHP.jpg`.
+The upload directory has its own matching executable-suffix denial. Without
+`mod_rewrite`, Apache denies access instead of silently dropping the allowlist.
+The PHP development router mirrors these URL rules, because `php -S` does not
+read `.htaccess`. URL permissions do not replace application authentication;
+the allowed API retains its session/role/CSRF checks.
+
+Before deployment, inspect the destination for old packages/staging directories;
+move them outside the public document root while retaining needed backups.
+Local cleanup does not clean a remote server. Install the new `.htaccess` with
+the complete package, run Apache configtest, and verify public routes and denied
+paths through the real host. Do not upload the entire Git checkout. The existing
+static GitHub Pages build now has `_config.yml`: default exclusion with explicit
+public pages/scripts/styles/assets. Bracket patterns avoid Jekyll's literal
+prefix inclusion of filenames such as `admin.js.bak`. This does not add PHP to
+Pages. Verify the cloud Pages result and exclusions after pushing this segment.
+
+IIS is not a supported production target. The previous `web.config` looked like
+support while implementing only part of the Apache restrictions. Root and data
+`web.config` now clear inherited HTTP verb entries and set `allowUnlisted=false`
+and `applyToWebDAV=true`, deliberately rejecting all verbs. According to IIS
+Request Filtering this is a 404.6 denial. A locked/missing configuration feature
+may instead produce a configuration error; neither is an operational IIS release.
+Do not remove the guard and assume IIS is safe. Any future IIS support needs its
+own complete configuration and runtime tests before changing this policy.
+This resolves T38 through the Apache-only support option identified in F32.
+The XML/policy is checked locally; no IIS runtime is installed on this machine.
+
+Disposable HTTP tests run against an extracted package with synthetic private
+files/media: `tests/public-paths.cjs` checks actual Apache and PHP-router status
+codes, including GET/HEAD/POST, encoded paths and legitimate public routes.
+Set `ONES_DISPOSABLE_TEST=1`, `ONES_TEST_URL` to the loopback server. This test
+expects `uploads/test.pdf`, `uploads/test.png` and an ACME `test-token` fixture.
+Never create these probe files or run mutation/browser suites on production.
+
+`tests/css-cache-browser.cjs` additionally requires Apache at 127.0.0.1:18865,
+`ONES_TEST_DOCUMENT_ROOT` pointing exactly to `.runtime/segment13-tests/web`,
+a seeded synthetic customer `css@example.invalid` / `CSS customer password 2026!`
+and admin password `Segment one admin password 2026!`. Its fixture SQL creates
+the customer and `customer_email_state` locally, without sending email. It
+temporarily primes old CSS under a long-lived URL, restores current CSS, proves
+the old URL still uses browser cache, then navigates to fingerprinted pages.
+Original fixture files are restored in a finally block; no route interception
+disables browser caching. The suite checks six desktop/tablet/mobile widths,
+both themes, authenticated CMS/profile and guest login. Screenshots are optional
+via `ONES_TEST_SCREENSHOTS`. The Apache fixture forwards only api/sitemap to a
+separate PHP 8.5 loopback process with `ProxyPreserveHost On`; its root Directory
+uses `AllowOverride None` and only the extracted fixture uses `AllowOverride All`.
+The older local Apache binary is used only on loopback for configuration tests;
+use an updated distribution package for production.
+
+References: [IIS verb filtering](https://learn.microsoft.com/en-us/iis/configuration/system.webserver/security/requestfiltering/verbs/),
+[Jekyll entry matching](https://github.com/jekyll/jekyll/blob/v3.10.0/lib/jekyll/entry_filter.rb).

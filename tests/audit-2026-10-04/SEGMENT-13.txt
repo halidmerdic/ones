@@ -1,0 +1,139 @@
+SEGMENT 13 — T36, T37, T38 — 05.10.2026.
+
+GITHUB I STATUS
+T34–T35 su commitovani i poslani na main:
+8f0d74adde104404adfb6c62b9aee9a2ad090c80
+https://github.com/halidmerdic/ones/commit/8f0d74adde104404adfb6c62b9aee9a2ad090c80
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37307369765
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37307369294
+Obje provjere su uspješne. Nije izvršen deploy na Hetzner PHP aplikaciju.
+
+T36–T38 su završeni i uključeni u commit ovog izvještaja. Ukupno 39/40 taskova
+je završeno. Preostaje T11: službeni email servis i aktivacija. Rezultati
+CI/Pages provjera dostupni su u GitHub Actions za konkretan commit nakon pusha.
+Privremeni app password nije postavljan. Završeni taskovi ne znače da je njihov
+kod već postavljen i operativno provjeren na produkcijskom serveru.
+
+T36 — DOSLJEDNE CSS VERZIJE
+Svih deset runtime HTML stranica koristi sadržajni SHA-256 fingerprint za šest
+stylesheetova. Više nema različitih ručnih datuma za isti CSS ili neverzionisane
+styles.css reference na verify stranici. Hash koristi UTF-8/LF sadržaj i prvih
+16 heksadecimalnih znakova, nezavisno od CRLF/LF checkouta.
+
+deploy/sync-css.ps1 ažurira reference; -Check provjerava usklađenost. Builder
+ponovo računa oznake iz stvarnog sadržaja CSS-a i mijenja HTML unutar ZIP-a,
+bez izmjene radnih fajlova. Time i samostalna CSS izmjena mijenja URL u paketu.
+CI provjerava source reference, package hashove i negativne deployment slučajeve.
+
+Stvarni Chrome cache test prvo je učitao staru CSS verziju sa Apache max-age
+2592000. Nakon zamjene fajla na serveru isti URL je i dalje davao cacheirani
+stari stil, potvrđen CDP cache događajima i CSS oznakom. Nova HTML referenca
+sa fingerprintom zatim je učitala novi CSS bez ručnog čišćenja cachea. Test ne
+koristi Playwright routing koji bi isključio browser cache. Provjerena je
+navigacija između stranica, autentificirani CMS/profil i gostujuća prijava.
+
+T37 — RAZVOJNI ARTEFAKTI NISU JAVNI
+Apache .htaccess sada ima eksplicitan spisak javnih entrypointa i asseta; sve
+ostalo se odbija. Obuhvaćeni su stari deployment direktoriji, arhive, backupi,
+testovi, config, PHP biblioteke, vendor i CLI alati. Dozvoljeni ostaju javni
+HTML/JS/CSS, API/sitemap, slike/fontovi/PDF-ovi i ACME tokeni. PATH_INFO,
+skrivene putanje i izvršni nastavci poput test.PHP.jpg su odbijeni. Upload
+direktorij ima i vlastitu zabranu izvršnih/dvostrukih nastavaka.
+Bez rewrite modula pristup se odbija; zaštita se ne preskače tiho.
+Lokalni PHP router primjenjuje isti javni spisak jer php -S ignoriše .htaccess.
+
+ZIP se podrazumijevano piše u .runtime/packages/. Builder odbija output unutar
+javnog korijena projekta, neočekivane tipove asseta i reparse/link izvore u
+asset/vendor stablima. Runtime allowlist i isključenje živih podataka ostaju.
+Paket sadrži 452 fajla; licence zavisnosti su zadržane, ali nisu javni URL-ovi.
+
+Osam starih ZIP-ova, backup JSON, dva loga, četiri deployment direktorija i dva
+tmp-upload direktorija premješteni su bez brisanja u:
+.runtime/legacy-artifacts/20261005-T37/
+Ukupno 17 artefakata / 93 fajla, SHA-256 provjeren prije i nakon premještanja.
+inventory.json čuva evidenciju. Ova arhiva se NE briše pri čišćenju testova i
+ne ide u Git/deployment. Putanje su prije svakog premještanja potvrđene unutar
+projekta, bez junction/symlink objekata. Živi config.local.php/data/uploads
+nisu premještani niti mijenjani. Ovo nije čišćenje udaljenog servera.
+
+GitHub Pages _config.yml isključuje sve osim eksplicitnih statičkih stranica,
+skripti, CSS-a i javnih asseta. PHP/source/testovi/backupi ne pripadaju previewu.
+Nazivi koriste bracket glob kako Jekyllov literalni prefix fallback ne bi
+uključio npr. admin.js.bak. Pages konfiguracija je lokalno provjerena prema
+Jekyll EntryFilter pravilima; stvarni cloud build/objavu treba provjeriti nakon
+pushanja ovog segmenta. Pages i dalje ne izvršava PHP aplikaciju.
+
+T38 — JASNA APACHE PODRŠKA I ODBIJANJE IIS-a
+Primijenjena je opcija iz F32 audita: Apache 2.4 je podržani produkcijski target.
+Prethodna read-only produkcijska provjera identificirala je Apache; IIS runtime
+nije dostupan lokalno. Stari djelimični web.config više ne predstavlja navodnu
+IIS podršku. Novi root i data web.config brišu naslijeđene dozvoljene HTTP metode
+i zabranjuju sve ostale, uključujući WebDAV: allowUnlisted=false,
+applyToWebDAV=true, clear bez add unosa. Slučajno IIS postavljanje je odbijeno.
+Dokumentacija jasno navodi da se guard ne uklanja da bi se IIS 'osposobio'.
+
+Provjereni su XML i pravila odbijanja; NIJE testiran stvarni IIS servis niti se
+tvrdi funkcionalna IIS kompatibilnost. Buduća IIS podrška zahtijeva zasebnu
+konfiguraciju i runtime provjere. Uobičajeni IIS odgovor za odbijenu metodu je
+404.6; zaključana/nedostajuća konfiguracija može dati konfiguracijsku grešku.
+T38 je zatvoren promjenom politike podrške, ne navodnom jednakom IIS podrškom.
+
+PROVJERE
+- CSS/browser: 441 provjera sa postojećim dizajnerskim izmjenama i 441 na HEAD
+  kopiji pet miješanih fajlova uz nove CSS reference. Stvarni warm cache,
+  navigacija, 320/390/768/820/1024/1440 CSS px i obje teme, privatne stranice i
+  gostujući login. Bez JS grešaka i horizontalnog prelijevanja u tim scenarijima.
+- Apache HTTP: 175 provjera nad stvarnim sintetičkim fajlovima. GET/HEAD/POST,
+  kodirane putanje, dvostruki nastavci, stari paketi, privatni izvori, javni
+  mediji, ACME, PHP/API i cache zaglavlja.
+- PHP development router: 168 odgovarajućih HTTP provjera.
+- Apache bez mod_rewrite: tri stvarna 403 odgovora, uključujući početnu stranicu
+  i CSS. Testni server nije dozvolio pristup kada zaštitni modul nedostaje.
+- Deployment policy: 126 provjera stvarnog ZIP-a, stvarnih CSS hashova,
+  samostalne CSS izmjene i ponovnog builda, nepromijenjenog CSS-a, privatnih
+  fajlova, nedozvoljenog outputa/asseta, Pages allowlista i IIS XML guarda.
+- Smoke: svih 262 provjera prošlo kroz Apache/PHP fixture.
+- Izmijenjeni PHP/JavaScript/PowerShell fajlovi prolaze sintaksu; diff --check
+  bez grešaka. Vizuelno pregledani mobilni/tablet screenshotovi, sačuvani u
+  segment13/. Produkcijska verify skripta proširena novim zabranjenim URL-ovima
+  i provjerom dosljednosti CSS oznaka; nije pokretana nad produkcijom ovog puta.
+
+Testni Apache 2.4.52 iz postojećeg XAMPP-a korišten je isključivo na loopback-u,
+bez instalacije servisa ili promjene XAMPP konfiguracije. PHP je izolovani
+8.5.11. Za produkciju ostaje zahtjev za održavanim distribucijskim paketima.
+Početne poteškoće bile su u fixture-u: roditeljski .htaccess, relativni strict
+prepend, nedostajući ProxyPreserveHost, dva stara testna selektora/regexa.
+Fixture/testovi su ispravljeni i relevantne provjere ponovljene uspješno.
+
+GRANICE PROVJERE I PRIMJENA
+Telefon/tablet su Chrome emulacija viewporta; nije rađena nova fizička iOS,
+Android, Safari ili screen-reader provjera. Cloudflare cache pravila nisu
+mijenjana ni simulirana kao CDN: moraju poštovati verzionisane query URL-ove.
+Postupak rollouta, provjere, archive lokacija i platform support su u README.md
+i DEPLOYMENT.md, odjeljak 21. Ovaj segment ne zahtijeva novu DB migraciju preko
+sheme 2 iz prethodnog segmenta; pri zajedničkom deploy-u ta migracija i dalje važi.
+
+KORISNIKOVE IZMJENE I PARCIJALNI COMMIT
+admin.css i profile.js su byte-for-byte identični početku segmenta. admin.html,
+login.html i profile.html zadržavaju sve postojeće izmjene, uz CSS fingerprint
+reference i LF normalizaciju. Ostali runtime HTML fajlovi također imaju nove
+CSS reference. Radno stablo nije vraćano na HEAD.
+
+VAŽNO PRI PUSHU: admin.css i profile.js ne stageovati; iz tri miješana HTML-a
+izdvojiti samo nove CSS reference. Pošto admin.css ima postojeći korisnikov
+necommitovani redizajn, pri parcijalnom commitu ponovo izračunati fingerprint
+IZ STAGED/HEAD CSS-a za SVE HTML potrošače, ne samo ova tri fajla. Izolovana
+kopija testirana je sa HEAD CSS/HTML/JS i ponovno izračunatim fingerprintima.
+CI -Check inače ispravno odbija hash koji odgovara samo necommitovanom CSS-u.
+Radni korisnikov dizajn i njegove važeće CSS reference pritom treba sačuvati.
+
+Reference:
+https://learn.microsoft.com/en-us/iis/configuration/system.webserver/security/requestfiltering/verbs/
+https://github.com/jekyll/jekyll/blob/v3.10.0/lib/jekyll/entry_filter.rb
+
+Testni Apache/PHP procesi su zaustavljeni; 18765, 18865 i 18866 više ne slušaju.
+Privremeni paket, testna baza/probe fajlovi i početne kopije uklonjeni su nakon
+provjera. Historijska arhiva od 93 fajla i podržani PHP runtime su sačuvani.
+
+Preostaje T11 nakon izbora službenog email servisa. T36–T38 su obuhvaćeni ovim
+commitom. Time nema narednog otvorenog segmenta popravki nezavisnog od T11.

@@ -113,10 +113,11 @@ $htaccess = Get-Content -LiteralPath (Join-Path $projectRoot ".htaccess") -Raw -
 Assert-True ($htaccess -notmatch 'HTTP:X-Forwarded-Proto') ".htaccess ne vjeruje javno poslanom X-Forwarded-Proto zaglavlju"
 Assert-True ($htaccess -match 'Strict-Transport-Security') ".htaccess postavlja HSTS na HTTPS odgovore"
 Assert-True ($htaccess -match 'api\\\.php\|admin\\\.html\|cart\\\.html\|login\\\.html\|profile\\\.html') ".htaccess izuzima privatne stranice iz keša"
-Assert-True ($htaccess -match 'deploy\|tests') ".htaccess blokira razvojne deploy i tests direktorije"
+Assert-True ($htaccess -match 'RewriteRule !\^' -and $htaccess -match '<IfModule !mod_rewrite.c>') ".htaccess dozvoljava samo javne runtime putanje i zahtijeva rewrite zaštitu"
 
 $uploadHtaccess = Get-Content -LiteralPath (Join-Path $projectRoot "uploads\.htaccess") -Raw -Encoding UTF8
-Assert-True ($uploadHtaccess -match 'php\|phtml\|phar') "uploads folder blokira izvršne PHP datoteke"
+$uploadPattern = [regex]::Match($uploadHtaccess, '<FilesMatch "([^"]+)"').Groups[1].Value
+Assert-True ([regex]::IsMatch('test.PHP.jpg', $uploadPattern) -and [regex]::IsMatch('test.php', $uploadPattern) -and -not [regex]::IsMatch('manual.pdf', $uploadPattern)) "uploads blokira PHP i skriveni izvršni nastavak, a dopušta PDF"
 
 $htmlFiles = Get-ChildItem -LiteralPath $projectRoot -Filter "*.html" -File
 foreach ($htmlFile in $htmlFiles) {

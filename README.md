@@ -28,7 +28,9 @@ is only for local SQLite fixtures and permits the demo password. Before upgradin
 an existing database, stop the server and back it up. Startup checks the schema
 without changing it; missing/outdated schemas return HTTP 503 until migration.
 
-Deployment preparation notes are in `DEPLOYMENT.md`.
+Deployment preparation notes are in `DEPLOYMENT.md`. Apache 2.4 with PHP 8.5 is
+the supported production target. IIS is not supported; `web.config` deliberately
+rejects all HTTP verbs to prevent an accidental deployment with incomplete rules.
 
 Important: GitHub Pages is static hosting only. Registration, cart, CMS, uploads, and admin login require PHP hosting because they use `api.php`, SQLite, and sessions.
 
@@ -107,10 +109,19 @@ Cart flow:
   - `data/.htaccess`
   - `data/backups/.htaccess`
   - `uploads/.htaccess`
-- IIS protection for the database folder is included in `data/web.config`.
+- IIS configuration is a rejection guard, not a supported hosting configuration.
 - The sitemap can use `ONES_SITE_URL=https://your-domain.com` on production.
 - Full pre-launch checklist is in `DEPLOYMENT.md`.
 - The CMS also includes a `Provjera` panel for tracking launch QA items directly in the admin interface.
+
+After changing CSS, run `./deploy/sync-css.ps1`; `-Check` verifies that every
+page uses the same content fingerprint for the same stylesheet. The package
+builder also regenerates CSS references from the actual packaged bytes, without
+editing source files. Generated archives default to the private
+`.runtime/packages/` directory. Public HTTP access is limited to application
+entry points, images/scripts/styles/fonts, uploaded media and ACME challenges.
+Old deployment trees, archives, tests, source helpers and configuration files
+are blocked. GitHub Pages uses `_config.yml` to include only the static preview.
 
 ## Included sections
 

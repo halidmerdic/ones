@@ -6,14 +6,21 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+. (Join-Path $PSScriptRoot 'css-versions.ps1')
+$stylesheetVersions = Get-OneSStylesheetVersions $projectRoot
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
   $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-  $OutputPath = Join-Path $projectRoot "ones-deployment-$timestamp.zip"
+  $OutputPath = Join-Path $projectRoot ".runtime/packages/ones-deployment-$timestamp.zip"
 } elseif (-not [IO.Path]::IsPathRooted($OutputPath)) {
   $OutputPath = Join-Path $projectRoot $OutputPath
 }
 
 $OutputPath = [IO.Path]::GetFullPath($OutputPath)
+$projectPrefix = $projectRoot + [IO.Path]::DirectorySeparatorChar
+$privatePrefix = (Join-Path $projectRoot '.runtime') + [IO.Path]::DirectorySeparatorChar
+if ($OutputPath.StartsWith($projectPrefix, [StringComparison]::OrdinalIgnoreCase) -and -not $OutputPath.StartsWith($privatePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+  throw 'Paket unutar projekta mora biti u privatnom .runtime direktoriju, ili koristite putanju izvan projekta.'
+}
 if ([IO.Path]::GetExtension($OutputPath) -ne ".zip") {
   throw "OutputPath mora zavrsavati sa .zip"
 }
@@ -75,16 +82,23 @@ $runtimeFiles = @(
 )
 
 $assetRoot = Join-Path $projectRoot "assets"
+$sourceRoots = @($assetRoot, (Join-Path $projectRoot 'vendor/htmlpurifier'), (Join-Path $projectRoot 'vendor/phpmailer'))
+foreach ($sourceRoot in $sourceRoots) {
+  $sourceItems = @((Get-Item -LiteralPath $sourceRoot)) + @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -Force)
+  if (@($sourceItems | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) { throw 'Deployment izvori ne smiju sadržavati simboličke linkove/junction putanje.' }
+}
 $assetFiles = Get-ChildItem -LiteralPath $assetRoot -File -Recurse | ForEach-Object {
   $_.FullName.Substring($projectRoot.Length).TrimStart([char[]]"\/").Replace("\", "/")
 }
 $vendorFiles = Get-ChildItem -LiteralPath (Join-Path $projectRoot "vendor/htmlpurifier"), (Join-Path $projectRoot "vendor/phpmailer") -File -Recurse | ForEach-Object {
   $_.FullName.Substring($projectRoot.Length).TrimStart([char[]]"\/").Replace("\", "/")
 }
+$invalidAssets = @($assetFiles | Where-Object { ($_ -ne 'assets/vendor/DOMPurify-LICENSE' -and $_ -notmatch '\.(webp|png|jpe?g|gif|svg|ico|avif|pdf|woff2?|ttf|otf|css|js)$') -or $_ -match '(^|/)\.|\.(php[0-9]?|phtml|phar|cgi|pl|asp|aspx|jsp|exe|dll)[./]' })
+if ($invalidAssets.Count) { throw "Nedozvoljeni javni asseti: $($invalidAssets -join ', ')" }
 $packageFiles = @($runtimeFiles + $assetFiles + $vendorFiles | Sort-Object -Unique)
 
 $missingFiles = @($packageFiles | Where-Object {
-  -not (Test-Path -LiteralPath (Join-Path $projectRoot ($_ -replace "/", "\")) -PathType Leaf)
+  -not (Test-Path -LiteralPath (Join-Path $projectRoot $_) -PathType Leaf)
 })
 if ($missingFiles.Count -gt 0) {
   throw "Nedostaju obavezni deployment fajlovi: $($missingFiles -join ', ')"
@@ -101,18 +115,23 @@ try {
   $archive = [IO.Compression.ZipFile]::Open($OutputPath, [IO.Compression.ZipArchiveMode]::Create)
   try {
     foreach ($relativePath in $packageFiles) {
-      $platformPath = $relativePath -replace "/", "\"
-      $sourcePath = Join-Path $projectRoot $platformPath
+      $sourcePath = Join-Path $projectRoot $relativePath
       $sourceFile = Get-Item -LiteralPath $sourcePath
       $entry = $archive.CreateEntry($relativePath, [IO.Compression.CompressionLevel]::Optimal)
       $entry.LastWriteTime = $sourceFile.LastWriteTime
-      $sourceStream = [IO.File]::OpenRead($sourcePath)
       $entryStream = $entry.Open()
       try {
-        $sourceStream.CopyTo($entryStream)
+        if ($relativePath.EndsWith('.html') -or $stylesheetVersions.ContainsKey($relativePath)) {
+          $text = Get-OneSCanonicalText $sourcePath
+          if ($relativePath.EndsWith('.html')) { $text = Update-OneSStylesheetReferences $text $stylesheetVersions }
+          $bytes = [Text.Encoding]::UTF8.GetBytes($text)
+          $entryStream.Write($bytes, 0, $bytes.Length)
+        } else {
+          $sourceStream = [IO.File]::OpenRead($sourcePath)
+          try { $sourceStream.CopyTo($entryStream) } finally { $sourceStream.Dispose() }
+        }
       } finally {
         $entryStream.Dispose()
-        $sourceStream.Dispose()
       }
     }
   } finally {

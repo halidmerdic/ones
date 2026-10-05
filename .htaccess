@@ -1,5 +1,11 @@
 Options -Indexes
 DirectoryIndex index.html
+AcceptPathInfo Off
+
+# Rewriting enforces the public-file allowlist; fail closed when unavailable.
+<IfModule !mod_rewrite.c>
+  Require all denied
+</IfModule>
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
@@ -21,11 +27,14 @@ DirectoryIndex index.html
   # Do not expose repository metadata or other hidden files.
   RewriteRule (^|/)\.(?!well-known(?:/|$)) - [F,L]
 
-  # Development and server configuration helpers never belong on the public web.
-  RewriteRule ^(?:deploy|tests)(?:/|$) - [F,L]
+  # No executable suffixes in public media, including PHP disguised as an image.
+  RewriteRule ^(?:assets|uploads)/.*\.(?:php[0-9]?|phtml|phar|cgi|pl|asp|aspx|jsp|exe|dll)(?:[./]|$) - [F,L,NC]
+
+  # Only runtime entry points and public assets; all other paths are private.
+  RewriteRule !^(?:$|(?:index|admin|blog|cart|login|privacy|product|profile|terms|verify)\.html|(?:admin|api-client|app|blog|cart|cms-focus|login|product|profile|profile-orders|storage|theme|verify)\.js|(?:styles|admin|cms-relations|admin-feedback|admin-responsive|verify)\.css|(?:api|sitemap)\.php|robots\.txt|(?:assets|uploads)/.+\.(?:webp|png|jpe?g|gif|svg|ico|avif|pdf|woff2?|ttf|otf|css|js)|\.well-known/acme-challenge/[A-Za-z0-9_-]+)$ - [F,L,NC]
 </IfModule>
 
-<FilesMatch "(^config(?:\.local|\.example)?\.php$|\.sqlite|\.sqlite-|\.conf|\.db|\.env|\.log|\.json|\.sql|README\.md|DEPLOYMENT\.md)$">
+<FilesMatch "(?i)(^config(?:\..*)?\.php$|\.(?:sqlite|db)(?:[-.].*)?$|\.(?:conf|ini|env|log|json|sql|md|ya?ml|zip|7z|rar|tar|gz|bak|lock)$)">
   Require all denied
 </FilesMatch>
 

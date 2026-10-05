@@ -131,9 +131,22 @@ foreach ($privatePath in @("admin.html", "cart.html", "login.html", "profile.htm
     Write-Check ((Get-Header $privateResponse "cf-cache-status") -notmatch '^HIT$') "Cloudflare ne kesira $privatePath"
 }
 
-foreach ($blockedPath in @("config.local.php", "data/ones.sqlite", "data/backups/", ".env", ".git/config")) {
+foreach ($blockedPath in @("config.local.php", "config.example.php", "data/ones.sqlite", "data/ones.sqlite-wal", "data/backups/", ".env", ".git/config", ".runtime/private.txt", "ones-deployment-ready.zip", "deployment-old/index.html", "tests/private.txt", "deploy/build-package.ps1", "vendor/phpmailer/src/SMTP.php", "migrate.php", "schema-migrations.php", "web.config", "_config.yml", "uploads/test.PHP.jpg")) {
     $blockedResponse = Get-HttpResponse "$BaseUrl/$blockedPath"
     Write-Check ($blockedResponse.Status -in @(403, 404)) "/$blockedPath nije javno dostupan"
+}
+
+$stylesheets = @{}
+foreach ($pageName in @('index.html','admin.html','login.html','profile.html','cart.html','blog.html','product.html','privacy.html','terms.html','verify.html')) {
+    $pageUrl = if ($pageName -eq 'index.html') { "$BaseUrl/" } else { "$BaseUrl/$pageName" }
+    $page = Get-HttpResponse $pageUrl
+    foreach ($match in [regex]::Matches($page.Body, 'href="([^"?]+\.css)(?:\?v=([^"#]+))?"')) {
+        $name = $match.Groups[1].Value
+        $version = $match.Groups[2].Value
+        Write-Check ($version -match '^[a-f0-9]{16}$') "$pageName koristi CSS fingerprint za $name"
+        if ($stylesheets.ContainsKey($name)) { Write-Check ($stylesheets[$name] -ceq $version) "$name ima istu oznaku na svim stranicama" }
+        else { $stylesheets[$name] = $version }
+    }
 }
 
 $sitemap = Get-HttpResponse "$BaseUrl/sitemap.php"
