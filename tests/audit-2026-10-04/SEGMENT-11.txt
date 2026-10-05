@@ -1,0 +1,108 @@
+SEGMENT 11 — T32, T33 — 05.10.2026.
+
+GITHUB I STATUS
+Prethodni završeni segment T29–T31 je commitovan i poslan na main:
+d42ad223318978763f4837387d4eb78db51401c6
+https://github.com/halidmerdic/ones/commit/d42ad223318978763f4837387d4eb78db51401c6
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37296578211
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37296577070
+Obje provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
+
+T32–T33 su završeni lokalno. Ukupno 34/40 taskova: 32 na GitHubu, 2 lokalno.
+Ovaj novi segment nije commitovan/pushovan. T11 čeka službeni email servis i
+aktivaciju prema dogovoru; privremeni app password nije postavljan.
+
+T32 — FOKUS MODALNIH PROZORA
+Nova cms-focus.js biblioteka vodi fokus proizvoda, kategorije, detalja upita i
+detalja kupca. Pri otvaranju fokus ide na Zatvori; Tab i Shift+Tab kruže unutar
+aktivnog prozora. Pozadinske grane DOM-a su inertne: nije moguće fokusirati niti
+kliknuti njihove kontrole, a Chrome ih isključuje iz stabla pristupačnosti.
+Nove pozadinske grane nastale naknadnim renderovanjem također se isključuju.
+Prethodno inertno stanje svake grane se vraća kada prozor prestane biti aktivan.
+Statusne poruke ostaju dostupne za najavu povratnih informacija.
+
+Escape, dugme Zatvori i klik na pozadinu vraćaju fokus na okidač. Kada je lista
+ponovo renderovana, pronalazi se dugme istog zapisa; nakon brisanja koristi se
+Dodaj ili naslov aktivnog panela. Direktni URL proizvoda također dobija smislen
+povratak u listu. Ponovno renderovanje editora čuva prepoznatljivu kontrolu i
+selekciju teksta, a ako ta kontrola više nije dostupna bira Zatvori.
+
+Nativna potvrda brisanja radi iznad editora: fokus ostaje u potvrdi, Escape
+odustaje samo od nje i vraća fokus na dugme za brisanje. Čuvaju se postojeće
+provjere duplog naziva kategorije i upozorenje na nesačuvanu internu napomenu.
+Prelazak iz kupca na njegov upit koristi novi prozor i vraća se u listu upita.
+Odjava i vraćanje backupa uklanjaju privatne prozore, oslobađaju fokus i omogućuju
+ponovnu prijavu. Nema izmjene autorizacije, podataka ili serverskih pravila.
+
+T33 — FOKUS ZATVORENOG BOČNOG MENIJA
+Do 920 CSS px zatvoren meni koristi visibility:hidden, inert i aria-hidden.
+Nije u Tab redoslijedu niti stablu pristupačnosti, uključujući period prije
+inicijalizacije skripte. Dugme je povezano sa sidebarom preko aria-controls.
+Otvoren meni dobija ime i dialog/aria-modal semantiku, fokus na zatvaranje,
+ograničen Tab i inertnu pozadinu. Plutajuće dugme za spremanje tada je skriveno.
+Zatvaranje, Escape, pozadina i odabir sekcije vraćaju fokus na dugme menija.
+Na desktopu sidebar ponovo ima običnu navigacijsku ulogu i dostupan je tastaturi.
+
+Prelazak preko 920/921 px prekida otvoreni mobilni režim. Ako je fokus bio u
+desktop sidebaru koji je upravo postao skriven, ide na vidljivo dugme menija.
+Čuva se podatak o zadnjem fokusu jer CSS promjena može ukloniti fokus prije
+matchMedia događaja. Promjena širine tokom otvorenog editora zadržava njegov
+fokus i po zatvaranju pravilno ostavlja mobilni meni inertnim.
+
+PROVJERE
+- cms-focus-browser.cjs: 802 provjere; 320, 390, 768, 820, 920, 921, 1024 i
+  1440 CSS px, obje teme, sva četiri prozora i meni. Stvarni Tab/Shift+Tab/Escape,
+  povratak istom zapisu, inertna pozadina, spremanje/rerender, nativna potvrda,
+  brisanje, atributi, selekcija napomene, odustajanje od zatvaranja, resize,
+  odjava i zaseban Chrome mobilni kontekst s tap/hasTouch/isMobile.
+- cms-focus-edges.cjs: 30 provjera; direktni link, pozadine sva četiri prozora,
+  neuspjelo spremanje, naknadno dodana pozadinska kontrola, izbrisani okidač,
+  dupli naziv kategorije i stvarno Chrome stablo pristupačnosti putem CDP-a.
+- segment8-races.cjs: 22 postojeće regresije kasnih odgovora, duplih zahtjeva,
+  napomena, zatvaranja tokom spremanja, grešaka CMS-a i odjave.
+- segment10-layout.cjs: 514 provjera svih 15 CMS sekcija na 16 širina 320–1920
+  CSS px, obje teme. Baseline bez responsive CSS-a i dalje reproducira raniji
+  problem: viewport 1024 px / scrollWidth 1136 px. Ispravljeni prikaz ne prelijeva.
+- segment10-dialogs.cjs: 73 provjere geometrije kategorije/upita/kupca s dugim
+  naslovima, četiri širine i obje teme.
+- smoke.ps1: 261 provjera; PHP regresije, HTTP i deployment paket s cms-focus.js.
+- logout-client.cjs: 17; storage.cjs: 72 provjere.
+- Kompatibilnost bez lokalnog redizajna: u izolovanom web direktoriju korišteni
+  su HEAD admin.css/login.html/profile.html/profile.js i HEAD admin.html sa samo
+  šest izmjena ovog segmenta. Novi testovi 802 + 30 prošli su i u toj verziji.
+  Stvarni radni fajlovi nisu vraćani na HEAD.
+- segment1-integration.cjs: 161 HTTP/browser provjera, sedam širina i obje teme.
+  Stvarni restore s otvorenim editorom, odbijanje neispravnog backupa, XSS,
+  poništavanje sesija, fokus na prijavu i ponovna prijava su prošli.
+- Sintaksa svih 52 JS/CJS fajlova i oba izmijenjena PowerShell skripta je prošla.
+  git diff --check nema novih grešaka (raniji korisnikov admin.css je izuzet).
+  PHP HTTP log nema warning/deprecated/fatal/parse grešaka. Tri reprezentativna
+  snimka (mobilni meni, tablet tamni editor, desktop svijetli editor) vizuelno
+  su pregledana; fokus je vidljiv i kontrole ostaju u okviru prikaza.
+
+Testovi koriste zaseban deployment direktorij, SQLite i lokalni SMTP capture.
+Ne mijenjaju korisničku bazu projekta ni produkciju. Snimci u segment11-views/
+prikazuju mobilni meni te tablet/desktop editor u obje teme, s vidljivim fokusom.
+Mobilni dodir i širine su browser emulacija; fizički iOS/Android uređaji, Safari
+i stvarni čitači ekrana nisu testirani. CDP provjerava Chromeovo stablo
+pristupačnosti; ne predstavlja potvrdu ponašanja svakog čitača ekrana.
+PHP i SMTP testni procesi su zaustavljeni; privremena baza, mail capture,
+deployment kopija i početni snimci korisnikovih fajlova uklonjeni su nakon
+provjere. Podržani PHP runtime ostaje dostupan za naredni segment.
+
+ZAPAŽANJA TOKOM TESTIRANJA
+Prvi prolaz otkrio je gubitak fokusa na desktop→mobile promjeni; popravljen i
+ponovo provjeren. Testni seed je ispravljen da koristi postojeći order-submit
+API. Test brisanja može ukloniti jedini proizvod fixture-a, pa se lokalni CMS
+ponovo učitava prije vizuelne provjere. Playwright ariaSnapshot je prikazivao
+inertnu desktop pozadinu iako je stvarni Chrome AX isključuje; zato se konačne
+provjere pristupačnosti oslanjaju na Accessibility.getFullAXTree.
+
+SAČUVANE KORISNIKOVE IZMJENE I NAREDNI KORAK
+admin.css, login.html, profile.html i profile.js su identični početnom stanju
+ovog segmenta. U admin.html je sačuvan redizajn i dodano samo šest izmjena:
+CSS verzija, aria-controls, sidebar ID/ARIA/inert, ID naziva menija, cms-focus.js
+script i admin.js verzija. Pri narednom commitu izdvojiti samo te izmjene iz
+admin.html; ostala četiri korisnikova fajla ne stageovati.
+DEPLOYMENT.md odjeljak 19 opisuje zajednički rollout security-11 resursa.
+Sljedeći segment: T34–T35 (migracije baze i serverska paginacija).

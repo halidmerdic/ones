@@ -12,19 +12,19 @@
     <link rel="stylesheet" href="admin.css?v=20260903-ui-1" />
     <link rel="stylesheet" href="cms-relations.css?v=20261005-security-7" />
     <link rel="stylesheet" href="admin-feedback.css?v=20261005-security-8" />
-    <link rel="stylesheet" href="admin-responsive.css?v=20261005-security-10" />
+    <link rel="stylesheet" href="admin-responsive.css?v=20261005-security-11" />
   </head>
   <body class="admin-body cms-page">
-    <button class="admin-menu-toggle" type="button" id="adminMenuToggle" aria-label="Otvori CMS meni" aria-expanded="false">
+    <button class="admin-menu-toggle" type="button" id="adminMenuToggle" aria-label="Otvori CMS meni" aria-controls="adminSidebar" aria-expanded="false">
       <span></span>
       <span></span>
       <span></span>
     </button>
     <div class="admin-menu-backdrop" id="adminMenuBackdrop" hidden></div>
     <main class="admin-shell">
-      <aside class="admin-sidebar">
+      <aside class="admin-sidebar" id="adminSidebar" aria-labelledby="adminMenuTitle" inert aria-hidden="true">
         <div class="admin-sidebar-head">
-          <span>CMS meni</span>
+          <span id="adminMenuTitle">CMS meni</span>
           <button type="button" id="adminMenuClose" aria-label="Zatvori CMS meni">&times;</button>
         </div>
         <a class="brand" href="/" aria-label="oneS stranica">
@@ -86,6 +86,7 @@
     <script src="theme.js?v=20261005-security-10"></script>
     <script src="assets/vendor/purify-3.4.16.min.js"></script>
     <script src="api-client.js?v=20261005-security-10"></script>
-    <script src="admin.js?v=20261005-security-10"></script>
+    <script src="cms-focus.js?v=20261005-security-11"></script>
+    <script src="admin.js?v=20261005-security-11"></script>
   </body>
 </html>

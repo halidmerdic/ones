@@ -685,3 +685,38 @@ and modify the test CMS; never run them against production. The storage suite
 uses separate users/IP fixtures to respect real request limits. Existing login,
 cart-recovery and restore suites remain applicable. See `SEGMENT-10.txt` for
 the completed run results and platform limitations.
+
+## 19. CMS dialog and drawer focus (T32–T33)
+
+Ship `cms-focus.js`, `admin.js`, `admin.html` and `admin-responsive.css`
+together. The admin entry point references the changed scripts and stylesheet
+with `20261005-security-11`; the package builder includes the new script.
+There is no PHP, database, schema or backup format change. Reload existing CMS
+tabs after deployment.
+
+Product/category editors and order/customer details move focus inside when
+opened, contain Tab/Shift+Tab and isolate background controls with `inert`.
+Closing via Escape, the close button or the backdrop restores the opener.
+When rendering replaces the opener, the same record's action is resolved again;
+deleted records fall back to Add or the visible panel heading. Rendering an open
+editor retains an identifiable control and text selection, with a safe close
+button fallback. Native relation confirmations keep their own close lifecycle
+and receive Tab containment without closing the underlying editor on Escape.
+Unsaved-note and invalid-name close guards still apply. Logout/restore clear
+focus scopes and make the login form available again.
+
+At widths up to 920 CSS px the closed sidebar is hidden, inert and excluded from
+the accessibility tree. Opening it sets dialog semantics, focuses its close
+button and isolates the main content. Closing or selecting a section restores
+the menu toggle. Crossing the breakpoint releases the mobile scope and moves
+focus out of a sidebar that has just become hidden. Desktop navigation remains
+available. The floating save action is hidden while the drawer is open.
+
+Run `tests/cms-focus-browser.cjs` and `tests/cms-focus-edges.cjs` against the
+disposable loopback fixture described in section 16. The first creates a local
+verified test customer and order via SMTP capture; both modify test CMS state.
+Never run them against production. They cover eight viewport widths in both
+themes, real keyboard interaction, emulated touch, native confirmations,
+rerenders, close guards, resize, logout and Chrome's accessibility tree via CDP.
+The edges suite optionally saves screenshots to `ONES_TEST_SCREENSHOTS`.
+See `tests/audit-2026-10-04/SEGMENT-11.txt` for completed regression results.

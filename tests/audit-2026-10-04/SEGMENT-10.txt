@@ -8,9 +8,14 @@ PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37293139698
 Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37293139239
 Obje provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
 
-T29–T31 su završeni lokalno. Ukupno 32/40 taskova: 29 na GitHubu, 3 lokalno.
-Ovaj segment još nije commitovan/pushovan. T11 čeka službeni email servis i
-aktivaciju; privremeni app password nije postavljan.
+T29–T31 su poslani na GitHub main 05.10.2026:
+d42ad223318978763f4837387d4eb78db51401c6
+https://github.com/halidmerdic/ones/commit/d42ad223318978763f4837387d4eb78db51401c6
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37296578211
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37296577070
+Obje provjere su prošle. Ukupno 32/40 taskova na GitHubu nakon ovog pusha.
+T11 čeka službeni email servis i aktivaciju; privremeni app password nije
+postavljan. Nije izvršen deploy na Hetzner PHP aplikaciju.
 
 T29 — RAD KADA BROWSER STORAGE NIJE DOSTUPAN
 Nova zajednička storage.js biblioteka učitava se u headu prije prvog pristupa

@@ -239,11 +239,35 @@ function bindPagination(panelId, renderFn) {
   });
 }
 
+let adminSidebarHadFocus = false;
+
 function setAdminMenu(open) {
+  const sidebar = $("#adminSidebar");
+  if (!sidebar) return;
+  const mobile = window.matchMedia("(max-width: 920px)").matches;
+  open = Boolean(open && mobile);
+  const wasOpen = document.body.classList.contains("admin-menu-open");
+  const state = open && !wasOpen ? window.onesCmsFocus.prepare(sidebar.id) : null;
   document.body.classList.toggle("admin-menu-open", open);
+  if (!open && wasOpen) window.onesCmsFocus.release(sidebar.id);
   $("#adminMenuToggle")?.setAttribute("aria-expanded", String(open));
   const backdrop = $("#adminMenuBackdrop");
   if (backdrop) backdrop.hidden = !open;
+  sidebar.inert = mobile && !open;
+  if (sidebar.inert) sidebar.setAttribute("aria-hidden", "true");
+  else sidebar.removeAttribute("aria-hidden");
+  if (open) {
+    sidebar.setAttribute("role", "dialog");
+    sidebar.setAttribute("aria-modal", "true");
+    if (!wasOpen) window.onesCmsFocus.open(sidebar, state, {
+      initial: '#adminMenuClose', close: closeAdminMenu, returnTo: () => $("#adminMenuToggle"),
+    });
+  } else {
+    sidebar.removeAttribute("role");
+    sidebar.removeAttribute("aria-modal");
+    if (sidebar.inert && (sidebar.contains(document.activeElement) ||
+      (document.activeElement === document.body && adminSidebarHadFocus))) $("#adminMenuToggle")?.focus();
+  }
 }
 
 function closeAdminMenu() {
@@ -1369,8 +1393,8 @@ function closeProductEditor() {
   const modal = $("#productEditModal");
   if (modal) modal.remove();
   editingProductId = null;
-  document.body.classList.remove("modal-open");
   renderProducts();
+  window.onesCmsFocus.release("productEditModal");
 }
 
 function openProductEditor(productId) {
@@ -1383,6 +1407,7 @@ function renderProductEditorModal() {
   const editorProduct = cms.products.find((product) => product.id === editingProductId);
   if (!editorProduct) return;
 
+  const focusState = window.onesCmsFocus.prepare("productEditModal");
   $("#productEditModal")?.remove();
   const { statusOptions, categoryOptions, badgeOptions } = productEditorConfig();
   const categories = [...categoryOptions];
@@ -1544,6 +1569,10 @@ function renderProductEditorModal() {
   );
 
   body.append(basic.section, prices.section, badge.section, media.section, description.section, attributeSection.section, specs.section, manual.section, seo.section);
+  window.onesCmsFocus.open(modal, focusState, {
+    initial: '#closeProductEditorBtn', close: closeProductEditor,
+    returnTo: () => document.querySelector(`[data-edit-product="${CSS.escape(editorProduct.id)}"]`) || $("#addProductBtn"),
+  });
 }
 
 function renderNav() {
@@ -1821,8 +1850,8 @@ function closeCategoryEditor(skipNames = false) {
   $("#categoryEditModal")?.remove();
   editingCategoryIndex = null;
   editingCategoryAttributeIndex = null;
-  document.body.classList.remove("modal-open");
   renderCategories();
+  window.onesCmsFocus.release("categoryEditModal");
 }
 
 function openCategoryEditor(index) {
@@ -1850,6 +1879,7 @@ function renderCategoryEditorModal() {
   ];
   const productCount = (cms.products || []).filter((product) => product.category === category.name).length;
 
+  const focusState = window.onesCmsFocus.prepare("categoryEditModal");
   $("#categoryEditModal")?.remove();
   const modal = document.createElement("div");
   modal.className = "product-edit-modal";
@@ -2016,6 +2046,10 @@ function renderCategoryEditorModal() {
   attributes.content.appendChild(addAttribute);
 
   body.append(basic.section, badge.section, attributes.section);
+  window.onesCmsFocus.open(modal, focusState, {
+    initial: '#closeCategoryEditorBtn', close: () => closeCategoryEditor(),
+    returnTo: () => document.querySelector(`[data-edit-category="${cms.categories.indexOf(category)}"]`) || $("#addCategoryBtn"),
+  });
 }
 
 function renderCategories() {
@@ -2400,7 +2434,7 @@ function closeOrderDetail() {
   const orderId = Number($("#orderDetailModal")?.dataset.orderId);
   if (orderNoteDrafts.has(orderId) && !confirm("Napomena nije sačuvana u bazi. Zatvoriti detalje i zadržati nacrt u ovoj kartici?")) return false;
   $("#orderDetailModal")?.remove();
-  document.body.classList.remove("modal-open");
+  window.onesCmsFocus.release("orderDetailModal");
   return true;
 }
 
@@ -2410,9 +2444,7 @@ function renderOrderDetailModal(orderId) {
 
   const previousId = Number($("#orderDetailModal")?.dataset.orderId);
   if (previousId && previousId !== Number(orderId) && !closeOrderDetail()) return;
-  const focused = document.activeElement;
-  const restoreNoteFocus = previousId === Number(orderId) && focused?.id === "orderDetailNote";
-  const selection = restoreNoteFocus ? [focused.selectionStart, focused.selectionEnd] : null;
+  const focusState = window.onesCmsFocus.prepare("orderDetailModal");
   $("#orderDetailModal")?.remove();
   const statuses = ["Novo", "U obradi", "Kontaktiran", "Završeno", "Otkazano"];
   const phone = normalizePhone(order.phone);
@@ -2485,10 +2517,10 @@ function renderOrderDetailModal(orderId) {
   });
   $("#saveOrderDetailNoteBtn").addEventListener("click", () => updateOrderNote(order.id, $("#orderDetailNote").value));
   syncOrderControls();
-  if (restoreNoteFocus) {
-    $("#orderDetailNote").focus();
-    $("#orderDetailNote").setSelectionRange(...selection);
-  }
+  window.onesCmsFocus.open(modal, focusState, {
+    initial: '#closeOrderDetailBtn', close: closeOrderDetail,
+    returnTo: () => document.querySelector(`[data-order-detail="${Number(orderId)}"]`),
+  });
 }
 
 function renderOrders() {
@@ -2619,13 +2651,14 @@ function filteredCustomers() {
 
 function closeCustomerDetail() {
   $("#customerDetailModal")?.remove();
-  document.body.classList.remove("modal-open");
+  window.onesCmsFocus.release("customerDetailModal");
 }
 
 function renderCustomerDetailModal(customerId) {
   const customer = customers.find((item) => Number(item.id) === Number(customerId));
   if (!customer) return;
 
+  const focusState = window.onesCmsFocus.prepare("customerDetailModal");
   $("#customerDetailModal")?.remove();
   const phone = normalizePhone(customer.phone);
   const customerText = customerMessage(customer);
@@ -2698,6 +2731,10 @@ function renderCustomerDetailModal(customerId) {
       await activatePanel("orders");
       renderOrderDetailModal(Number(button.dataset.customerOrder));
     });
+  });
+  window.onesCmsFocus.open(modal, focusState, {
+    initial: '#closeCustomerDetailBtn', close: closeCustomerDetail,
+    returnTo: () => document.querySelector(`[data-customer-detail="${Number(customerId)}"]`),
   });
 }
 
@@ -3122,6 +3159,7 @@ async function adminLogout() {
     $("#loginPanel").hidden = false;
     $("#passwordInput").value = "";
     clearAdminData();
+    $("#passwordInput").focus();
     flash("Admin je odjavljen.");
   } catch (error) {
     flash(error.message);
@@ -3196,18 +3234,16 @@ $("#saveBtn").addEventListener("click", saveCms);
 $("#adminMenuToggle")?.addEventListener("click", () => setAdminMenu(!document.body.classList.contains("admin-menu-open")));
 $("#adminMenuClose")?.addEventListener("click", closeAdminMenu);
 $("#adminMenuBackdrop")?.addEventListener("click", closeAdminMenu);
+window.matchMedia("(max-width: 920px)").addEventListener("change", closeAdminMenu);
+document.addEventListener("focusin", event => {
+  adminSidebarHadFocus = Boolean($("#adminSidebar")?.contains(event.target));
+});
+closeAdminMenu();
 
 window.addEventListener("keydown", (event) => {
   if (cmsSaving) return;
   if (event.key === "Escape") {
-    const modalClose = document.querySelector(
-      "#customerDetailModal #closeCustomerDetailBtn, #orderDetailModal #closeOrderDetailBtn, #categoryEditModal #closeCategoryEditorBtn, #productEditModal #closeProductEditorBtn"
-    );
-    if (modalClose) {
-      modalClose.click();
-      return;
-    }
-    closeAdminMenu();
+    if (!event.defaultPrevented && window.onesCmsFocus.closeTop()) event.preventDefault();
   }
 });
 
@@ -3270,6 +3306,9 @@ window.addEventListener("storage", async (event) => {
 });
 
 function clearAdminData() {
+  $("#cmsRelationDialog")?.close("cancel");
+  window.onesCmsFocus.reset();
+  closeAdminMenu();
   adminSessionVersion++;
   for (const state of Object.values(adminLoads)) {
     Object.assign(state, { loaded: false, loading: false, error: "", stale: false, authRequired: false, version: state.version + 1, promise: null });

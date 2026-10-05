@@ -73,3 +73,9 @@
   .admin-pagination { flex-wrap: wrap; }
   .admin-pagination-actions { flex-wrap: wrap; }
 }
+/* Closed drawers must also be unavailable before JavaScript initializes. */
+@media (max-width: 920px) {
+  .cms-page .admin-sidebar { visibility: hidden; }
+  .cms-page.admin-menu-open .admin-sidebar { visibility: visible; }
+  .cms-page.admin-menu-open :is(.admin-menu-toggle, #saveBtn) { visibility: hidden; }
+}

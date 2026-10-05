@@ -39,6 +39,7 @@ $runtimeFiles = @(
   "cms-integrity.php",
   "cms-relations.php",
   "cms-relations.css",
+  "cms-focus.js",
   "verify.html",
   "verify.js",
   "verify.css",
