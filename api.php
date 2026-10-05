@@ -1,6 +1,14 @@
 <?php
 declare(strict_types=1);
+if (PHP_VERSION_ID < 80500) {
+    http_response_code(503);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo json_encode(['ok' => false, 'message' => 'Server zahtijeva podržani PHP 8.5 ili noviji. Obratite se administratoru.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 require_once __DIR__ . '/backup-validation.php';
+require_once __DIR__ . '/login-security.php';
 
 function request_host(): string
 {
@@ -722,6 +730,7 @@ function database(array $config): PDO
     }
     ensure_cart_item_uniqueness($pdo);
     initialize_auth_state($pdo);
+    initialize_login_limits($pdo);
     seed_database($pdo);
     return $pdo;
 }
@@ -2396,13 +2405,10 @@ try {
     }
 
     if ($action === 'admin-login') {
-        $loginIp = client_ip();
-        $rateIdentifier = login_identifier($loginIp, 'admin');
-        require_request_limit_available($pdo, 'admin-login', $rateIdentifier, 8, 900, 'Previše pokušaja prijave. Pokušajte ponovo za 15 minuta.');
+        $loginTicket = require_login_attempt($pdo, 'admin', client_ip(), 'admin@ones.local');
         $body = body_json();
         $password = (string)($body['password'] ?? '');
         if ($password === '' || strlen($password) > password_max_length()) {
-            record_request_limit($pdo, 'admin-login', $rateIdentifier);
             respond(['ok' => false, 'message' => 'Pogrešna lozinka.'], 401);
         }
         $stmt = $pdo->prepare('SELECT id, name, email, password_hash, role, auth_version FROM users WHERE email = :email AND role = "admin" LIMIT 1');
@@ -2410,11 +2416,10 @@ try {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!verify_admin_password($password, $user ?: null)) {
-            record_request_limit($pdo, 'admin-login', $rateIdentifier);
             respond(['ok' => false, 'message' => 'Pogrešna lozinka.'], 401);
         }
 
-        clear_request_limit($pdo, 'admin-login', $rateIdentifier);
+        complete_successful_login($pdo, $loginTicket);
         $passwordNeedsChange = admin_hash_uses_demo_password((string)$user['password_hash']);
         if (!$passwordNeedsChange) rehash_password_if_needed($pdo, $user, $password);
         establish_auth_session('admin', $user, $requestAuthEpoch);
@@ -2637,15 +2642,8 @@ try {
         $body = body_json();
         $email = trim(strtolower((string)($body['email'] ?? '')));
         $password = (string)($body['password'] ?? '');
-        $loginIp = client_ip();
-        $ipIdentifier = login_identifier($loginIp);
-        $pairIdentifier = login_identifier($loginIp, $email);
-        $rateMessage = 'Previše pokušaja prijave. Pokušajte ponovo za 15 minuta.';
-        require_request_limit_available($pdo, 'customer-login-ip', $ipIdentifier, 30, 900, $rateMessage);
-        require_request_limit_available($pdo, 'customer-login-pair', $pairIdentifier, 8, 900, $rateMessage);
+        $loginTicket = require_login_attempt($pdo, 'customer', client_ip(), $email);
         if (strlen($email) > 190 || strlen($password) > password_max_length()) {
-            record_request_limit($pdo, 'customer-login-ip', $ipIdentifier);
-            record_request_limit($pdo, 'customer-login-pair', $pairIdentifier);
             respond(['ok' => false, 'message' => 'Pogrešan email ili lozinka.'], 401);
         }
 
@@ -2654,12 +2652,10 @@ try {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!verify_user_password($password, $user ?: null)) {
-            record_request_limit($pdo, 'customer-login-ip', $ipIdentifier);
-            record_request_limit($pdo, 'customer-login-pair', $pairIdentifier);
             respond(['ok' => false, 'message' => 'Pogrešan email ili lozinka.'], 401);
         }
 
-        clear_request_limit($pdo, 'customer-login-pair', $pairIdentifier);
+        complete_successful_login($pdo, $loginTicket);
         rehash_password_if_needed($pdo, $user, $password);
         establish_auth_session('customer', $user, $requestAuthEpoch);
         respond(['ok' => true, 'user' => ['name' => $user['name'], 'email' => $user['email'], 'role' => 'customer']]);

@@ -1,9 +1,16 @@
 param(
-  [string]$BaseUrl = "http://127.0.0.1:8000"
+  [string]$BaseUrl = "http://127.0.0.1:8000",
+  [string]$PhpBinary = $env:PHP_BINARY
 )
 
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
+if (-not $PhpBinary) {
+  $localPhp = Join-Path $projectRoot '.runtime/php-8.5.11/php.exe'
+  $PhpBinary = if (Test-Path -LiteralPath $localPhp) { $localPhp } else { 'php' }
+}
+& $PhpBinary (Join-Path $PSScriptRoot 'runtime.php')
+if ($LASTEXITCODE -ne 0) { throw 'Odaberite podržani PHP runtime pomoću -PhpBinary.' }
 $checks = 0
 $packageBuilderExists = Test-Path -LiteralPath (Join-Path $projectRoot "deploy/build-package.ps1")
 $productionVerifierExists = Test-Path -LiteralPath (Join-Path $projectRoot "deploy/verify-production.ps1")
@@ -41,13 +48,13 @@ try {
     $packageArchive.Dispose()
   }
 
-  $requiredPackageEntries = @(".htaccess", "api.php", "backup-validation.php", "vendor/htmlpurifier/library/HTMLPurifier.auto.php", "assets/vendor/purify-3.4.16.min.js", "assets/favicon.svg", "data/.htaccess", "uploads/.htaccess")
+  $requiredPackageEntries = @(".htaccess", "api.php", "backup-validation.php", "login-security.php", "vendor/htmlpurifier/library/HTMLPurifier.auto.php", "assets/vendor/purify-3.4.16.min.js", "assets/favicon.svg", "data/.htaccess", "uploads/.htaccess")
   $missingPackageEntries = @($requiredPackageEntries | Where-Object { $_ -notin $packageEntries })
   $privatePackageEntries = @($packageEntries | Where-Object {
     $_ -eq "config.local.php" -or
     $_ -match '^data/(?!\.htaccess$|backups/\.htaccess$|web\.config$)' -or
     $_ -match '^uploads/(?!\.htaccess$)' -or
-    $_ -match '^(?:deploy|tests)/'
+    $_ -match '^(?:deploy|tests|\.runtime|\.github)/'
   })
 
   Assert-True ($missingPackageEntries.Count -eq 0) "deployment ZIP sadrzi obavezne aplikacijske fajlove"
@@ -75,30 +82,30 @@ function Get-HttpStatus {
   }
 }
 
-$apiLint = & php -l (Join-Path $projectRoot "api.php")
+$apiLint = & $PhpBinary -l (Join-Path $projectRoot "api.php")
 Assert-True ($LASTEXITCODE -eq 0) "api.php prolazi PHP lint"
 
-$authSecurity = & php (Join-Path $PSScriptRoot "auth-security.php")
+$authSecurity = & $PhpBinary (Join-Path $PSScriptRoot "auth-security.php")
 Assert-True ($LASTEXITCODE -eq 0) "lozinke, rate limit i sesijske sigurnosne provjere prolaze"
 
-$businessLogic = & php (Join-Path $PSScriptRoot "business-logic.php")
+$businessLogic = & $PhpBinary (Join-Path $PSScriptRoot "business-logic.php")
 Assert-True ($LASTEXITCODE -eq 0) "proizvodi, korpa i slanje upita prolaze poslovne provjere"
 
-$storageReliability = & php (Join-Path $PSScriptRoot "storage-reliability.php")
+$storageReliability = & $PhpBinary (Join-Path $PSScriptRoot "storage-reliability.php")
 Assert-True ($LASTEXITCODE -eq 0) "CMS revizije, backup i atomsko spremanje prolaze"
 
-$cmsValidation = & php (Join-Path $PSScriptRoot "validate-cms.php")
+$cmsValidation = & $PhpBinary (Join-Path $PSScriptRoot "validate-cms.php")
 Assert-True ($LASTEXITCODE -eq 0) "postojeći CMS podaci prolaze serversku validaciju"
 
-$networkSecurity = & php (Join-Path $PSScriptRoot "network-security.php")
+$networkSecurity = & $PhpBinary (Join-Path $PSScriptRoot "network-security.php")
 Assert-True ($LASTEXITCODE -eq 0) "proxy, HTTPS i IP sigurnosne provjere prolaze"
 
-foreach ($securityTest in @("cms-xss.php", "restore-security.php", "backup-atomicity.php", "admin-bootstrap.php")) {
-  & php (Join-Path $PSScriptRoot $securityTest) | Out-Null
+foreach ($securityTest in @("cms-xss.php", "restore-security.php", "backup-atomicity.php", "admin-bootstrap.php", "login-limits.php")) {
+  & $PhpBinary (Join-Path $PSScriptRoot $securityTest) | Out-Null
   Assert-True ($LASTEXITCODE -eq 0) "$securityTest prolazi sigurnosnu regresiju"
 }
 
-$sitemapLint = & php -l (Join-Path $projectRoot "sitemap.php")
+$sitemapLint = & $PhpBinary -l (Join-Path $projectRoot "sitemap.php")
 Assert-True ($LASTEXITCODE -eq 0) "sitemap.php prolazi PHP lint"
 
 $htaccess = Get-Content -LiteralPath (Join-Path $projectRoot ".htaccess") -Raw -Encoding UTF8

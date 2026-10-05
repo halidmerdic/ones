@@ -1,18 +1,19 @@
 PLAN POPRAVKI — odobren 05.10.2026.
 Rad u segmentima od 2–4 povezana taska. Jedan task = jedan problem.
-Odobren trenutni segment: T04–T06. Završen lokalno; stati radi pregleda korisnika.
+Odobren trenutni segment: T07–T09. Završen lokalno; stati radi pregleda korisnika.
 T01–T03 poslani na GitHub main: 2a5eb82, 05.10.2026.
+T04–T06 poslani na GitHub main: aa274da, 05.10.2026.
 Produkcijska objava nije izvršena niti je provjeren eventualni automatski deploy.
 
 T01 [GITHUB 2a5eb82] F01 XSS u administraciji
 T02 [GITHUB 2a5eb82] F02 Poništavanje sesija nakon vraćanja backupa
 T03 [GITHUB 2a5eb82] F03 Potpuna validacija i atomsko vraćanje backupa
-T04 [ZAVRŠENO LOKALNO] F28 Demonstracijska administratorska lozinka
-T05 [ZAVRŠENO LOKALNO] F04 Lažno uspješna odjava
-T06 [ZAVRŠENO LOKALNO] F05 Zaglavljeno slanje korpe
-T07 [ČEKA] F06 Gubitak CMS izmjena tokom spremanja
-T08 [ČEKA] F29 Nepodržani PHP
-T09 [ČEKA] F27 Zaobilaženje ograničenja prijave
+T04 [GITHUB aa274da] F28 Demonstracijska administratorska lozinka
+T05 [GITHUB aa274da] F04 Lažno uspješna odjava
+T06 [GITHUB aa274da] F05 Zaglavljeno slanje korpe
+T07 [ZAVRŠENO LOKALNO] F06 Gubitak CMS izmjena tokom spremanja
+T08 [ZAVRŠENO LOKALNO; PRODUKCIJSKA GRANA PROVJERENA] F29 Nepodržani PHP
+T09 [ZAVRŠENO LOKALNO] F27 Zaobilaženje ograničenja prijave
 T10 [ČEKA] F18 Unicode dužina lozinke
 T11 [ČEKA] F30 Potvrda email identiteta
 T12 [ČEKA] F09 Tumačenje cijena
@@ -47,3 +48,4 @@ Postojeće korisnikove izmjene prije segmenta: admin.css, admin.html,
 login.html, profile.html, profile.js. Sačuvati ih; ne vraćati checkout na HEAD.
 Detalji i rezultati prvog segmenta: SEGMENT-01.txt.
 Detalji i rezultati drugog segmenta: SEGMENT-02.txt.
+Detalji i rezultati trećeg segmenta: SEGMENT-03.txt.

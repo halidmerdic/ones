@@ -1,0 +1,102 @@
+SEGMENT 03 — T07, T08, T09 — 05.10.2026.
+
+STATUS
+Završen i provjeren lokalno; nije commitovan/pushovan niti deployovan.
+T04–T06 su po nalogu korisnika poslani na main, commit aa274da.
+Postojeće ranije UI izmjene ostaju sačuvane odvojeno od tih commitova.
+Ukupno završeno 9 od 38 planiranih taskova. T10–T38 ostaju otvoreni.
+
+T07 — CMS SPREMANJE
+Sva CMS polja, navigacija, validacijski panel i otvoreni modalni prozori privremeno
+su inert tokom spremanja. Escape, promjena panela, drugi Save i osvježavanje iz
+druge kartice ne prekidaju operaciju. Spremanje počinje tek kada su završeni svi
+upload callbackovi (slike, galerija, blog, manuali i manual proizvoda), pa odgovor
+ne može odvojiti upload od objekta proizvoda koji se sprema. Reset/restore koriste
+istu zaštitu od preklapanja operacija. finally uvijek oslobađa kontrole.
+Poslije greške uneseni tekst i oznaka nesačuvanih izmjena ostaju; poslije uspjeha
+koristi se potvrđeni odgovor servera. Glavno i modalno Save dugme dijele stanje.
+Tokom kratkog trajanja spremanja nova izmjena se ne može unijeti; korisnik može
+nastaviti čim se operacija završi. Ostale ranije otvorene logičke greške u
+spremanju, npr. prazne kategorije T22, nisu proglašene riješenim.
+Admin script verzija: 20261005-security-3.
+
+T08 — PODRŽANI PHP I PROVJERA SSH-a
+Na korisnikov upit provjeren je postojeći pristup. OpenSSH nema aktivan agent ni
+lokalni privatni ključ; njegova BatchMode prijava nije prošla. Spremljena WinSCP
+oneS konekcija se uspješno prijavila svojim postojećim vjerodajnicama. Privatni
+ključevi/lozinke nisu čitani u plaintext niti ispisani ili kopirani u projekt.
+apache2ctl -S potvrđuje ones.ba virtualne hostove, a read-only provjere pokazuju:
+- Ubuntu 26.04 LTS;
+- PHP CLI 8.5.4, Ubuntu paket 8.5.4-0ubuntu1.3;
+- libapache2-mod-php8.5 iste verzije i uključen php8.5 modul;
+- dom, mbstring, gd, fileinfo, pdo_mysql, pdo_sqlite i ostale potrebne ekstenzije;
+- instalirana verzija jednaka kandidatu u postojećim APT metapodacima.
+Nisu pokretani apt update/upgrade, restart, upload koda ili SQL komande na
+produkciji. Provjera ne garantuje svježinu APT metapodataka. Održavanje zakrpa
+ostaje redovna obaveza; stariji upstream broj s Ubuntu revizijom nije sam po
+sebi dokaz da distribucijski sigurnosni backportovi nedostaju.
+
+Lokalni PHP 7.4 je bio stvarni nepodržani razvojni runtime. Dodan je izolirani
+PHP 8.5.11 u ignorisani .runtime/php-8.5.11, iz službene NTS x64 arhive:
+https://downloads.php.net/~windows/releases/archives/php-8.5.11-nts-Win32-vs17-x64.zip
+SHA-256: 0ea96e0d2b9b737a6036f05cf4e95c49313faa6d0f27bd97edb2742503f0c043
+Installer provjerava checksum, uključuje potrebne ekstenzije i testira runtime.
+XAMPP i sistemski PATH nisu mijenjani. Projekt se sada pokreće preko
+deploy/start-local.ps1; smoke bira ovaj PHP ili eksplicitni -PhpBinary.
+tests/runtime.php provjerava verziju/ekstenzije; API odbija stariji PHP prije
+pristupa bazi. .php-version, README i DEPLOYMENT usklađeni su na PHP 8.5.
+Lokalni router blokira privatne podatke, konfiguraciju i runtime jer ugrađeni
+PHP server ne primjenjuje .htaccess. .runtime nije dio Git-a/deployment paketa.
+GitHub Actions workflow s fiksiranim revizijama actions/checkout i setup-php
+pripremljen je za PHP 8.5, stroge PHP regresije i paralelne prijave. Još nije
+izvršen na GitHubu jer ovaj segment nije pushovan; lokalni ekvivalent je prošao.
+Podrška grane provjerena na https://www.php.net/supported-versions.php.
+Windows izvor/hash: https://www.php.net/downloads.php?os=windows.
+
+T09 — LIMITI PRIJAVE
+login-security.php uvodi atomsku rezervaciju svih brojača prije provjere lozinke.
+Kratka transakcija uz DB zaključavanje završava prije sporog hashiranja.
+Slojevi: IP+račun 8/15min; IP 30 neuspjelih ili aktivnih/15min; globalno 120/min
+(uključuje i uspješne); račun nezavisno od IP-a uz progresivni odmak 2–60 sekundi
+poslije prvih pet pokušaja. Identifikatori su hashirani, adrese se normalizuju
+kao kod prijave. Pravilo važi i za nepostojeće naloge. Odbijen zahtjev ne upisuje
+nove rezervacije i ne produžava blokadu; nema trajnog zaključavanja računa.
+Ispravna lozinka uklanja ranije account/pair neuspjehe i samo vlastiti IP pokušaj.
+Ne briše neuspjehe drugih korisnika, novije paralelne zahtjeve ili globalni limit.
+429 odgovor sadrži odgovarajući Retry-After i poruku; aktivne sesije nisu ukinute.
+Koordinacijska tabela nije dio CMS restorea; podaci kupaca nisu mijenjani.
+MFA nije dodan: to je zasebno preporučeno poboljšanje, ne dio ove popravke limita.
+
+TESTOVI — SVE NAVEDENO PROŠLO
+PHP 8.5.11, error_reporting=E_ALL i strict-errors.php koji upozorenja,
+deprecations i notices pretvara u greške testa:
+auth-security 11; business-logic 20; storage-reliability 13; network-security 13;
+cms-xss 28; restore-security 9; backup-atomicity 113 SQLite + 113 MariaDB;
+admin-bootstrap 22; login-limits 16 SQLite + 16 MariaDB.
+login-concurrency.cjs: 20 odvojenih PHP procesa po backendu. Tačno 5 prihvaćenih,
+15 odbijenih s Retry-After=2, na SQLite i MariaDB s native prepared statements.
+login-throttle-http.cjs: 18 HTTP provjera na SQLite i 18 na MariaDB, različite
+simulirane klijentske IP adrese iza eksplicitno pouzdanog loopback testnog proxyja.
+cms-save-browser.cjs: 294 provjere; zadržan save odgovor, inert polja, tastatura,
+Escape, drugi klik, storage događaj, 422, retry, uspješan upis, upload koji traje
+i prekid mreže. Sedam širina x dvije teme.
+segment1-integration.cjs: 161 ponovljena HTTP/browser regresija, uključujući
+XSS, restore, opoziv sesija i novo prijavljivanje na PHP 8.5.
+logout-client.cjs: 17 provjera.
+smoke.ps1: 235 provjera, i sa SQLite i s MariaDB fixture API-jem.
+Pokretanje preko start-local.ps1 potvrđeno (statika 200, privatni runtime 403),
+bez pozivanja API-ja nad stvarnom lokalnom bazom. Router odbija i config/data/
+tests/deploy. PHP 7.4 kontrolisano odbijen prije pristupa bazi.
+PHP/JS/PowerShell sintaksa i git diff --check prošli. Testni server log bez
+PHP warnings/notices/deprecations. GitHub CI run nije još provjeren.
+
+UREĐAJI I PREOSTALE GRANICE
+Chrome/Playwright: 320, 360, 390, 768, 820, 1024, 1440 px, obje teme; touch za
+manje širine. Ovo potvrđuje tokove ovog segmenta, ne zatvara ranije layout/fokus
+nalaze T31–T33. Fizički iOS/Android/Safari nisu testirani. Lokalna testna MariaDB
+10.4.22 korištena je samo u zasebnom privremenom data direktoriju; nije servis niti
+zamjena produkcijske baze. Testni serveri i baze se gase/uklanjaju poslije provjera.
+
+NASTAVAK
+Sljedeći segment ide nakon pregleda korisnika. PHP se pokreće naredbom
+./deploy/start-local.ps1. T10–T38 ostaju otvoreni; status je u TASKOVI.txt.

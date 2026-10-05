@@ -50,6 +50,43 @@ Security segment T04–T06 (2026-10-05):
   pending. A lost submission response triggers a cart refresh and asks the
   customer to check their profile; it does not automatically resubmit.
 
+Security segment T07–T09 (2026-10-05):
+
+- PHP 8.5 is the project baseline. The API rejects older runtimes with HTTP 503
+  before opening the database. Run `php tests/runtime.php` with the intended
+  runtime before deployment. Windows setup/start instructions are in README.md;
+  never deploy `.runtime/` or replace a production PHP service with this Windows
+  runtime. Update the pinned installer version and SHA-256 together when adopting
+  a newer patch from https://www.php.net/downloads.php?os=windows.
+- Read-only verification of ones.ba found Ubuntu 26.04 LTS, PHP CLI and Apache
+  package `8.5.4-0ubuntu1.3`, with PHP 8.5 enabled in Apache and the required
+  extensions present. The installed package matched the candidate in the
+  server's existing APT metadata; no repository refresh or upgrade was performed.
+  Distribution security backports must be assessed by package revision, not
+  by comparing only the upstream patch number. Branch support reference:
+  https://www.php.net/supported-versions.php.
+- Deploy `login-security.php` together with `api.php`. Initialization creates
+  the small InnoDB/SQLite `login_limit_lock` coordination table. It is not user
+  content and is not imported/exported by CMS backups. Existing request-limit
+  storage remains private and is pruned by the existing retention policy.
+- Admin/customer login reserve all counters atomically before checking a
+  password: 8 attempts per IP/account pair in 15 minutes, 30 failed/pending
+  attempts per IP in 15 minutes, and 120 total attempts per minute across the
+  system. Account failures follow the account across IPs; after five attempts,
+  a cooldown grows from 2 to at most 60 seconds. Rejected requests do not extend
+  it. A correct credential clears older account/pair failures and its own IP
+  reservation, never the global budget or newer in-flight reservations.
+- HTTP 429 includes `Retry-After`, `retryAfter` and `LOGIN_THROTTLED`. Existing
+  sessions remain usable; there is no permanent account lock. Monitor real
+  traffic before adjusting limits. This does not replace edge rate limiting
+  or add MFA.
+- CMS controls are temporarily inert during save/reset/restore. Save also waits
+  for image/PDF uploads to finish. Failures release controls and retain drafts.
+  Deploy the matching `admin.html` reference `admin.js?v=20261005-security-3`.
+- The new GitHub workflow runs PHP 8.5 regression tests and concurrent login
+  tests on pushes/PRs. It does not deploy the application. Its first cloud run
+  still needs verification after this segment is pushed.
+
 ## 1. Before every deployment
 
 - [ ] Download a CMS backup from `CMS -> Sigurnost -> Preuzmi backup`.
@@ -81,8 +118,9 @@ root and write to the listed CMS directories before opening the CMS.
 
 ## 2. Server requirements
 
-- PHP 8.1 or newer.
-- MariaDB/MySQL with `pdo_mysql`, plus `gd`, `fileinfo`, `json`, and `session`.
+- PHP 8.5 or newer, with current security updates for the chosen distribution.
+- MariaDB/MySQL with `pdo_mysql`, plus `dom`, `mbstring`, `gd`, `fileinfo`,
+  `openssl`, `json`, and `session`. Local tests also require `pdo_sqlite`.
 - Apache modules: `headers`, `rewrite`, `expires`, `deflate`, and `remoteip`.
 - Writable directories for the Apache user:
   - `data/`

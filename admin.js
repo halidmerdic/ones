@@ -134,6 +134,8 @@ let passwordNeedsChange = false;
 let cmsBaseline = "";
 let cmsRevision = 0;
 let cmsSaving = false;
+let cmsPendingUploads = 0;
+const cmsSaveLocks = new Map();
 
 const panels = [
   { id: "settings", label: "Postavke" },
@@ -261,9 +263,42 @@ function updateSaveState() {
   saveButton.hidden = passwordNeedsChange;
   const dirty = Boolean(cmsBaseline) && cmsSnapshot() !== cmsBaseline;
   saveButton.classList.toggle("has-unsaved", dirty);
-  saveButton.disabled = cmsSaving || passwordNeedsChange;
-  saveButton.textContent = cmsSaving ? "Spremanje..." : dirty ? "Sačuvaj izmjene" : "Sačuvaj CMS";
+  saveButton.disabled = cmsSaving || cmsPendingUploads > 0 || passwordNeedsChange || $("#adminEditor").hidden;
+  saveButton.textContent = cmsSaving ? "Spremanje..." : cmsPendingUploads ? "Upload u toku..." : dirty ? "Sačuvaj izmjene" : "Sačuvaj CMS";
   saveButton.title = dirty ? "Postoje nesačuvane izmjene" : "Sve izmjene su sačuvane";
+  const modalSave = $("#saveProductCmsBtn");
+  if (modalSave) {
+    modalSave.disabled = saveButton.disabled;
+    modalSave.textContent = cmsSaving ? "Spremanje..." : cmsPendingUploads ? "Upload u toku..." : "Sačuvaj izmjene";
+  }
+}
+
+function setCmsSaving(saving) {
+  cmsSaving = saving;
+  if (saving) {
+    document.querySelectorAll("#adminEditor, #adminNav, #cmsValidationBanner, .product-edit-modal").forEach((element) => {
+      cmsSaveLocks.set(element, element.inert);
+      element.inert = true;
+    });
+  } else {
+    cmsSaveLocks.forEach((wasInert, element) => { element.inert = wasInert; });
+    cmsSaveLocks.clear();
+  }
+  $("#adminEditor").setAttribute("aria-busy", String(saving));
+  updateSaveState();
+}
+
+function trackCmsUpload(handler) {
+  return async (event) => {
+    if (cmsSaving) return;
+    cmsPendingUploads++;
+    updateSaveState();
+    try { await handler(event); }
+    finally {
+      cmsPendingUploads--;
+      updateSaveState();
+    }
+  };
 }
 
 function captureCmsBaseline() {
@@ -516,6 +551,7 @@ async function loadActivePanelData(force = false) {
 }
 
 async function activatePanel(panelId) {
+  if (cmsSaving) return;
   activePanel = passwordNeedsChange ? "security" : panelId;
   rememberActivePanel();
   closeAdminMenu();
@@ -525,7 +561,11 @@ async function activatePanel(panelId) {
 }
 
 async function saveCms() {
-  if (cmsSaving || passwordNeedsChange) return;
+  if (cmsSaving || passwordNeedsChange || $("#adminEditor").hidden) return;
+  if (cmsPendingUploads) {
+    flash("Sačekajte završetak uploada prije spremanja CMS-a.");
+    return;
+  }
   syncOpenProductSpecs();
 
   if (cms.sections) {
@@ -560,8 +600,7 @@ async function saveCms() {
     return;
   }
 
-  cmsSaving = true;
-  updateSaveState();
+  setCmsSaving(true);
   try {
     const editedProductId = editingProductId;
     const data = await api("save-cms", { cms, revision: cmsRevision });
@@ -579,8 +618,7 @@ async function saveCms() {
   } catch (error) {
     flash(error.message, /međuvremenu|osvježite cms/i.test(error.message) ? 9000 : 2800);
   } finally {
-    cmsSaving = false;
-    updateSaveState();
+    setCmsSaving(false);
   }
 }
 
@@ -722,7 +760,7 @@ function imageUploadField(label, currentPath, onUploaded, recommendation = "Prep
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
-  input.addEventListener("change", async () => {
+  input.addEventListener("change", trackCmsUpload(async () => {
     const file = input.files?.[0];
     if (!file) return;
 
@@ -734,7 +772,7 @@ function imageUploadField(label, currentPath, onUploaded, recommendation = "Prep
     } catch (error) {
       flash(error.message);
     }
-  });
+  }));
 
   wrapper.append(preview, imageRecommendation(recommendation), input);
   return wrapper;
@@ -752,7 +790,7 @@ function blogImageUploadField(item) {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
-  input.addEventListener("change", async () => {
+  input.addEventListener("change", trackCmsUpload(async () => {
     const file = input.files?.[0];
     if (!file) return;
 
@@ -764,7 +802,7 @@ function blogImageUploadField(item) {
     } catch (error) {
       flash(error.message);
     }
-  });
+  }));
 
   wrapper.append(preview, imageRecommendation("Preporuka: WEBP format, 1600 x 900 px. JPG je uredu za fotografije, PNG samo za grafike ili screenshot."), input);
   return wrapper;
@@ -782,7 +820,7 @@ function manualUploadField(item) {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "application/pdf,.pdf";
-  input.addEventListener("change", async () => {
+  input.addEventListener("change", trackCmsUpload(async () => {
     const file = input.files?.[0];
     if (!file) return;
 
@@ -795,7 +833,7 @@ function manualUploadField(item) {
     } catch (error) {
       flash(error.message);
     }
-  });
+  }));
 
   wrapper.append(current, input);
   return wrapper;
@@ -821,7 +859,7 @@ function productManualField(product) {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "application/pdf,.pdf";
-  input.addEventListener("change", async () => {
+  input.addEventListener("change", trackCmsUpload(async () => {
     const file = input.files?.[0];
     if (!file) return;
 
@@ -852,7 +890,7 @@ function productManualField(product) {
     } catch (error) {
       flash(error.message);
     }
-  });
+  }));
 
   renderCurrent();
   wrapper.append(current, input);
@@ -952,7 +990,7 @@ function galleryField(item) {
   progress.hidden = true;
   progress.setAttribute("role", "status");
   progress.setAttribute("aria-live", "polite");
-  input.addEventListener("change", async () => {
+  input.addEventListener("change", trackCmsUpload(async () => {
     const files = Array.from(input.files || []);
     if (!files.length) return;
 
@@ -990,7 +1028,7 @@ function galleryField(item) {
 
     progress.textContent = `Završeno: svih ${uploaded} slika je uploadovano.`;
     flash(`${uploaded} slika je dodano u galeriju. Ne zaboravite sačuvati CMS.`);
-  });
+  }));
 
   wrapper.append(title, note, list, progress, input);
   renderGallery();
@@ -2810,7 +2848,9 @@ async function adminLogout() {
 }
 
 async function resetCmsDemo() {
+  if (cmsSaving || cmsPendingUploads) return;
   if (!confirm("Vratiti demo sadržaj?")) return;
+  setCmsSaving(true);
   try {
     const data = await api("reset-cms", { revision: cmsRevision });
     cmsRevision = Number(data.revision) || cmsRevision + 1;
@@ -2821,6 +2861,8 @@ async function resetCmsDemo() {
     flash("Demo sadržaj je vraćen u bazu.");
   } catch (error) {
     flash(error.message);
+  } finally {
+    setCmsSaving(false);
   }
 }
 
@@ -2873,6 +2915,7 @@ $("#adminMenuClose")?.addEventListener("click", closeAdminMenu);
 $("#adminMenuBackdrop")?.addEventListener("click", closeAdminMenu);
 
 window.addEventListener("keydown", (event) => {
+  if (cmsSaving) return;
   if (event.key === "Escape") {
     const modalClose = document.querySelector(
       "#customerDetailModal #closeCustomerDetailBtn, #orderDetailModal #closeOrderDetailBtn, #categoryEditModal #closeCategoryEditorBtn, #productEditModal #closeProductEditorBtn"
@@ -2894,6 +2937,7 @@ window.addEventListener("beforeunload", (event) => {
 $("#restoreBackupInput")?.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   event.target.value = "";
+  if (cmsSaving || cmsPendingUploads) return;
   if (!file) return;
   if (!confirm("Vraćanje backupa će prebrisati trenutni CMS, korisnike, korpe i narudžbe. Prije toga će se automatski napraviti sigurnosna kopija trenutne baze. Nastaviti?")) return;
   const confirmation = prompt('Za potvrdu vraćanja backupa upišite: VRATI');
@@ -2902,6 +2946,7 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
     return;
   }
 
+  setCmsSaving(true);
   try {
     await restoreBackupFile(file);
     cms = structuredClone(defaultCms);
@@ -2928,11 +2973,14 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
     flash("Backup je uspješno vraćen. Sve prethodne sesije su poništene. Prijavite se lozinkom iz vraćenog backupa.", 12000);
   } catch (error) {
     flash(error.message);
+  } finally {
+    setCmsSaving(false);
   }
 });
 
 window.addEventListener("storage", async (event) => {
   if (event.key !== "onesCmsUpdatedAt" || $("#adminEditor").hidden) return;
+  if (cmsSaving || cmsPendingUploads) return;
   if (cmsBaseline && cmsSnapshot() !== cmsBaseline) {
     flash("CMS je promijenjen u drugoj kartici. Vaše nesačuvane izmjene nisu prepisane; osvježite stranicu tek kada ih više ne trebate.", 9000);
     return;

@@ -1,0 +1,28 @@
+name: PHP and JavaScript checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.5'
+          extensions: dom, fileinfo, gd, mbstring, openssl, pdo_mysql, pdo_sqlite
+          coverage: none
+      - name: Runtime and PHP regressions
+        run: |
+          php tests/runtime.php
+          for test in auth-security business-logic storage-reliability network-security cms-xss restore-security backup-atomicity admin-bootstrap login-limits; do
+            php -d auto_prepend_file=tests/strict-errors.php "tests/$test.php"
+          done
+      - name: JavaScript and concurrent login reservations
+        run: |
+          for script in *.js tests/*.cjs; do node --check "$script"; done
+          node tests/logout-client.cjs
+          node tests/login-concurrency.cjs

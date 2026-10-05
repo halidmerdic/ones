@@ -1,7 +1,8 @@
 SEGMENT 02 — T04, T05, T06 — 05.10.2026.
 
 STATUS
-Završen i testiran lokalno. Izmjene ovog segmenta još nisu commitovane/pushovane.
+Završen i testiran. Po nalogu korisnika poslan na GitHub main 05.10.2026.
+Commit: aa274da — Restrict demo admin access and fix customer logout and cart submission.
 Prethodni segment je, po nalogu korisnika, poslan na GitHub main u commitu
 2a5eb82bd6723ed43459576b915687f2c977bfd3.
 Nije rađen deploy na ones.ba. Nije provjeravano da li GitHub push pokreće deploy.

@@ -2,10 +2,12 @@
 
 Database-backed oneS electric scooter catalog and CMS.
 
-Run the local PHP server first:
+The project uses PHP 8.5. On Windows, install the isolated project runtime
+(official archive with SHA-256 verification), then start the local server:
 
 ```text
-php -S 127.0.0.1:8000
+./deploy/setup-php.ps1
+./deploy/start-local.ps1
 ```
 
 Then open:
@@ -14,7 +16,11 @@ Then open:
 http://127.0.0.1:8000/index.html
 ```
 
-The SQLite database is created automatically at `data/ones.sqlite`.
+This leaves XAMPP and the global PATH unchanged. The ignored `.runtime/` directory
+is local only and is excluded from deployment packages. On Linux with PHP 8.5
+and the required extensions, use `php -S 127.0.0.1:8000 deploy/local-router.php`.
+Run `php tests/runtime.php` first. The SQLite database is created automatically
+at `data/ones.sqlite`.
 
 Deployment preparation notes are in `DEPLOYMENT.md`.
 
