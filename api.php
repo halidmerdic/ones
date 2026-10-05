@@ -383,6 +383,31 @@ function verify_user_password(string $password, ?array $user): bool
     return password_verify($password, $hash !== '' ? $hash : $dummyHash);
 }
 
+function admin_hash_uses_demo_password(string $hash): bool
+{
+    return password_verify('onesadmin', $hash) || password_verify('PROMIJENI-U-JAKU-LOZINKU', $hash);
+}
+
+function admin_password_change_required(PDO $pdo, int $adminId): bool
+{
+    $stmt = $pdo->prepare('SELECT password_hash FROM users WHERE id = :id AND role = "admin" LIMIT 1');
+    $stmt->execute([':id' => $adminId]);
+    return admin_hash_uses_demo_password((string)$stmt->fetchColumn());
+}
+
+function verify_admin_password(string $password, ?array $user): bool
+{
+    global $config, $isLocalHost;
+    if (!$isLocalHost && $user && admin_hash_uses_demo_password((string)$user['password_hash'])) {
+        // A public demo password must never grant access to production recovery.
+        $recovery = (string)($config['security']['initial_admin_password'] ?? '');
+        return $recovery !== 'PROMIJENI-U-JAKU-LOZINKU'
+            && password_validation_error($recovery, true) === null
+            && hash_equals($recovery, $password);
+    }
+    return verify_user_password($password, $user);
+}
+
 function rehash_password_if_needed(PDO $pdo, array $user, string $password): void
 {
     $hash = (string)($user['password_hash'] ?? '');
@@ -1826,10 +1851,15 @@ function admin_session_active(?PDO $databaseConnection = null): bool
     return authenticated_session_active($databaseConnection, 'admin', 'admin', 1800, 8 * 60 * 60);
 }
 
-function require_admin(): void
+function require_admin(bool $allowPasswordChange = false): void
 {
+    global $pdo;
     if (!admin_session_active()) {
         respond(['ok' => false, 'message' => 'Potrebna je admin prijava.'], 401);
+    }
+    if (!$allowPasswordChange && admin_password_change_required($pdo, (int)$_SESSION['admin_id'])) {
+        respond(['ok' => false, 'code' => 'ADMIN_PASSWORD_CHANGE_REQUIRED', 'passwordNeedsChange' => true,
+            'message' => 'Promijenite početnu admin lozinku prije nastavka rada.'], 403);
     }
 }
 
@@ -2361,12 +2391,7 @@ try {
 
     if ($action === 'admin-status') {
         $loggedIn = admin_session_active();
-        $passwordNeedsChange = false;
-        if ($loggedIn) {
-            $stmt = $pdo->prepare('SELECT password_hash FROM users WHERE id = :id AND role = "admin" LIMIT 1');
-            $stmt->execute([':id' => (int)$_SESSION['admin_id']]);
-            $passwordNeedsChange = password_verify('onesadmin', (string)$stmt->fetchColumn());
-        }
+        $passwordNeedsChange = $loggedIn && admin_password_change_required($pdo, (int)$_SESSION['admin_id']);
         respond(['ok' => true, 'loggedIn' => $loggedIn, 'passwordNeedsChange' => $passwordNeedsChange]);
     }
 
@@ -2384,26 +2409,27 @@ try {
         $stmt->execute([':email' => 'admin@ones.local']);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!verify_user_password($password, $user ?: null)) {
+        if (!verify_admin_password($password, $user ?: null)) {
             record_request_limit($pdo, 'admin-login', $rateIdentifier);
             respond(['ok' => false, 'message' => 'Pogrešna lozinka.'], 401);
         }
 
         clear_request_limit($pdo, 'admin-login', $rateIdentifier);
-        rehash_password_if_needed($pdo, $user, $password);
+        $passwordNeedsChange = admin_hash_uses_demo_password((string)$user['password_hash']);
+        if (!$passwordNeedsChange) rehash_password_if_needed($pdo, $user, $password);
         establish_auth_session('admin', $user, $requestAuthEpoch);
-        respond(['ok' => true, 'user' => ['name' => $user['name'], 'email' => $user['email'], 'role' => $user['role']]]);
+        respond(['ok' => true, 'passwordNeedsChange' => $passwordNeedsChange, 'user' => ['name' => $user['name'], 'email' => $user['email'], 'role' => $user['role']]]);
     }
 
     if ($action === 'admin-password-update') {
-        require_admin();
+        require_admin(true);
         $body = body_json();
         $currentPassword = (string)($body['currentPassword'] ?? '');
         $newPassword = (string)($body['newPassword'] ?? '');
         $passwordError = password_validation_error($newPassword, true);
 
-        if ($passwordError !== null) {
-            respond(['ok' => false, 'message' => $passwordError], 400);
+        if ($passwordError !== null || $newPassword === 'PROMIJENI-U-JAKU-LOZINKU') {
+            respond(['ok' => false, 'message' => $passwordError ?? 'Odaberite vlastitu sigurnu lozinku.'], 400);
         }
 
         $adminId = (int)$_SESSION['admin_id'];
@@ -2412,7 +2438,7 @@ try {
         $stmt = $pdo->prepare('SELECT id, name, password_hash, auth_version FROM users WHERE id = :id AND role = "admin" LIMIT 1');
         $stmt->execute([':id' => $adminId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (strlen($currentPassword) > password_max_length() || !verify_user_password($currentPassword, $user ?: null)) {
+        if (strlen($currentPassword) > password_max_length() || !verify_admin_password($currentPassword, $user ?: null)) {
             record_request_limit($pdo, 'admin-password-update', $rateIdentifier);
             respond(['ok' => false, 'message' => 'Trenutna admin lozinka nije ispravna.'], 401);
         }

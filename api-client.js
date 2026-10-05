@@ -1,6 +1,7 @@
 (function () {
   let csrfToken = "";
   let csrfRequest = null;
+  let logoutRequest = null;
 
   async function readJson(response) {
     let data = null;
@@ -10,8 +11,11 @@
       throw new Error("Server nije vratio ispravan odgovor.");
     }
 
-    if (!response.ok || !data.ok) {
-      throw new Error(data.message || "API greška.");
+    if (!response.ok || !data?.ok) {
+      const error = new Error(data?.message || "API greška.");
+      error.status = response.status;
+      error.code = data?.code || "";
+      throw error;
     }
 
     return data;
@@ -60,6 +64,31 @@
 
     const response = await fetch(`api.php?action=${encodeURIComponent(action)}`, options);
     return readJson(response);
+  }
+
+  async function logoutCustomer() {
+    if (!logoutRequest) {
+      logoutRequest = (async () => {
+        try {
+          await api("customer-logout", {});
+        } catch {
+          // A lost response may follow a completed logout. Confirm with the server.
+          const status = await api("customer-status").catch(() => null);
+          if (status?.loggedIn !== false) {
+            throw new Error("Odjava nije potvrđena. Provjerite vezu i pokušajte ponovo.");
+          }
+        }
+        for (const storageName of ["localStorage", "sessionStorage"]) {
+          try {
+            window[storageName].removeItem("onesCustomerPreview");
+            window[storageName].removeItem("onesCartCountPreview");
+          } catch {}
+        }
+        window.__onesCartPreview = 0;
+        window.__onesCustomerStatusPromise = Promise.resolve({ ok: true, loggedIn: false, user: null });
+      })().finally(() => { logoutRequest = null; });
+    }
+    return logoutRequest;
   }
 
   function escapeHtml(value) {
@@ -167,6 +196,7 @@
   }
 
   window.onesApi = api;
+  window.onesLogoutCustomer = logoutCustomer;
   window.onesCsrfHeaders = csrfHeaders;
   window.onesEscapeHtml = escapeHtml;
   window.onesSafeUrl = safeUrl;

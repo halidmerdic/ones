@@ -233,13 +233,16 @@ async function savePassword() {
 }
 
 async function logout() {
+  const buttons = [$("#profileLogoutBtn"), $("#profileMobileLogoutBtn")].filter(Boolean);
+  if (buttons.some(button => button.disabled)) return;
+  buttons.forEach(button => { button.disabled = true; });
   try {
-    await api("customer-logout", {});
-    localStorage.removeItem(customerPreviewKey);
-    sessionStorage.removeItem(customerPreviewKey);
+    await window.onesLogoutCustomer();
     window.location.href = "login.html";
   } catch (error) {
     flash(error.message);
+  } finally {
+    buttons.forEach(button => { button.disabled = false; });
   }
 }
 

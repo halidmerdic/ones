@@ -37,7 +37,7 @@ function flash(message) {
 }
 
 function updateCartCount(count) {
-  localStorage.setItem(cartCountPreviewKey, String(count || 0));
+  try { localStorage.setItem(cartCountPreviewKey, String(count || 0)); } catch {}
   document.querySelectorAll(".cart-count-sync").forEach((badge) => {
     badge.textContent = String(count || 0);
     badge.hidden = !count;
@@ -112,10 +112,16 @@ async function loadCartCount() {
 }
 
 async function logoutCustomer() {
+  const button = $("#logoutBtn");
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
   try {
-    await api("customer-logout", {});
+    await window.onesLogoutCustomer();
   } catch (error) {
-    console.warn("Logout failed.", error);
+    flash(error.message);
+    return;
+  } finally {
+    if (button) button.disabled = false;
   }
 
   currentCustomer = null;

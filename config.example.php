@@ -48,7 +48,8 @@ return [
         ],
     ],
     'security' => [
-        // Required only when production has no admin user. Use at least 15 characters.
+        // Required for the first production admin, or recovery of a legacy demo admin.
+        // Use a private password of at least 15 characters; never commit it.
         'initial_admin_password' => 'PROMIJENI-U-JAKU-LOZINKU',
     ],
 ];

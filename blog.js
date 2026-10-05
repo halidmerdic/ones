@@ -100,10 +100,16 @@ async function loadCartCount() {
 }
 
 async function logoutCustomer() {
+  const button = $("#logoutBtn");
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
   try {
-    await api("customer-logout", {});
+    await window.onesLogoutCustomer();
   } catch (error) {
-    console.warn("Logout failed.", error);
+    flash(error.message);
+    return;
+  } finally {
+    if (button) button.disabled = false;
   }
 
   currentCustomer = null;

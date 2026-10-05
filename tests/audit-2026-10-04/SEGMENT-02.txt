@@ -1,0 +1,99 @@
+SEGMENT 02 — T04, T05, T06 — 05.10.2026.
+
+STATUS
+Završen i testiran lokalno. Izmjene ovog segmenta još nisu commitovane/pushovane.
+Prethodni segment je, po nalogu korisnika, poslan na GitHub main u commitu
+2a5eb82bd6723ed43459576b915687f2c977bfd3.
+Nije rađen deploy na ones.ba. Nije provjeravano da li GitHub push pokreće deploy.
+Ranije korisnikove UI izmjene u admin.css, admin.html, login.html, profile.html
+i profile.js su sačuvane. Segment 01 commit je uključio samo naše script-tag
+hunkove u zajedničkim HTML fajlovima, ne prethodne UI izmjene.
+
+T04 — DEMONSTRACIJSKI ADMIN
+Server prepoznaje hash poznate demo lozinke i placeholdera iz konfiguracije.
+Centralni require_admin blokira sve privatne admin radnje dok se lozinka ne
+promijeni, uključujući postojeće sesije. Jedini izuzetak je promjena lozinke;
+status i odjava ostaju dostupni. CMS interfejs nudi samo sigurnosnu formu i
+odjavu, čak i uz URL koji direktno traži proizvod ili drugi panel.
+Produkcija odbija prijavu demo lozinkom. Vlasnik može otvoriti ograničenu sesiju
+samo privatnom jakom initial_admin_password lozinkom iz serverske konfiguracije.
+Nema tihog reseta hashova. Ta vrijednost nikada ne zaobilazi postojeću sigurnu
+admin lozinku. Rehash pri prijavi ne pretvara recovery lozinku u stalnu.
+Promjena lozinke povećava auth_version i poništava ostale sesije.
+Produkcijski JSON restore odbija demo admina prije pisanja. Lokalno je moguća
+migracija starog demo backupa uz obaveznu promjenu lozinke.
+Operativna procedura je zapisana u DEPLOYMENT.md i komentaru config.example.php.
+
+T05 — POTVRĐENA ODJAVA
+Početna, proizvod, blog i profil koriste zajednički onesLogoutCustomer.
+Nakon greške POST-a provjerava se svjež customer-status. Samo potvrđena odjava
+smije obrisati lokalni prikaz identiteta/korpe i prikazati uspjeh. Ako se potvrda
+ne može dobiti, prikaz prijave ostaje i dugme omogućava ponovni pokušaj.
+Izgubljen odgovor nakon već izvršene odjave se pravilno prepoznaje.
+Paralelni klikovi dijele jedan zahtjev; na profilu se blokiraju desktop i mobilno
+dugme. Nedostupna lokalna pohrana ne smije poništiti potvrđenu odjavu.
+Ostali problemi dostupnosti browser storage-a ostaju pod T29.
+
+T06 — ŽIVOTNI CIKLUS SLANJA KORPE
+finally je premješten iz loadCart u submitOrder, gdje postoje odgovarajuće
+varijable. Svaki završetak vraća naziv dugmeta i orderSubmitting stanje.
+Jedno mjesto upravlja kontrolama prema stanju učitavanja, izmjene, slanja,
+prazne korpe i nedostupnih proizvoda. Slanje i promjene količine/brisanje se
+međusobno blokiraju unutar te stranice; to ne zamjenjuje T14 za više tabova.
+Telefon i napomena se zaključavaju tokom slanja. Nakon neuspjeha unos ostaje;
+nakon uspjeha briše se napomena. API greške nose HTTP status, pa 401 vodi na
+prijavu. Povratak iz prijave u korpu ostaje odvojeni T28.
+Ako se odgovor izgubi, osvježi se korpa i traži provjera upita na profilu.
+Zahtjev se ne šalje automatski ponovo. Time je pokriven slučaj kada je server
+već sačuvao upit, a browser nije primio uspješan odgovor.
+Promijenjeni script URL-ovi imaju verziju 20261005-security-2.
+
+VERIFIKACIJA — SVE NAVEDENO PROŠLO
+PHP lint i node --check za izmijenjeni kod i nove testove.
+tests/admin-bootstrap.php: 22 provjere; uključuje produkcijski režim, nesigurnu
+konfiguraciju, stare sesije, promjenu lozinke i demo backup.
+tests/admin-bootstrap-browser.cjs: 155 HTTP/browser provjera; svih 12 privatnih
+admin akcija, direktni URL, reload, zabrana podataka, promjena i stare sesije.
+tests/admin-bootstrap-production.cjs: 14 HTTP provjera sa stvarnom lokalnom
+MariaDB bazom i Host: ones.ba (produkcijski režim; TCP samo 127.0.0.1).
+Provjeren oporavak privatnom konfiguracijom i odbijanje demo backupa bez promjene
+CMS sadržaja/revizije ili važeće sesije. Nema saobraćaja prema stvarnoj domeni.
+tests/logout-client.cjs: 17 provjera; offline, HTTP 500, nejasan status,
+izgubljen odgovor, blokiran storage i istovremeni pozivi.
+tests/customer-flows-browser.cjs: 1001 HTTP/browser provjera; stvarna registracija,
+prijava, ispravka nevažećeg telefona i slanje. Odjava na sve četiri stranice,
+neuspjeh/retry, 400, 429, 401, prekid mreže, paralelni klikovi i drugi upit.
+tests/cart-recovery-browser.cjs: 14 provjera; greška učitavanja, nedostupan artikl,
+greška promjene količine i stvarno sačuvan upit čiji je odgovor namjerno prekinut.
+tests/smoke.ps1: 234 provjere; uključuje ranije sigurnosne/poslovne regresije,
+novi admin-bootstrap.php, paket, resurse i javni API.
+Ponovo pojedinačno prošli restore-security.php (9) i backup-atomicity.php
+(113, SQLite). Git diff --check prošao za izmijenjeni aplikacijski kod/testove.
+
+PREGLED UREĐAJA I GRANICE
+Chrome/Playwright: 320, 360, 390, 768, 820, 1024 i 1440 px; svijetla i tamna
+tema. Touch uključen za manje širine. Interakcije i JS greške provjerene za ovaj
+segment. Ovo nije potvrda da su svi ranije navedeni problemi izgleda riješeni;
+T31–T33 su još otvoreni. Nisu testirani fizički iOS/Android/Safari uređaji.
+Lokalni PHP 7.4.27 i MariaDB 10.4.22 nisu nadograđeni u ovom segmentu (T08).
+Testovi su rađeni na izdvojenim privremenim kopijama, SQLite/MariaDB bazama i
+loopback serverima. Stvarna baza i config.local.php projekta nisu mijenjani.
+
+PONAVLJANJE TESTOVA
+PHP: php tests/admin-bootstrap.php
+Node: node tests/logout-client.cjs
+Browser testovi koriste playwright i instalirani Chrome; postaviti NODE_PATH
+prema lokalnom runtimeu, ONES_DISPOSABLE_TEST=1 i ONES_TEST_URL na izdvojeni
+loopback server. Nikada ih ne usmjeravati na projektnu ili produkcijsku bazu.
+admin-bootstrap-browser.cjs očekuje svjež lokalni demo admin (onesadmin) i na
+kraju mijenja lozinku u testnu; za ponovno pokretanje koristiti novu testnu bazu.
+customer-flows-browser.cjs i cart-recovery-browser.cjs stvaraju testne kupce;
+česti ponovni pokušaji mogu doseći rate limit — koristiti svježu testnu bazu.
+Produkcijski fixture: zasebna lokalna MariaDB, driver mysql, allowed_hosts ones.ba,
+demo admin hash i initial_admin_password = Private bootstrap fixture 2026!
+ONES_TEST_DEMO_BACKUP pokazuje na validan JSON backup tog fixturea prije promjene
+lozinke. PHP session.save_path i upload_tmp_dir moraju pokazivati na dozvoljeni
+privremeni direktorij. Ove vrijednosti služe isključivo izdvojenom testu.
+
+SLJEDEĆE
+T07–T38 ostaju otvoreni. Sljedeći segment počinje nakon korisnikovog pregleda.

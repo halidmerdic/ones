@@ -23,6 +23,33 @@ Security segment T01–T03 (2026-10-05):
   Recheck that header on the deployed server; IIS configuration also needs an
   IIS runtime check. These changes do not replace the later PHP upgrade task.
 
+Security segment T04–T06 (2026-10-05):
+
+- Existing admin accounts using `onesadmin` or the example configuration
+  password are restricted to password change and logout. Other admin API
+  operations return `403 ADMIN_PASSWORD_CHANGE_REQUIRED`, including reads,
+  downloads, uploads and restore. The restriction also applies to existing
+  sessions. The public catalogue continues to work.
+- On production, the known demo credential cannot even open the restricted
+  session. For a legacy demo account, the server owner must privately set
+  `security.initial_admin_password` in the existing `config.local.php` to a
+  unique strong password (15–72 characters). Sign in with that configured
+  password, enter it again in the change form, and choose the permanent admin
+  password. Once changed, the configuration password no longer authenticates
+  this account. Clear it from the configuration if no longer needed. An empty,
+  weak or example recovery value fails closed. Normal deployments never reset
+  an existing password or enable this recovery path for a non-demo account.
+- Production restore rejects any admin with a known demo password before
+  writing. For an old demo backup, restore it to an isolated local installation,
+  change the admin password there, and export a fresh validated backup.
+- Deploy the updated API client together with the page scripts and their HTML
+  version references (`20261005-security-2`). Customer logout now requires a
+  confirmed server response or a fresh server status confirming logout.
+- Retest inquiry validation, retry after a network error, and a second inquiry
+  on the same cart page. Cart controls remain locked only while a request is
+  pending. A lost submission response triggers a cart refresh and asks the
+  customer to check their profile; it does not automatically resubmit.
+
 ## 1. Before every deployment
 
 - [ ] Download a CMS backup from `CMS -> Sigurnost -> Preuzmi backup`.

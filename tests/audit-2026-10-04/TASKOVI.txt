@@ -1,14 +1,15 @@
 PLAN POPRAVKI — odobren 05.10.2026.
 Rad u segmentima od 2–4 povezana taska. Jedan task = jedan problem.
-Odobren trenutni segment: T01–T03. Nakon segmenta stati radi pregleda korisnika.
-Status se odnosi na lokalni kod. Produkcijska objava nije izvršena.
+Odobren trenutni segment: T04–T06. Završen lokalno; stati radi pregleda korisnika.
+T01–T03 poslani na GitHub main: 2a5eb82, 05.10.2026.
+Produkcijska objava nije izvršena niti je provjeren eventualni automatski deploy.
 
-T01 [ZAVRŠENO LOKALNO] F01 XSS u administraciji
-T02 [ZAVRŠENO LOKALNO] F02 Poništavanje sesija nakon vraćanja backupa
-T03 [ZAVRŠENO LOKALNO] F03 Potpuna validacija i atomsko vraćanje backupa
-T04 [ČEKA] F28 Demonstracijska administratorska lozinka
-T05 [ČEKA] F04 Lažno uspješna odjava
-T06 [ČEKA] F05 Zaglavljeno slanje korpe
+T01 [GITHUB 2a5eb82] F01 XSS u administraciji
+T02 [GITHUB 2a5eb82] F02 Poništavanje sesija nakon vraćanja backupa
+T03 [GITHUB 2a5eb82] F03 Potpuna validacija i atomsko vraćanje backupa
+T04 [ZAVRŠENO LOKALNO] F28 Demonstracijska administratorska lozinka
+T05 [ZAVRŠENO LOKALNO] F04 Lažno uspješna odjava
+T06 [ZAVRŠENO LOKALNO] F05 Zaglavljeno slanje korpe
 T07 [ČEKA] F06 Gubitak CMS izmjena tokom spremanja
 T08 [ČEKA] F29 Nepodržani PHP
 T09 [ČEKA] F27 Zaobilaženje ograničenja prijave
@@ -45,3 +46,4 @@ T38 [ČEKA] dio F32 IIS zaštita privatnih datoteka
 Postojeće korisnikove izmjene prije segmenta: admin.css, admin.html,
 login.html, profile.html, profile.js. Sačuvati ih; ne vraćati checkout na HEAD.
 Detalji i rezultati prvog segmenta: SEGMENT-01.txt.
+Detalji i rezultati drugog segmenta: SEGMENT-02.txt.

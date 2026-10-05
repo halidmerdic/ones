@@ -93,7 +93,7 @@ Assert-True ($LASTEXITCODE -eq 0) "postojeći CMS podaci prolaze serversku valid
 $networkSecurity = & php (Join-Path $PSScriptRoot "network-security.php")
 Assert-True ($LASTEXITCODE -eq 0) "proxy, HTTPS i IP sigurnosne provjere prolaze"
 
-foreach ($securityTest in @("cms-xss.php", "restore-security.php", "backup-atomicity.php")) {
+foreach ($securityTest in @("cms-xss.php", "restore-security.php", "backup-atomicity.php", "admin-bootstrap.php")) {
   & php (Join-Path $PSScriptRoot $securityTest) | Out-Null
   Assert-True ($LASTEXITCODE -eq 0) "$securityTest prolazi sigurnosnu regresiju"
 }

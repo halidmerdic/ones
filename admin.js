@@ -258,9 +258,10 @@ function cmsSnapshot() {
 function updateSaveState() {
   const saveButton = $("#saveBtn");
   if (!saveButton) return;
+  saveButton.hidden = passwordNeedsChange;
   const dirty = Boolean(cmsBaseline) && cmsSnapshot() !== cmsBaseline;
   saveButton.classList.toggle("has-unsaved", dirty);
-  saveButton.disabled = cmsSaving;
+  saveButton.disabled = cmsSaving || passwordNeedsChange;
   saveButton.textContent = cmsSaving ? "Spremanje..." : dirty ? "Sačuvaj izmjene" : "Sačuvaj CMS";
   saveButton.title = dirty ? "Postoje nesačuvane izmjene" : "Sve izmjene su sačuvane";
 }
@@ -515,7 +516,7 @@ async function loadActivePanelData(force = false) {
 }
 
 async function activatePanel(panelId) {
-  activePanel = panelId;
+  activePanel = passwordNeedsChange ? "security" : panelId;
   rememberActivePanel();
   closeAdminMenu();
   renderAll();
@@ -524,7 +525,7 @@ async function activatePanel(panelId) {
 }
 
 async function saveCms() {
-  if (cmsSaving) return;
+  if (cmsSaving || passwordNeedsChange) return;
   syncOpenProductSpecs();
 
   if (cms.sections) {
@@ -1392,6 +1393,7 @@ function renderProductEditorModal() {
 
 function renderNav() {
   $("#adminNav").innerHTML = panels
+    .filter((panel) => !passwordNeedsChange || panel.id === "security")
     .map((panel) => {
       const count = panelCountSources[panel.id]?.();
       return `<button type="button" class="${panel.id === activePanel ? "active" : ""}" data-panel-btn="${panel.id}"><span>${panel.label}</span>${count === null || count === undefined ? "" : `<span class="admin-nav-count">${count}</span>`}</button>`;
@@ -2589,7 +2591,7 @@ function renderSecurity() {
     </div>
     ${
       passwordNeedsChange
-        ? `<div class="admin-security-warning" role="alert"><strong>Promijenite početnu admin lozinku prije objave stranice.</strong></div>`
+        ? `<div class="admin-security-warning" role="alert"><strong>Promijenite početnu admin lozinku da otključate upravljanje stranicom.</strong></div>`
         : ""
     }
     <div class="security-grid">
@@ -2597,7 +2599,7 @@ function renderSecurity() {
         <span class="badge red">Admin</span>
         <h3>Promjena lozinke</h3>
         <label>
-          Trenutna lozinka
+          Lozinka kojom ste se prijavili
           <input id="adminCurrentPassword" type="password" autocomplete="current-password" maxlength="72" />
         </label>
         <label>
@@ -2628,11 +2630,19 @@ function renderSecurity() {
     </div>
   `;
 
+  ["securityBackupBtn", "securityRestoreBackupBtn", "securityResetBtn"].forEach((id) => {
+    $("#" + id).hidden = passwordNeedsChange;
+  });
+  panel.querySelectorAll(".security-card").forEach((card, index) => {
+    card.hidden = passwordNeedsChange && index > 0;
+  });
   $("#securityBackupBtn").addEventListener("click", downloadBackup);
   $("#securityRestoreBackupBtn").addEventListener("click", () => $("#restoreBackupInput")?.click());
   $("#securityResetBtn").addEventListener("click", resetCmsDemo);
   $("#securityLogoutBtn").addEventListener("click", adminLogout);
   $("#adminPasswordUpdateBtn").addEventListener("click", async () => {
+    const button = $("#adminPasswordUpdateBtn");
+    if (button.disabled) return;
     const currentPassword = $("#adminCurrentPassword").value;
     const newPassword = $("#adminNewPassword").value;
     const confirmPassword = $("#adminConfirmPassword").value;
@@ -2646,13 +2656,22 @@ function renderSecurity() {
       return;
     }
 
+    button.disabled = true;
     try {
       await api("admin-password-update", { currentPassword, newPassword });
+      const wasRestricted = passwordNeedsChange;
       passwordNeedsChange = false;
-      renderSecurity();
+      if (wasRestricted) {
+        await loadCms();
+        await showEditor();
+      } else {
+        renderSecurity();
+      }
       flash("Admin lozinka je promijenjena.");
     } catch (error) {
       flash(error.message);
+    } finally {
+      button.disabled = false;
     }
   });
 }
@@ -2710,6 +2729,7 @@ function renderLaunchChecklist() {
 }
 
 function renderAll() {
+  if (passwordNeedsChange) activePanel = "security";
   rememberActivePanel();
   renderNav();
   const renderer = {
@@ -2757,6 +2777,14 @@ function applyAdminUrlContext() {
 async function showEditor() {
   $("#loginPanel").hidden = true;
   $("#adminEditor").hidden = false;
+  if (passwordNeedsChange) {
+    activePanel = "security";
+    cmsBaseline = "";
+    renderAll();
+    updateSaveState();
+    $("#adminCurrentPassword").focus();
+    return;
+  }
   const requestedProduct = applyAdminUrlContext();
   renderAll();
   await loadActivePanelData();
@@ -2807,8 +2835,10 @@ $("#loginPanel").addEventListener("submit", async (event) => {
   if (button.disabled) return;
   button.disabled = true;
   try {
-    await api("admin-login", { password: $("#passwordInput").value });
-    await loadCms();
+    const status = await api("admin-login", { password: $("#passwordInput").value });
+    $("#passwordInput").value = "";
+    passwordNeedsChange = Boolean(status.passwordNeedsChange);
+    if (!passwordNeedsChange) await loadCms();
     await showEditor();
   } catch (error) {
     flash(error.message || "Pogrešna lozinka.");
@@ -2921,7 +2951,7 @@ async function initAdmin() {
     const status = await api("admin-status");
     passwordNeedsChange = Boolean(status.passwordNeedsChange);
     if (status.loggedIn) {
-      await loadCms();
+      if (!passwordNeedsChange) await loadCms();
       await showEditor();
     } else {
       $("#loginPanel").hidden = false;

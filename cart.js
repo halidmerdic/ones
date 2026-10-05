@@ -3,6 +3,7 @@ let cart = { items: [], count: 0 };
 let currentCustomer = null;
 let cartMutationPending = false;
 let orderSubmitting = false;
+let cartReady = false;
 const bottomProfileIcon = '<span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span><strong>Profil</strong>';
 const customerPreviewKey = "onesCustomerPreview";
 const cartCountPreviewKey = "onesCartCountPreview";
@@ -91,9 +92,34 @@ function cartHasUnavailableProducts() {
 
 function setCartMutationPending(pending) {
   cartMutationPending = pending;
+  updateCartControls();
+}
+
+function updateCartControls() {
+  const busy = cartMutationPending || orderSubmitting;
   document.querySelectorAll("[data-qty], [data-remove]").forEach((button) => {
-    button.disabled = pending;
+    button.disabled = busy || !cartReady;
   });
+  const submitButton = $("#submitOrderBtn");
+  if (submitButton) submitButton.disabled = busy || !cartReady || !cart.items.length || cartHasUnavailableProducts();
+  ["#orderPhone", "#orderNote"].forEach((selector) => {
+    const input = $(selector);
+    if (input) input.disabled = orderSubmitting;
+  });
+}
+
+function handleCartError(error) {
+  if (error.status === 401) {
+    cartReady = false;
+    currentCustomer = null;
+    rememberCustomerPreview(null);
+    try { localStorage.setItem(cartCountPreviewKey, "0"); } catch {}
+    updateAccountLink();
+    updateCartControls();
+    window.location.href = "login.html";
+    return;
+  }
+  flash(error.message);
 }
 
 function inquiryMessage() {
@@ -177,7 +203,7 @@ function restoreCustomerPreview() {
 }
 
 function updateBottomCartCount() {
-  localStorage.setItem(cartCountPreviewKey, String(cart.count || 0));
+  try { localStorage.setItem(cartCountPreviewKey, String(cart.count || 0)); } catch {}
   document.querySelectorAll(".cart-count-sync").forEach((badge) => {
     badge.textContent = String(cart.count || 0);
     badge.hidden = !cart.count;
@@ -185,7 +211,8 @@ function updateBottomCartCount() {
 }
 
 function restoreCartCountPreview() {
-  const count = Number(localStorage.getItem(cartCountPreviewKey) || 0);
+  let count = 0;
+  try { count = Number(localStorage.getItem(cartCountPreviewKey) || 0); } catch {}
   if (!count) return;
   document.querySelectorAll(".cart-count-sync").forEach((badge) => {
     badge.textContent = String(count);
@@ -199,7 +226,6 @@ function setupMobileNav() {
 
 function renderCart() {
   updateBottomCartCount();
-  const submitButton = $("#submitOrderBtn");
   const successPanel = $("#orderSuccess");
   if (successPanel && !successPanel.hidden && cart.items.length) {
     successPanel.hidden = true;
@@ -214,7 +240,6 @@ function renderCart() {
       </article>
     `;
     $("#cartSummaryText").textContent = "Trenutno nema proizvoda u korpi.";
-    if (submitButton) submitButton.disabled = true;
   } else {
     $("#cartList").innerHTML = cart.items
       .map(
@@ -246,7 +271,6 @@ function renderCart() {
     $("#cartSummaryText").innerHTML = cartHasUnavailableProducts()
       ? `<strong>Jedan proizvod više nije dostupan</strong><span>Uklonite ga iz korpe prije slanja upita.</span>`
       : `<strong>${cart.count} proizvoda</strong><span>Procjena ukupno: ${cartHasInquiryPrice() ? "Cijena na upit" : money(cartTotal())}</span>`;
-    if (submitButton) submitButton.disabled = orderSubmitting || cartHasUnavailableProducts();
   }
 
   $("#cartWhatsapp").href = contactUrl("whatsapp");
@@ -266,12 +290,17 @@ function renderCart() {
   document.querySelectorAll("[data-remove]").forEach((button) => {
     button.addEventListener("click", () => removeItem(button.dataset.remove));
   });
+  updateCartControls();
 }
 
 async function submitOrder() {
-  if (orderSubmitting) return;
+  if (orderSubmitting || cartMutationPending || !cartReady) return;
   if (!cart.items.length) {
     flash("Korpa je prazna.");
+    return;
+  }
+  if (cartHasUnavailableProducts()) {
+    flash("Uklonite nedostupne proizvode prije slanja upita.");
     return;
   }
 
@@ -295,6 +324,7 @@ async function submitOrder() {
   const submitButton = $("#submitOrderBtn");
   const originalLabel = submitButton?.textContent || "Pošalji upit";
   orderSubmitting = true;
+  updateCartControls();
   if (submitButton) {
     submitButton.disabled = true;
     submitButton.textContent = "Šaljem upit...";
@@ -307,8 +337,8 @@ async function submitOrder() {
       updateProfilePhone,
     });
     cart = data.cart;
-    if (updateProfilePhone && $("#orderPhone") && $("#orderPhone").value) {
-      currentCustomer = { ...(currentCustomer || {}), phone: $("#orderPhone").value };
+    if (updateProfilePhone) {
+      currentCustomer = { ...(currentCustomer || {}), phone };
     }
     if ($("#orderNote")) $("#orderNote").value = "";
     if ($("#orderSuccess")) {
@@ -324,7 +354,23 @@ async function submitOrder() {
     flash(`Upit je poslan u CMS. Broj upita: ${data.order.id}`);
     renderCart();
   } catch (error) {
-    flash(error.message);
+    if (!error.status) {
+      // The request may have committed before its response was lost. Never retry automatically.
+      try {
+        const latest = await api("cart");
+        cart = latest.cart;
+        renderCart();
+      } catch (refreshError) {
+        if (refreshError.status === 401) { handleCartError(refreshError); return; }
+      }
+      flash("Slanje nije potvrđeno. Provjerite upite na profilu prije ponovnog pokušaja.");
+    } else {
+      handleCartError(error);
+    }
+  } finally {
+    orderSubmitting = false;
+    if (submitButton) submitButton.textContent = originalLabel;
+    updateCartControls();
   }
 }
 
@@ -338,32 +384,19 @@ async function loadCart() {
     updateAccountLink();
     const data = await api("cart");
     cart = data.cart;
+    cartReady = true;
     if ($("#orderPhone") && currentCustomer?.phone) {
       $("#orderPhone").value = currentCustomer.phone;
     }
     updateCheckoutSteps(false);
     renderCart();
   } catch (error) {
-    if (error.message.includes("Prijavite se")) {
-      currentCustomer = null;
-      rememberCustomerPreview(null);
-      localStorage.setItem(cartCountPreviewKey, "0");
-      updateAccountLink();
-      window.location.href = "login.html";
-      return;
-    }
-    flash(error.message);
-  } finally {
-    orderSubmitting = false;
-    if (submitButton) {
-      submitButton.textContent = originalLabel;
-      submitButton.disabled = !cart.items.length || cartHasUnavailableProducts();
-    }
+    handleCartError(error);
   }
 }
 
 async function updateQuantity(itemId, quantity) {
-  if (cartMutationPending) return;
+  if (cartMutationPending || orderSubmitting || !cartReady) return;
   setCartMutationPending(true);
   try {
     const data = await api("cart-update", { itemId: Number(itemId), quantity: Number(quantity) });
@@ -371,14 +404,14 @@ async function updateQuantity(itemId, quantity) {
     updateCheckoutSteps(false);
     renderCart();
   } catch (error) {
-    flash(error.message);
+    handleCartError(error);
   } finally {
     setCartMutationPending(false);
   }
 }
 
 async function removeItem(itemId) {
-  if (cartMutationPending) return;
+  if (cartMutationPending || orderSubmitting || !cartReady) return;
   setCartMutationPending(true);
   try {
     const data = await api("cart-remove", { itemId: Number(itemId) });
@@ -386,13 +419,14 @@ async function removeItem(itemId) {
     updateCheckoutSteps(false);
     renderCart();
   } catch (error) {
-    flash(error.message);
+    handleCartError(error);
   } finally {
     setCartMutationPending(false);
   }
 }
 
 $("#submitOrderBtn")?.addEventListener("click", submitOrder);
+updateCartControls();
 setupMobileNav();
 restoreCustomerPreview();
 restoreCartCountPreview();

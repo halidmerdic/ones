@@ -231,6 +231,9 @@ function normalize_backup_payload($backup): array
         if ($row['role'] === 'admin' && $email === 'admin@ones.local') {
             $hasAdmin = true;
         }
+        if ($row['role'] === 'admin' && empty($GLOBALS['isLocalHost']) && admin_hash_uses_demo_password($row['password_hash'])) {
+            backup_invalid('users.password_hash', 'produkcijski backup ne smije sadržavati demonstracijsku admin lozinku. Promijenite je lokalno i napravite novi backup.');
+        }
     }
     if (!$hasAdmin) {
         backup_invalid('users', 'nedostaje administrator admin@ones.local s važećom lozinkom.');
