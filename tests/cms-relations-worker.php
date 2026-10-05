@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 require __DIR__.'/strict-errors.php';
 $_SERVER['HTTP_HOST']='localhost';define('ONES_API_LIBRARY_ONLY',true);require __DIR__.'/../api.php';
 $input=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);
@@ -9,7 +10,7 @@ if(getenv('ONES_TEST_MYSQL_PORT')) {
     $db=['driver'=>'mysql','host'=>'127.0.0.1','port'=>getenv('ONES_TEST_MYSQL_PORT'),'name'=>$name,'user'=>'root','password'=>''];
 }
 if($input['action']==='init') {
-    $pdo=database(['database'=>$db,'security'=>['initial_admin_password'=>'Relations concurrent admin 2026!']]);
+    $pdo=test_database(['database'=>$db,'security'=>['initial_admin_password'=>'Relations concurrent admin 2026!']]);
     if(get_cms_revision($pdo)!==1)throw new RuntimeException('Fresh DB required');
     $pdo->prepare('INSERT INTO users(name,email,password_hash,role,created_at) VALUES (?,?,?,"customer",?)')->execute(['Buyer','race-relations@example.invalid',hash_password('Relations customer 2026!'),date('c')]);
     $uid=(int)$pdo->lastInsertId();

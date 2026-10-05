@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 $_SERVER['HTTP_HOST'] = 'localhost';
 $_SERVER['HTTP_USER_AGENT'] = 'oneS-backup-test';
 define('ONES_API_LIBRARY_ONLY', true);
@@ -26,7 +27,7 @@ if (getenv('ONES_TEST_MYSQL_PORT')) {
     $config['database'] = ['driver' => 'mysql', 'host' => '127.0.0.1', 'port' => getenv('ONES_TEST_MYSQL_PORT'), 'name' => $testDatabase, 'user' => 'root', 'password' => ''];
 }
 $isLocalHost = true;
-$pdo = database($config);
+$pdo = test_database($config);
 backup_check((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 1
     && (int)$pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn() === 0, 'Use a fresh, disposable test database');
 $pdo->prepare('INSERT INTO users (name,email,password_hash,role,created_at) VALUES (?,?,?,?,?)')

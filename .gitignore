@@ -1,5 +1,6 @@
 data/*.sqlite
 data/*.sqlite-*
+data/*.sqlite.migration.lock
 uploads/*
 !uploads/.htaccess
 

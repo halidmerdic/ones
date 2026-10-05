@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 $_SERVER['HTTP_HOST']='localhost';
 define('ONES_API_LIBRARY_ONLY',true);
 require __DIR__.'/../api.php';
@@ -11,7 +12,7 @@ if(getenv('ONES_TEST_MYSQL_PORT')) {
     if(!preg_match('/^ones_segment_test[0-9]+$/D',(string)$name))throw new RuntimeException('Disposable DB required');
     $db=['driver'=>'mysql','host'=>'127.0.0.1','port'=>getenv('ONES_TEST_MYSQL_PORT'),'name'=>$name,'user'=>'root','password'=>''];
 }
-$pdo=database(['database'=>$db,'security'=>['initial_admin_password'=>'CMS relation admin 2026!']]);
+$pdo=test_database(['database'=>$db,'security'=>['initial_admin_password'=>'CMS relation admin 2026!']]);
 relation_check(get_cms_revision($pdo)===1,'Fresh database required');
 $cms=get_cms($pdo);$source=$cms['categories'][0]['name'];$target=$cms['categories'][1]['name'];
 $badge=$cms['badges'][1]['name'];$id=$cms['products'][0]['id'];

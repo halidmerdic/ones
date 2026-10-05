@@ -16,13 +16,13 @@ async function until(fn) { const end=Date.now()+10000;while(!fn()){if(Date.now()
     const id=ids[0],other=ids[1];
     // A read already in flight must not replace a newer successful write.
     let delayed,oldResponse,readCount=0;
-    await page.route('**/api.php?action=admin-orders',async route=>{readCount++;oldResponse=await route.fetch();delayed=route;});
+    await page.route('**/api.php?action=admin-orders&**',async route=>{if(delayed)return route.continue();readCount++;oldResponse=await route.fetch();delayed=route;});
     await page.evaluate(()=>{void loadOrders(true);void loadOrders(true);});await until(()=>delayed);
     assert.equal(readCount,1);checks++;
     await page.locator(`[data-order-detail="${id}"]`).click();
     await page.locator('#orderDetailNote').fill('Race draft');
     await page.locator('#orderDetailStatus').selectOption('Kontaktiran');await page.waitForFunction(()=>!orderMutationPending);
-    await delayed.fulfill({response:oldResponse});await page.unroute('**/api.php?action=admin-orders');
+    await delayed.fulfill({response:oldResponse});await page.unroute('**/api.php?action=admin-orders&**');
     await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,50)));
     assert.equal(await page.evaluate(id=>orders.find(o=>o.id===id).status,id),'Kontaktiran');checks++;
     assert.equal(await page.locator('#orderDetailNote').inputValue(),'Race draft');checks++;

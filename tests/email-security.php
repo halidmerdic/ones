@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 $_SERVER['HTTP_HOST'] = 'localhost';
 $_SERVER['HTTP_USER_AGENT'] = 'email-security-test';
 define('ONES_API_LIBRARY_ONLY', true);
@@ -17,7 +18,7 @@ if (getenv('ONES_TEST_MYSQL_PORT')) {
     $config['database'] = ['driver' => 'mysql', 'host' => '127.0.0.1', 'port' => getenv('ONES_TEST_MYSQL_PORT'), 'name' => $db, 'user' => 'root', 'password' => ''];
 }
 $isLocalHost = true;
-$pdo = database($config);
+$pdo = test_database($config);
 email_check((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 1, 'Fresh test database only');
 function test_challenge(PDO $pdo, string $kind, string $email, ?array $user = null, array $changes = []): string {
     $token = bin2hex(random_bytes(32));

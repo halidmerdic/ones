@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 
 ini_set('session.save_path', sys_get_temp_dir());
 $_SERVER['HTTP_HOST'] = 'localhost';
@@ -39,7 +40,7 @@ try {
     unset($legacyInsert);
     $legacyPdo = null;
 
-    $pdo = database($config);
+    $pdo = test_database($config);
 
     assert_storage_test(has_column($pdo, 'cms_store', 'revision'), 'postojeća CMS tabela dobija broj revizije bez gubitka podataka');
     assert_storage_test((bool)$pdo->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cms_revisions'")->fetchColumn(), 'baza sadrži historiju CMS revizija');
@@ -82,6 +83,7 @@ try {
 
     echo 'Storage reliability checks passed: ' . $checks . PHP_EOL;
 } finally {
+    if (is_file($databasePath . '.migration.lock')) unlink($databasePath . '.migration.lock');
     $pdo = null;
     gc_collect_cycles();
     foreach ([$databasePath, $atomicPath] as $path) {

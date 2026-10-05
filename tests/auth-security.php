@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 
 ini_set('session.save_path', sys_get_temp_dir());
 $_SERVER['HTTP_HOST'] = 'localhost';
@@ -31,7 +32,7 @@ try {
         ],
     ];
     $isLocalHost = true;
-    $pdo = database($config);
+    $pdo = test_database($config);
 
     assert_auth_test(has_column($pdo, 'users', 'auth_version'), 'baza sadrži verziju autentifikacije');
     assert_auth_test(password_validation_error('kratka-lozinka') !== null, 'kratka nova lozinka se odbija');
@@ -77,4 +78,5 @@ try {
     if (is_file($databasePath)) {
         unlink($databasePath);
     }
+    if (is_file($databasePath . '.migration.lock')) unlink($databasePath . '.migration.lock');
 }

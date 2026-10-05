@@ -98,6 +98,13 @@ const defaultCms = {
 let cms = structuredClone(defaultCms);
 let orders = [];
 let customers = [];
+const recordPages = { orders: null, customers: null };
+const recordStats = { orders: null, customers: null };
+let orderDetailRecord = null;
+let customerDetailRecord = null;
+let customerDetailPagination = null;
+let orderDetailRequest = 0;
+let customerDetailRequest = 0;
 let activePanel = "settings";
 let editingProductId = null;
 let savedProductIds = new Set();
@@ -117,7 +124,7 @@ let orderFilters = {
   status: "Sve",
   date: "",
   dateTo: "",
-  product: "Sve",
+  product: "",
 };
 let customerFilters = {
   search: "",
@@ -167,8 +174,8 @@ const panels = [
 
 const panelCountSources = {
   products: () => (adminLoads.cms.loaded ? cms.products?.length || 0 : null),
-  orders: () => (ordersLoaded ? orders.length : null),
-  customers: () => (customersLoaded ? customers.length : null),
+  orders: () => recordStats.orders?.total ?? null,
+  customers: () => recordStats.customers?.total ?? null,
   manuals: () => cms.manuals?.length || 0,
   locations: () => cms.locations?.length || 0,
   blogs: () => cms.blogs?.length || 0,
@@ -205,12 +212,12 @@ function paginationHtml(panelId, pageData) {
     <div class="admin-pagination" data-pagination="${panelId}">
       <span>Prikaz ${first}-${last} od ${pageData.total}</span>
       <div class="admin-pagination-actions">
-        <button class="btn btn-secondary" type="button" data-page-change="previous" ${pageData.page <= 1 ? "disabled" : ""}>Prethodna</button>
+        <button class="btn btn-secondary" type="button" data-page-change="previous" ${pageData.page <= 1 || adminLoads[panelId]?.loading ? "disabled" : ""}>Prethodna</button>
         <strong>Stranica ${pageData.page} od ${pageData.pageCount}</strong>
-        <button class="btn btn-secondary" type="button" data-page-change="next" ${pageData.page >= pageData.pageCount ? "disabled" : ""}>Sljedeća</button>
+        <button class="btn btn-secondary" type="button" data-page-change="next" ${pageData.page >= pageData.pageCount || adminLoads[panelId]?.loading ? "disabled" : ""}>Sljedeća</button>
         <label>
           Po stranici
-          <select data-page-size>
+          <select data-page-size ${adminLoads[panelId]?.loading ? "disabled" : ""}>
             ${[10, 25, 50].map((size) => `<option value="${size}" ${size === pageData.pageSize ? "selected" : ""}>${size}</option>`).join("")}
           </select>
         </label>
@@ -432,8 +439,8 @@ function numberField(label, value, onInput) {
   return wrapper;
 }
 
-async function api(action, payload) {
-  return window.onesApi(action, payload);
+async function api(action, payload, query) {
+  return window.onesApi(action, payload, query);
 }
 
 async function uploadProductImage(file) {
@@ -572,21 +579,33 @@ function validAdminRecords(value, key) {
       : Array.isArray(item.orders) && validAdminRecords(item.orders, "orders")));
 }
 
-function loadAdminResource(key, apply, force = false) {
+function renderAdminLoad() {
+  const focused = document.activeElement;
+  const id = focused?.matches('#orderSearch, #customerSearch, #orderProductFilter') ? focused.id : null;
+  const selection = id ? [focused.selectionStart, focused.selectionEnd] : null;
+  renderAll();
+  if (id && $("#" + id)) { $("#" + id).focus(); $("#" + id).setSelectionRange(...selection); }
+}
+
+function loadAdminResource(key, apply, force = false, query = {}) {
   const state = adminLoads[key];
-  if (state.promise) return state.promise;
-  if (state.loaded && !state.error && !state.stale && !force) return Promise.resolve(true);
+  const requestKey = JSON.stringify(query);
+  if (state.promise && state.requestKey === requestKey) return state.promise;
+  if (state.loaded && !state.error && !state.stale && !force && state.loadedKey === requestKey) return Promise.resolve(true);
   const version = ++state.version;
+  state.requestKey = requestKey;
+  if (state.loadedKey !== requestKey) state.stale = state.loaded;
   state.loading = true;
   state.error = "";
   state.authRequired = false;
-  if (!$("#adminEditor").hidden) renderAll();
+  if (!$("#adminEditor").hidden) renderAdminLoad();
   state.promise = (async () => {
     try {
-      const data = await api(`admin-${key}`);
+      const data = await api(`admin-${key}`, undefined, query);
       if (version !== state.version) return false;
       apply(data);
       state.loaded = true;
+      state.loadedKey = requestKey;
       state.stale = false;
       return true;
     } catch (error) {
@@ -594,14 +613,14 @@ function loadAdminResource(key, apply, force = false) {
       state.authRequired = error.status === 401 || error.status === 403;
       state.error = state.authRequired
         ? "Sesija je istekla ili nemate pristup. Ponovo se prijavite pa pokušajte učitati podatke."
-        : "Učitavanje nije uspjelo. Provjerite vezu i pokušajte ponovo.";
+        : error.code === "INVALID_QUERY" ? error.message : "Učitavanje nije uspjelo. Provjerite vezu i pokušajte ponovo.";
       state.stale = state.loaded;
       return false;
     } finally {
       if (version === state.version) {
         state.loading = false;
         state.promise = null;
-        if (!$("#adminEditor").hidden) renderAll();
+        if (!$("#adminEditor").hidden) renderAdminLoad();
         updateSaveState();
       }
     }
@@ -636,21 +655,45 @@ function loadCms() {
 function loadOrders(force = false) {
   if (orderMutationPending) return Promise.resolve(false);
   return loadAdminResource("orders", data => {
-    if (!validAdminRecords(data.orders, "orders")) throw new Error("Neispravan odgovor narudžbi.");
+    if (!validRecordPage(data, "orders")) throw new Error("Neispravan odgovor narudžbi.");
     orders = data.orders;
+    acceptRecordPage("orders", data);
     ordersLoaded = true;
     const openId = Number($("#orderDetailModal")?.dataset.orderId);
-    if (openId) renderOrderDetailModal(openId);
-  }, force);
+    if (openId) {
+      orderDetailRecord = orders.find(order => Number(order.id) === openId) || orderDetailRecord;
+      renderOrderDetailModal(openId);
+    }
+  }, force, { ...listView("orders", 25), ...orderFilters });
 }
 
 function loadCustomers(force = false) {
   if (orderMutationPending) return Promise.resolve(false);
   return loadAdminResource("customers", data => {
-    if (!validAdminRecords(data.customers, "customers")) throw new Error("Neispravan odgovor kupaca.");
+    if (!validRecordPage(data, "customers")) throw new Error("Neispravan odgovor kupaca.");
     customers = data.customers;
+    acceptRecordPage("customers", data);
     customersLoaded = true;
-  }, force);
+  }, force, { ...listView("customers", 25), ...customerFilters });
+}
+
+function validRecordPagination(page, length) {
+  return page && ['page', 'pageSize', 'pageCount', 'total', 'start'].every(key => Number.isSafeInteger(page[key])) &&
+    page.pageSize >= 1 && page.pageSize <= 50 && page.total >= 0 && page.pageCount === Math.max(1, Math.ceil(page.total / page.pageSize)) &&
+    page.page >= 1 && page.page <= page.pageCount && page.start === (page.page - 1) * page.pageSize &&
+    length === Math.min(page.pageSize, page.total - page.start);
+}
+
+function validRecordPage(data, key) {
+  return validAdminRecords(data[key], key) && validRecordPagination(data.pagination, data[key].length) &&
+    Number.isSafeInteger(data.stats?.total) && data.stats.total >= data.pagination.total &&
+    (key !== 'orders' || (Number.isSafeInteger(data.stats.new) && data.stats.new >= 0 && data.stats.new <= data.stats.total));
+}
+
+function acceptRecordPage(key, data) {
+  recordPages[key] = data.pagination;
+  recordStats[key] = data.stats;
+  Object.assign(listView(key), {page: data.pagination.page, pageSize: data.pagination.pageSize});
 }
 
 async function loadActivePanelData(force = false) {
@@ -2299,14 +2342,15 @@ function orderTemplateValues(order) {
 }
 
 function customerTemplateValues(customer) {
+  const latest = customer.latestOrder ?? customer.orders?.[0];
   return {
     ime: customer.name || "Kupac",
     email: customer.email || "",
     telefon: customer.phone || "",
-    broj_upita: customer.orders?.[0]?.id || "",
-    status: customer.lastOrderStatus || customer.orders?.[0]?.status || "",
-    artikli: itemsText(customer.orders?.[0]?.items || []),
-    napomena: customer.orders?.[0]?.note || "",
+    broj_upita: latest?.id || "",
+    status: customer.lastOrderStatus || latest?.status || "",
+    artikli: itemsText(latest?.items || []),
+    napomena: latest?.note || "",
   };
 }
 
@@ -2371,12 +2415,12 @@ async function updateOrder(orderId, action, changes) {
   try {
     const data = await api(action, { orderId: Number(orderId), ...changes });
     if (sessionVersion !== adminSessionVersion) return;
-    if (!validAdminRecords(data.orders, "orders") || !data.orders.some(order => Number(order.id) === Number(orderId))) {
+    if (!validAdminRecords([data.order], "orders") || Number(data.order.id) !== Number(orderId)) {
       throw new Error("Server nije vratio ispravne podatke. Osvježite evidenciju za provjeru spremanja.");
     }
-    orders = data.orders;
-    ordersLoaded = true;
-    Object.assign(adminLoads.orders, { loaded: true, error: "", stale: false, authRequired: false });
+    orders = orders.map(order => Number(order.id) === Number(orderId) ? data.order : order);
+    if (Number($("#orderDetailModal")?.dataset.orderId) === Number(orderId)) orderDetailRecord = data.order;
+    Object.assign(adminLoads.orders, { error: "", stale: true, authRequired: false });
     // A response acknowledges only the submitted note, never text typed while it was in flight.
     if (action === "admin-order-note" && orderNoteDrafts.get(Number(orderId)) === changes.note) {
       orderNoteDrafts.delete(Number(orderId));
@@ -2393,6 +2437,7 @@ async function updateOrder(orderId, action, changes) {
       if (!$("#adminEditor").hidden) renderAll();
       const openOrderId = Number($("#orderDetailModal")?.dataset.orderId);
       if (openOrderId) renderOrderDetailModal(openOrderId);
+      if (activePanel === "orders" && !$("#adminEditor").hidden && !adminLoads.orders.error) await loadOrders(true);
       if (activePanel === "customers" && !$("#adminEditor").hidden) loadCustomers(true);
     }
   }
@@ -2406,44 +2451,90 @@ function updateOrderNote(orderId, note) {
   return updateOrder(orderId, "admin-order-note", { note });
 }
 
-function filteredOrders() {
-  const search = orderFilters.search.toLowerCase().trim();
-  return orders.filter((order) => {
-    const itemNames = (order.items || []).map((item) => item.name).join(" ");
-    const haystack = [order.id, order.customerName, order.customerEmail, order.phone, itemNames]
-      .map((value) => String(value || "").toLowerCase())
-      .join(" ");
-    const matchesSearch = !search || haystack.includes(search);
-    const matchesStatus = orderFilters.status === "Sve" || order.status === orderFilters.status;
-    const orderDate = String(order.createdAt || "").slice(0, 10);
-    const matchesDateFrom = !orderFilters.date || orderDate >= orderFilters.date;
-    const matchesDateTo = !orderFilters.dateTo || orderDate <= orderFilters.dateTo;
-    const matchesProduct =
-      orderFilters.product === "Sve" || (order.items || []).some((item) => item.name === orderFilters.product);
-    return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo && matchesProduct;
-  });
-}
-
 function orderStatusClass(status) {
   if (status === "Novo") return "red";
   if (status === "U obradi" || status === "Kontaktiran") return "dark";
   return "light";
 }
 
+function showRecordLoading(kind, recordId, close) {
+  const id = kind === 'order' ? 'orderDetailModal' : 'customerDetailModal';
+  const buttonId = kind === 'order' ? 'closeOrderDetailBtn' : 'closeCustomerDetailBtn';
+  const focusState = window.onesCmsFocus.prepare(id);
+  $("#" + id)?.remove();
+  const modal = document.createElement('div');
+  modal.className = 'product-edit-modal'; modal.id = id;
+  modal.dataset[kind + 'Id'] = String(recordId);
+  modal.innerHTML = `<div class="product-edit-dialog" role="dialog" aria-modal="true" aria-label="Učitavanje detalja">
+    <div class="product-edit-header"><h2>Detalji</h2><button class="btn btn-secondary" id="${buttonId}" type="button">Zatvori</button></div>
+    <div class="order-detail-section" data-detail-state role="status">Učitavanje detalja...</div></div>`;
+  modal.addEventListener('click', event => { if (event.target === modal) close(); });
+  document.body.append(modal); $("#" + buttonId).addEventListener('click', close);
+  document.body.classList.add('modal-open');
+  window.onesCmsFocus.open(modal, focusState, { initial: '#' + buttonId, close,
+    returnTo: () => document.querySelector(`[data-${kind}-detail="${Number(recordId)}"]`) });
+  return modal;
+}
+
+function showRecordError(modal, error, retry) {
+  const state = modal.querySelector('[data-detail-state]');
+  if (!state) return;
+  state.setAttribute('role', 'alert');
+  state.textContent = error.message || 'Detalje nije moguće učitati.';
+  const button = document.createElement('button'); button.className = 'btn btn-secondary';
+  button.type = 'button'; button.textContent = 'Pokušaj ponovo'; button.addEventListener('click', retry);
+  state.append(button);
+}
+
+async function openOrderDetail(orderId) {
+  const previousId = Number($("#orderDetailModal")?.dataset.orderId);
+  if (previousId && previousId !== Number(orderId) && !closeOrderDetail()) return;
+  const version = ++orderDetailRequest, session = adminSessionVersion;
+  const modal = showRecordLoading('order', orderId, closeOrderDetail);
+  try {
+    const data = await api('admin-order-detail', undefined, {orderId});
+    if (version !== orderDetailRequest || session !== adminSessionVersion) return;
+    if (!validAdminRecords([data.order], 'orders') || Number(data.order.id) !== Number(orderId)) throw new Error('Neispravan odgovor upita.');
+    orderDetailRecord = data.order;
+    renderOrderDetailModal(orderId);
+  } catch (error) {
+    if (version === orderDetailRequest && session === adminSessionVersion) showRecordError(modal, error, () => openOrderDetail(orderId));
+  }
+}
+
+async function openCustomerDetail(customerId, page = 1, pageSize = 25) {
+  const version = ++customerDetailRequest, session = adminSessionVersion;
+  const modal = showRecordLoading('customer', customerId, closeCustomerDetail);
+  try {
+    const data = await api('admin-customer-detail', undefined, {customerId, page, pageSize});
+    if (version !== customerDetailRequest || session !== adminSessionVersion) return;
+    if (!validAdminRecords([data.customer], 'customers') || Number(data.customer.id) !== Number(customerId) ||
+      !validRecordPagination(data.pagination, data.customer.orders.length) ||
+      !(data.customer.latestOrder === null || validAdminRecords([data.customer.latestOrder], 'orders'))) throw new Error('Neispravan odgovor kupca.');
+    customerDetailRecord = data.customer; customerDetailPagination = data.pagination;
+    renderCustomerDetailModal(customerId);
+  } catch (error) {
+    if (version === customerDetailRequest && session === adminSessionVersion) showRecordError(modal, error, () => openCustomerDetail(customerId, page, pageSize));
+  }
+}
+
 function closeOrderDetail() {
   const orderId = Number($("#orderDetailModal")?.dataset.orderId);
   if (orderNoteDrafts.has(orderId) && !confirm("Napomena nije sačuvana u bazi. Zatvoriti detalje i zadržati nacrt u ovoj kartici?")) return false;
   $("#orderDetailModal")?.remove();
+  orderDetailRequest++;
+  orderDetailRecord = null;
   window.onesCmsFocus.release("orderDetailModal");
   return true;
 }
 
 function renderOrderDetailModal(orderId) {
-  const order = orders.find((item) => Number(item.id) === Number(orderId));
-  if (!order) return;
+  const order = Number(orderDetailRecord?.id) === Number(orderId) ? orderDetailRecord : orders.find((item) => Number(item.id) === Number(orderId));
+  if (!order) { void openOrderDetail(orderId); return; }
 
   const previousId = Number($("#orderDetailModal")?.dataset.orderId);
   if (previousId && previousId !== Number(orderId) && !closeOrderDetail()) return;
+  orderDetailRecord = order;
   const focusState = window.onesCmsFocus.prepare("orderDetailModal");
   $("#orderDetailModal")?.remove();
   const statuses = ["Novo", "U obradi", "Kontaktiran", "Završeno", "Otkazano"];
@@ -2531,12 +2622,8 @@ function renderOrders() {
     return;
   }
   const statuses = ["Novo", "U obradi", "Kontaktiran", "Završeno", "Otkazano"];
-  const productOptions = [
-    "Sve",
-    ...new Set(orders.flatMap((order) => (order.items || []).map((item) => item.name).filter(Boolean))),
-  ];
-  const visibleOrders = filteredOrders();
-  const pageData = paginated(visibleOrders, "orders", 25);
+  const pageData = { ...recordPages.orders, items: orders };
+  const stats = recordStats.orders;
 
   panel.innerHTML = `${loadStateHtml("orders")}
     <div class="admin-panel-heading">
@@ -2547,21 +2634,19 @@ function renderOrders() {
       <button class="btn btn-secondary" type="button" id="refreshOrdersBtn" ${adminLoads.orders.loading || orderMutationPending ? "disabled" : ""}>Osvježi</button>
     </div>
     <div class="order-filters">
-      <input id="orderSearch" type="search" placeholder="Ime, email, telefon, broj upita ili artikal..." value="${escapeHtml(orderFilters.search)}" />
+      <input id="orderSearch" type="search" maxlength="190" aria-label="Pretraga upita" placeholder="Ime, email, telefon, broj upita ili artikal..." value="${escapeHtml(orderFilters.search)}" />
       <select id="orderStatusFilter">
         ${["Sve", ...statuses].map((status) => `<option value="${status}" ${status === orderFilters.status ? "selected" : ""}>${status}</option>`).join("")}
       </select>
-      <select id="orderProductFilter">
-        ${productOptions.map((product) => `<option value="${escapeHtml(product)}" ${product === orderFilters.product ? "selected" : ""}>${escapeHtml(product)}</option>`).join("")}
-      </select>
+      <input id="orderProductFilter" type="search" maxlength="190" aria-label="Naziv artikla" placeholder="Naziv artikla sadrži..." value="${escapeHtml(orderFilters.product)}" />
       <input id="orderDateFilter" type="date" value="${escapeHtml(orderFilters.date)}" aria-label="Datum od" />
       <input id="orderDateToFilter" type="date" value="${escapeHtml(orderFilters.dateTo)}" aria-label="Datum do" />
       <button class="btn btn-secondary" type="button" id="clearOrderFiltersBtn">Očisti</button>
     </div>
     <div class="order-stats-strip">
-      <span><strong>${visibleOrders.length}</strong> odgovara filterima</span>
-      <span><strong>${orders.length}</strong> ukupno</span>
-      <span><strong>${orders.filter((order) => order.status === "Novo").length}</strong> novih</span>
+      <span><strong>${pageData.total}</strong> odgovara filterima</span>
+      <span><strong>${stats.total}</strong> ukupno</span>
+      <span><strong>${stats.new}</strong> novih</span>
     </div>
     <div class="orders-list">
       ${
@@ -2590,72 +2675,67 @@ function renderOrders() {
                 `;
               })
               .join("")
-          : `<div class="product-admin-empty">${orders.length ? "Nema upita za odabrane filtere." : "Još nema poslanih upita."}</div>`
+          : `<div class="product-admin-empty">${stats.total ? "Nema upita za odabrane filtere." : "Još nema poslanih upita."}</div>`
       }
     </div>
     ${paginationHtml("orders", pageData)}
   `;
 
   $("#orderSearch").addEventListener("input", (event) => {
+    invalidateAdminLoad("orders");
     orderFilters.search = event.target.value;
     listView("orders").page = 1;
     clearTimeout(orderSearchTimer);
-    orderSearchTimer = setTimeout(() => rerenderAfterTyping(event.target, renderOrders), 500);
+    orderSearchTimer = setTimeout(() => loadOrders(true), 500);
   });
   $("#orderStatusFilter").addEventListener("change", (event) => {
     orderFilters.status = event.target.value;
     listView("orders").page = 1;
-    renderOrders();
+    void loadOrders(true);
   });
-  $("#orderProductFilter").addEventListener("change", (event) => {
+  $("#orderProductFilter").addEventListener("input", (event) => {
+    invalidateAdminLoad("orders");
     orderFilters.product = event.target.value;
     listView("orders").page = 1;
-    renderOrders();
+    clearTimeout(orderSearchTimer);
+    orderSearchTimer = setTimeout(() => loadOrders(true), 350);
   });
   $("#orderDateFilter").addEventListener("change", (event) => {
     orderFilters.date = event.target.value;
     listView("orders").page = 1;
-    renderOrders();
+    void loadOrders(true);
   });
   $("#orderDateToFilter").addEventListener("change", (event) => {
     orderFilters.dateTo = event.target.value;
     listView("orders").page = 1;
-    renderOrders();
+    void loadOrders(true);
   });
   $("#clearOrderFiltersBtn").addEventListener("click", () => {
-    orderFilters = { search: "", status: "Sve", date: "", dateTo: "", product: "Sve" };
+    orderFilters = { search: "", status: "Sve", date: "", dateTo: "", product: "" };
     listView("orders").page = 1;
-    renderOrders();
+    void loadOrders(true);
   });
 
   $("#refreshOrdersBtn").addEventListener("click", async () => {
     await loadOrders(true);
-    renderOrders();
   });
 
   document.querySelectorAll("[data-order-detail]").forEach((button) => {
     button.addEventListener("click", () => renderOrderDetailModal(Number(button.dataset.orderDetail)));
   });
-  bindPagination("orders", renderOrders);
+  bindPagination("orders", () => loadOrders(true));
   bindLoadRetry(panel);
 }
-function filteredCustomers() {
-  const search = customerFilters.search.toLowerCase().trim();
-  return customers.filter((customer) => {
-    const haystack = [customer.id, customer.name, customer.email, customer.phone]
-      .map((value) => String(value || "").toLowerCase())
-      .join(" ");
-    return !search || haystack.includes(search);
-  });
-}
-
 function closeCustomerDetail() {
   $("#customerDetailModal")?.remove();
+  customerDetailRequest++;
+  customerDetailRecord = null;
+  customerDetailPagination = null;
   window.onesCmsFocus.release("customerDetailModal");
 }
 
 function renderCustomerDetailModal(customerId) {
-  const customer = customers.find((item) => Number(item.id) === Number(customerId));
+  const customer = Number(customerDetailRecord?.id) === Number(customerId) ? customerDetailRecord : null;
   if (!customer) return;
 
   const focusState = window.onesCmsFocus.prepare("customerDetailModal");
@@ -2711,6 +2791,7 @@ function renderCustomerDetailModal(customerId) {
         <section class="order-detail-section customer-orders-section">
           <h3>Upiti kupca</h3>
           ${orderItems || `<p class="order-note">Kupac još nema poslanih upita.</p>`}
+          ${customerDetailPagination ? paginationHtml("customer-history", customerDetailPagination) : ""}
         </section>
       </div>
     </div>
@@ -2725,13 +2806,19 @@ function renderCustomerDetailModal(customerId) {
   $("#closeCustomerDetailBtn").addEventListener("click", closeCustomerDetail);
   document.querySelectorAll("[data-customer-order]").forEach((button) => {
     button.addEventListener("click", async () => {
+      const session = adminSessionVersion;
       closeCustomerDetail();
       orderFilters.search = String(button.dataset.customerOrder);
       listView("orders").page = 1;
       await activatePanel("orders");
+      if (session !== adminSessionVersion || $("#adminEditor").hidden) return;
       renderOrderDetailModal(Number(button.dataset.customerOrder));
     });
   });
+  if (customerDetailPagination) {
+    Object.assign(listView("customer-history", 25), {page: customerDetailPagination.page, pageSize: customerDetailPagination.pageSize});
+    bindPagination("customer-history", () => openCustomerDetail(customerId, listView("customer-history").page, listView("customer-history").pageSize));
+  }
   window.onesCmsFocus.open(modal, focusState, {
     initial: '#closeCustomerDetailBtn', close: closeCustomerDetail,
     returnTo: () => document.querySelector(`[data-customer-detail="${Number(customerId)}"]`),
@@ -2745,8 +2832,8 @@ function renderCustomers() {
     bindLoadRetry(panel);
     return;
   }
-  const visibleCustomers = filteredCustomers();
-  const pageData = paginated(visibleCustomers, "customers", 25);
+  const pageData = { ...recordPages.customers, items: customers };
+  const stats = recordStats.customers;
 
   panel.innerHTML = `${loadStateHtml("customers")}
     <div class="admin-panel-heading">
@@ -2754,12 +2841,12 @@ function renderCustomers() {
       <button class="btn btn-secondary" type="button" id="refreshCustomersBtn" ${adminLoads.customers.loading ? "disabled" : ""}>Osvježi</button>
     </div>
     <div class="customer-filters">
-      <input id="customerSearch" type="search" placeholder="Pretraži ime, email ili telefon..." value="${escapeHtml(customerFilters.search)}" />
+      <input id="customerSearch" type="search" maxlength="190" aria-label="Pretraga kupaca" placeholder="Pretraži ime, email ili telefon..." value="${escapeHtml(customerFilters.search)}" />
       <button class="btn btn-secondary" type="button" id="clearCustomerFiltersBtn">Očisti</button>
     </div>
     <div class="order-stats-strip">
-      <span><strong>${visibleCustomers.length}</strong> odgovara pretrazi</span>
-      <span><strong>${customers.length}</strong> ukupno</span>
+      <span><strong>${pageData.total}</strong> odgovara pretrazi</span>
+      <span><strong>${stats.total}</strong> ukupno</span>
     </div>
     <div class="customers-list">
       ${
@@ -2781,31 +2868,31 @@ function renderCustomers() {
                 `
               )
               .join("")
-          : `<div class="product-admin-empty">${customers.length ? "Nema kupaca za odabranu pretragu." : "Još nema registrovanih kupaca."}</div>`
+          : `<div class="product-admin-empty">${stats.total ? "Nema kupaca za odabranu pretragu." : "Još nema registrovanih kupaca."}</div>`
       }
     </div>
     ${paginationHtml("customers", pageData)}
   `;
 
   $("#customerSearch").addEventListener("input", (event) => {
+    invalidateAdminLoad("customers");
     customerFilters.search = event.target.value;
     listView("customers").page = 1;
     clearTimeout(customerSearchTimer);
-    customerSearchTimer = setTimeout(() => rerenderAfterTyping(event.target, renderCustomers), 500);
+    customerSearchTimer = setTimeout(() => loadCustomers(true), 500);
   });
   $("#clearCustomerFiltersBtn").addEventListener("click", () => {
     customerFilters = { search: "" };
     listView("customers").page = 1;
-    renderCustomers();
+    void loadCustomers(true);
   });
   $("#refreshCustomersBtn").addEventListener("click", async () => {
     await loadCustomers(true);
-    renderCustomers();
   });
   document.querySelectorAll("[data-customer-detail]").forEach((button) => {
-    button.addEventListener("click", () => renderCustomerDetailModal(Number(button.dataset.customerDetail)));
+    button.addEventListener("click", () => openCustomerDetail(Number(button.dataset.customerDetail)));
   });
-  bindPagination("customers", renderCustomers);
+  bindPagination("customers", () => loadCustomers(true));
   bindLoadRetry(panel);
 }
 
@@ -3306,6 +3393,12 @@ window.addEventListener("storage", async (event) => {
 });
 
 function clearAdminData() {
+  clearTimeout(orderSearchTimer);
+  clearTimeout(customerSearchTimer);
+  orderDetailRequest++;
+  customerDetailRequest++;
+  orderDetailRecord = customerDetailRecord = customerDetailPagination = null;
+  recordPages.orders = recordPages.customers = recordStats.orders = recordStats.customers = null;
   $("#cmsRelationDialog")?.close("cancel");
   window.onesCmsFocus.reset();
   closeAdminMenu();

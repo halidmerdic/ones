@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 $_SERVER['HTTP_HOST'] = 'localhost';
 $_SERVER['HTTP_USER_AGENT'] = 'oneS-bootstrap-test';
 define('ONES_API_LIBRARY_ONLY', true);
@@ -12,7 +13,7 @@ function bootstrap_check(bool $condition, string $message): void {
 }
 $config = ['database' => ['driver' => 'sqlite', 'sqlite_path' => ':memory:'], 'security' => ['initial_admin_password' => '']];
 $isLocalHost = true;
-$pdo = database($config);
+$pdo = test_database($config);
 $admin = $pdo->query('SELECT * FROM users WHERE role = "admin"')->fetch();
 bootstrap_check(verify_admin_password('onesadmin', $admin), 'Local demo setup must remain possible');
 bootstrap_check(admin_password_change_required($pdo, (int)$admin['id']), 'Local demo must be restricted');

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 require __DIR__ . '/strict-errors.php';
 $_SERVER['HTTP_HOST'] = 'localhost';
 define('ONES_API_LIBRARY_ONLY', true);
@@ -12,7 +13,7 @@ if (getenv('ONES_TEST_MYSQL_PORT')) {
     $db = ['driver' => 'mysql', 'host' => '127.0.0.1', 'port' => getenv('ONES_TEST_MYSQL_PORT'), 'name' => $name, 'user' => 'root', 'password' => ''];
 }
 if ($input['action'] === 'init') {
-    $pdo = database(['database' => $db, 'security' => ['initial_admin_password' => 'CMS concurrency admin 2026!']]);
+    $pdo = test_database(['database' => $db, 'security' => ['initial_admin_password' => 'CMS concurrency admin 2026!']]);
     if ((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() !== 1 || get_cms_revision($pdo) !== 1) throw new RuntimeException('Fresh DB required');
 } else {
     $pdo = $db['driver'] === 'sqlite' ? new PDO('sqlite:' . $db['sqlite_path']) : new PDO('mysql:host=127.0.0.1;port=' . $db['port'] . ';dbname=' . $db['name'] . ';charset=utf8mb4', 'root', '', [PDO::ATTR_EMULATE_PREPARES => false]);

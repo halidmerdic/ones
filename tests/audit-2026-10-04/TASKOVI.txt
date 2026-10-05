@@ -1,10 +1,10 @@
 PLAN POPRAVKI — odobren 05.10.2026.
 Rad u segmentima od 2–4 povezana taska. Jedan task = jedan problem.
-Trenutni segment: T32–T33; završen lokalno 05.10.2026.
+Trenutni segment: T34–T35; završen lokalno 05.10.2026.
 T10/T12 i pripremljeni kod T11 poslani su na GitHub: 8f79f61.
 T11 čeka službeni email servis i aktivaciju, prema korisnikovom izboru.
 Privremeni app password ne postavljamo, prema dogovoru.
-Ukupno 34/40 taskova završeno: 32 na GitHubu, 2 lokalno.
+Ukupno 36/40 taskova završeno: 34 na GitHubu, 2 lokalno.
 T40 je novi zasebni nalaz otkriven i popravljen tokom testiranja T28.
 T01–T03 poslani na GitHub main: 2a5eb82, 05.10.2026.
 T04–T06 poslani na GitHub main: aa274da, 05.10.2026.
@@ -46,10 +46,10 @@ T28 [GITHUB d228a24] F23 Povratak iz prijave u korpu
 T29 [GITHUB d42ad22] F16 Nedostupan browser storage
 T30 [GITHUB d42ad22] F17 Email u lokalnoj pohrani
 T31 [GITHUB d42ad22] F19 Tablet prelijevanje administracije
-T32 [ZAVRŠENO LOKALNO] dio F20 Fokus modalnih prozora
-T33 [ZAVRŠENO LOKALNO] dio F20 Fokus zatvorenog bočnog menija
-T34 [ČEKA] dio F24 Migracije baze pri svakom zahtjevu
-T35 [ČEKA] dio F24 Serverska paginacija
+T32 [GITHUB cd2399e] dio F20 Fokus modalnih prozora
+T33 [GITHUB cd2399e] dio F20 Fokus zatvorenog bočnog menija
+T34 [ZAVRŠENO LOKALNO] dio F24 Migracije baze pri svakom zahtjevu
+T35 [ZAVRŠENO LOKALNO] dio F24 Serverska paginacija
 T36 [ČEKA] F31 Verzije CSS resursa
 T37 [ČEKA] dio F32 Razvojni artefakti u javnom direktoriju
 T38 [ČEKA] dio F32 IIS zaštita privatnih datoteka
@@ -74,4 +74,6 @@ T19–T22 poslani na GitHub main: fbf5e4c, 05.10.2026. PHP/JS CI i statički Pag
 T23–T25 poslani na GitHub main: 5695977, 05.10.2026. PHP/JS CI i statički Pages build prošli.
 T26–T28 i T40 poslani na GitHub main: d228a24, 05.10.2026. PHP/JS CI i statički Pages build prošli.
 T29–T31 poslani na GitHub main: d42ad22, 05.10.2026. PHP/JS CI i statički Pages build prošli.
-Sljedeći segment: T34–T35 (migracije baze i serverska paginacija).
+T32–T33 poslani na GitHub main: cd2399e, 05.10.2026. PHP/JS CI i statički Pages build prošli.
+Detalji dvanaestog segmenta: SEGMENT-12.txt.
+Sljedeći segment: T36–T38 (CSS verzije, razvojni artefakti i IIS zaštita).

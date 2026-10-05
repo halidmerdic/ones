@@ -1,0 +1,132 @@
+SEGMENT 12 — T34, T35 — 05.10.2026.
+
+GITHUB I STATUS
+T32–T33 su commitovani i poslani na main:
+cd2399ede6dff49d86477e3301f3844bbc57993f
+https://github.com/halidmerdic/ones/commit/cd2399ede6dff49d86477e3301f3844bbc57993f
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37302201010
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37302200357
+Obje provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
+
+T34–T35 su završeni lokalno, bez novog commita/pusha. Ukupno 36/40 taskova:
+34 na GitHubu, 2 lokalno. T11 čeka službeni email servis i aktivaciju prema
+dogovoru. Privremeni app password nije postavljan.
+
+T34 — MIGRACIJE IZVAN WEB ZAHTJEVA
+database() samo uspostavlja vezu i provjerava schema_version. CREATE/ALTER,
+provjere kolona i indeksa, konsolidacija korpi, inicijalizacija koordinacijskih
+tabela i seed administratora izvršavaju se eksplicitnom CLI migracijom.
+Web zahtjev ne kreira ni nedostajući SQLite fajl; bez odgovarajuće verzije
+vraća 503 DATABASE_MIGRATION_REQUIRED. CLI fajlovi preko HTTP-a vraćaju 404.
+
+migrate.php zahtijeva eksplicitni --config; --check je provjera bez migracije.
+Izlaz 0 znači spremnu shemu, 2 potrebnu migraciju, 1 drugu grešku. Nepodržani
+PHP, pogrešan DB driver i nepotpun MySQL config ne mogu dati lažni izlaz 0.
+--development je isključivo za lokalni SQLite i demonstracijsku lozinku.
+Produkciona inicijalizacija zahtijeva jaku administratorsku lozinku.
+
+Migracija usvaja postojeću neverzionisanu bazu, čuva podatke i bilježi uspješnu
+fazu. MySQL GET_LOCK ili SQLite flock sprečavaju paralelno izvršavanje.
+Ponavljanje ne mijenja postojeći sadržaj ni generaciju sesija. Novija verzija
+baze se odbija, bez downgrade-a. Testiran je oporavak nakon neuspjelog seeda.
+MySQL DDL nije transakcijski rollback: za primjenu je obavezan maintenance,
+nativni backup i odvojeni migracijski DB nalog. Upute: DEPLOYMENT.md, dio 20.
+Web nalog treba samo SELECT/INSERT/UPDATE/DELETE. Lokalni start skript prvo
+izvršava --check i prijavljuje potrebnu pripremu umjesto automatske migracije.
+
+T35 — SERVERSKA PAGINACIJA I FILTERI
+Upiti i kupci se pretražuju i listaju u bazi. Podrazumijevana stranica ima 25,
+najviše 50 zapisa; brojači prikazuju stvaran ukupan broj. Validacija odbija
+neispravne veličine, tipove, statuse i datume. Prazan rezultat je stranica 1/1;
+prevelik broj stranice se vraća na posljednju. Redovi i brojanje koriste jedan
+read snapshot. Redoslijed je deterministički, po ID-u opadajuće.
+
+Pretraga ime/email/telefon/ID/artikal, status, raspon datuma i dio naziva artikla
+obuhvataju cijelu historiju. Unicode slova i literalni %, _ i ! su provjereni.
+Pripremljeni SQL parametri i validirani integer limiti sprečavaju SQL injekcije.
+Indeksi pokrivaju kupca, status, datum i ulogu. Posebna izvedena tabela čuva nazive
+artikala iz historijskog upita, nezavisno od kasnijih izmjena kataloga. Pri
+migraciji se popunjava u grupama od 100, pri slanju upita u njegovoj transakciji.
+
+Lista kupaca vraća sažetak, a zaseban detail endpoint jednu stranicu historije.
+Predlošci poruka koriste jedan dodatni posljednji upit: prelazak na stariju
+stranicu ne mijenja upit/status/artikle koje predložak opisuje. Otvaranje upita
+koji nije u trenutno učitanoj stranici koristi zaseban zaštićeni endpoint.
+Status i napomena vraćaju samo promijenjeni upit; aktivna lista se zatim osvježi.
+Nacrt ostaje dostupan i kada promjena statusa ukloni red iz aktivnog filtera.
+Zakašnjele pretrage se zanemaruju, odjava otkazuje debounce i čisti privatne
+podatke. Zatvoren prozor se ne otvara ponovo zbog zakašnjelog odgovora.
+
+Profil kupca koristi customer-orders i prikazuje ukupan broj upita. Vlasnik
+dolazi iz sesije; poslani customerId ne mijenja opseg. Interna napomena i
+administratorska polja nisu u tom odgovoru. Neuspjelo učitavanje zadržava
+prethodnu stranicu i retry traži upravo neuspjelu stranicu. Privatni odgovori
+ostaju no-store. Modalna tastatura/fokus i dodir ostaju funkcionalni.
+
+JSON backup ostaje verzija 3. Schema ledger i izvedeni indeks nisu sadržaj
+backupa; restore ponovo gradi indeks u svojoj transakciji. Izvedena tabela
+također mora biti InnoDB. Vraćanje sesija i rollback ostali su provjereni.
+
+IZVRŠENE PROVJERE
+PHP 8.5.11, izolovani MariaDB 10.4.22 na 127.0.0.1:13316 i stvarni Chrome.
+Testne baze: isključivo ones_segment_test...; HTTP paket u .runtime/segment12-tests.
+SMTP je lokalni capture, bez stvarnog slanja emaila.
+
+- Database migrations: 17 SQLite / 19 MySQL provjera; legacy podaci, ponavljanje,
+  neuspjela inicijalizacija, novija shema, readonly i MySQL nalog bez DDL prava.
+- Paralelna CLI migracija: 22 provjere, 8 nezavisnih procesa, --check bez
+  kreiranja baze, nepoznata opcija i loš config. PHP 7.4 CLI izlaz 1 provjeren.
+- Unmigrated HTTP: 9 provjera prije inicijalizacije (503 i bez kreiranja baze;
+  CLI fajlovi 404). Zatim migracija i --check uspješni.
+- Record pages: po 576 provjera na SQLite i MySQL, 130 kupaca / 464 upita;
+  sve stranice veličina 1/10/25/50, bez preskakanja/duplikata na statičkom skupu,
+  filteri, prazne/posljednje stranice, vlasništvo, predlošci i restore indeksa.
+- Segment 12 browser: 163 provjere na SQLite s postojećim korisnikovim dizajnom
+  i 163 na MySQL s DB nalogom bez DDL prava, bez tih necommitovanih dizajnerskih
+  izmjena. Širine 320/390/768/820/1024/1440, obje teme, server filteri i stranice,
+  historija/profil, napomene, neispravni datumi, zakašnjeli odgovori i odjava.
+- Record details: 11 provjera posljednjeg upita u predlošku, retry-a detalja,
+  posljednje stranice, otvaranja upita izvan učitane liste i emuliranog dodira.
+- CMS focus: 802; focus edges: 30; segment 8 races: 22. Ponovo provjereni
+  tastatura/fokus, osam širina i obje teme, stablo pristupačnosti, modalne
+  potvrde, nacrti, prelazi i kasni odgovori.
+- Segment 1 HTTP/browser: 161 (sedam širina / obje teme), uključujući stvarni
+  JSON restore, XSS, opoziv sesija i ponovno prijavljivanje na DML-only MySQL-u.
+- Smoke: 262 provjere; paket 452 fajla uključuje nove runtime module i ne
+  uključuje konfiguraciju, bazu, upload podatke, testove ili razvojni runtime.
+- Kompletan lokalni PHP/JS CI skup je prošao: auth 11, business 21, storage 13,
+  network 13, CMS XSS 28, restore 9, backup atomicity 114, bootstrap 22, login
+  limits 16, input policy 41, email 36, cart integrity 34, CMS integrity 422,
+  relations 65, sitemap 15, phone 36; JavaScript logout 17, input parity 41,
+  cart concurrency 25, CMS concurrency 17, relations concurrency 31, pricing 22,
+  badges 28, contact/navigation 82, storage 72; email 1 od 8 potvrda, login tačno
+  5 od 20 rezervacija. Nove migracije/paginacija uključene su u CI workflow.
+- MySQL regresije: backup atomicity 114, email 36, cart integrity 35,
+  CMS integrity 422, relations 65; concurrency email 1/8, cart 25, CMS 17,
+  relations 30. Provjerena stvarna konkurentnost nezavisnim procesima.
+- PHP/JavaScript sintaksa i git diff --check bez grešaka; strogi PHP HTTP log
+  bez upozorenja, deprecations i fatalnih grešaka. Vizuelno pregledani screenshotovi.
+
+NAPOMENE I OGRANIČENJA
+Ograničeno je učitavanje u PHP/preglednik; literalna substring pretraga može
+zahtijevati SQL skeniranje. Nije rađen benchmark na produkcionoj količini podataka.
+Offset stranice nisu zamrznut snimak između više zahtjeva: novi upiti mogu
+pomjeriti granice stranica. To je dokumentovano; osvježavanje daje trenutno stanje.
+Telefon/tablet su Chrome emulacija širine i dodira. Fizički iOS/Android, Safari
+i stvarni čitači ekrana nisu testirani. Produkcijska shema i privilegije nisu
+mijenjane; prije deploy-a primijeniti i provjeriti postupak iz odjeljka 20.
+
+SAČUVANE KORISNIKOVE IZMJENE
+admin.css je identičan početnom stanju. U admin.html i login.html izmijenjene
+su samo potrebne JS verzije. profile.html dodaje profile-orders.js i nove JS
+verzije; profile.js samo prosljeđuje query argument, prepušta ukupan brojač
+paginacijskom modulu i poziva onesProfileOrders. Postojeći dizajn je sačuvan.
+Pri narednom commitu izdvojiti samo ove izmjene iz miješanih fajlova; admin.css
+ne stageovati. Kompatibilnost je provjerena na HEAD kopijama tih pet fajlova
+uz minimalne izmjene segmenta 12, bez resetovanja radnog direktorija.
+
+Testni PHP, SMTP i MariaDB procesi su zaustavljeni; sva tri testna porta su
+zatvorena. Privremeni paket, sintetičke baze, testne konfiguracije, mail capture
+i početne kopije fajlova uklonjeni su nakon provjera. PHP runtime je sačuvan.
+
+Sljedeći segment: T36–T38 (CSS verzije, razvojni artefakti i IIS zaštita).

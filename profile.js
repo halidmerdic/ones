@@ -5,8 +5,8 @@ function $(selector) {
   return document.querySelector(selector);
 }
 
-async function api(action, payload) {
-  return window.onesApi(action, payload);
+async function api(action, payload, query) {
+  return window.onesApi(action, payload, query);
 }
 
 function flash(message) {
@@ -259,10 +259,9 @@ async function initProfile() {
     fillProfileForm(data.user);
     $("#profileCartCount").textContent = data.cart.count || 0;
     updateBottomCartCount(data.cart.count || 0);
-    $("#profileOrderCount").textContent = data.orders.length || 0;
     $("#profileFavoriteCount").textContent = (data.favoriteProducts || []).length || 0;
     renderFavorites(data.favoriteProducts || []);
-    renderOrders(data.orders || []);
+    window.onesProfileOrders(data, renderOrders);
   } catch (error) {
     if (error.message.includes("Prijavite se")) {
       window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;

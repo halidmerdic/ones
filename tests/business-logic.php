@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 
 ini_set('session.save_path', sys_get_temp_dir());
 $_SERVER['HTTP_HOST'] = 'localhost';
@@ -30,7 +31,7 @@ try {
         ],
     ];
     $isLocalHost = true;
-    $pdo = database($config);
+    $pdo = test_database($config);
 
     assert_business_test(has_index($pdo, 'cart_items', 'cart_product'), 'korpa ima jedinstven indeks za proizvod');
     assert_business_test(phone_validation_error('+387 61 123 456', true) === null, 'ispravan međunarodni telefon se prihvata');
@@ -80,7 +81,9 @@ try {
     $customerRows = customers_payload($pdo);
     $businessCustomer = array_values(array_filter($customerRows, static fn(array $customer): bool => (int)$customer['id'] === $userId))[0] ?? null;
     assert_business_test(is_array($businessCustomer) && (int)$businessCustomer['orderCount'] === 1, 'CMS pregled kupaca vraća tačan broj upita');
-    assert_business_test((int)($businessCustomer['orders'][0]['id'] ?? 0) === $orderId, 'CMS pregled kupaca vraća najnoviji upit kupca');
+    assert_business_test($businessCustomer['orders'] === [], 'CMS lista kupaca ne preuzima kompletnu historiju');
+    $detail = customer_detail($pdo, $userId, []);
+    assert_business_test((int)($detail['customer']['orders'][0]['id'] ?? 0) === $orderId, 'CMS detalji kupca vraćaju najnoviji upit');
 
     $duplicateBlocked = false;
     try {
@@ -119,6 +122,7 @@ try {
 
     echo 'Business logic checks passed: ' . $checks . PHP_EOL;
 } finally {
+    if (is_file($databasePath . '.migration.lock')) unlink($databasePath . '.migration.lock');
     unset($userInsert, $legacyPdo);
     $pdo = null;
     gc_collect_cycles();

@@ -20,4 +20,4 @@ function worker(action,data={}){return new Promise((resolve,reject)=>{const p=sp
   for(const action of ['add','favorite']){assert.equal((await worker(action,{...args,cartId:after.cart.cartId,cartRevision:after.cart.revision})).conflict,true);checks++;}
  }
  console.log(`CMS relation concurrency: ${checks} checks, up to 8 workers (${process.env.ONES_TEST_MYSQL_PORT?'mysql':'sqlite'})`);
-})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{for(const suffix of ['','-wal','-shm'])if(fs.existsSync(file+suffix))fs.unlinkSync(file+suffix)});
+})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{for(const suffix of ['','-wal','-shm','.migration.lock'])if(fs.existsSync(file+suffix))fs.unlinkSync(file+suffix)});

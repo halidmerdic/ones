@@ -52,4 +52,4 @@ function worker(action, data = {}) {
   const state = (await worker('inspect')).result;
   assert.equal(state.carts.filter(c=>c.status==='active').length,1); checks++;
   console.log(`Segment 5 concurrency: ${checks} checks, 8 independent workers (${process.env.ONES_TEST_MYSQL_PORT?'mysql':'sqlite'})`);
-})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{for(const suffix of ['', '-wal', '-shm']) if(fs.existsSync(file+suffix))fs.unlinkSync(file+suffix)});
+})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{for(const suffix of ['', '-wal', '-shm', '.migration.lock']) if(fs.existsSync(file+suffix))fs.unlinkSync(file+suffix)});

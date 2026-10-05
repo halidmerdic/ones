@@ -17,4 +17,4 @@ const worker = path.join(__dirname, 'email-concurrency-worker.php');
   assert.equal(results.filter(r => r.accepted).length, 1);
   assert.equal(results.filter(r => !r.accepted && r.status === 400).length, 7);
   console.log('Concurrent email confirmation passed: exactly 1 of 8 workers (' + (process.env.ONES_TEST_MYSQL_PORT ? 'mysql' : 'sqlite') + ')');
-})().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => { if (fs.existsSync(file)) fs.unlinkSync(file); });
+})().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => { for (const suffix of ['', '.migration.lock']) if (fs.existsSync(file+suffix)) fs.unlinkSync(file+suffix); });

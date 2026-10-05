@@ -41,4 +41,4 @@ function worker(action,data={}) {
   after=(await worker('read')).result;
   assert.equal(after.revision,state.revision+1);assert.equal(after.history,state.history+1);assert.equal(after.cms.products[0].id,originalId);assert.equal(after.cms.products[0].name,'Final name');checks+=4;
   console.log(`CMS concurrency: ${checks} checks, 8 independent workers (${process.env.ONES_TEST_MYSQL_PORT?'mysql':'sqlite'})`);
-})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{for(const suffix of ['','-wal','-shm'])if(fs.existsSync(file+suffix))fs.unlinkSync(file+suffix)});
+})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{for(const suffix of ['','-wal','-shm','.migration.lock'])if(fs.existsSync(file+suffix))fs.unlinkSync(file+suffix)});

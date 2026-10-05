@@ -154,7 +154,7 @@
     };
   }
 
-  async function api(action, payload) {
+  async function api(action, payload, query = {}) {
     // Catalogue/product buttons use the last version this page actually read.
     // Cart-page edits pass their displayed version explicitly.
     if (action === "cart-add" && payload?.cartId === undefined) {
@@ -174,7 +174,11 @@
           credentials: "same-origin",
         };
 
-    const response = await fetch(`api.php?action=${encodeURIComponent(action)}`, options);
+    const params = [`action=${encodeURIComponent(action)}`];
+    for (const [key, value] of Object.entries(query)) {
+      if (key !== "action" && value !== undefined && value !== null && value !== "") params.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+    }
+    const response = await fetch(`api.php?${params.join("&")}`, options);
     try {
       const data = await readJson(response);
       if (data.cart) lastCart = data.cart;

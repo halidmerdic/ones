@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 $_SERVER['HTTP_HOST'] = 'localhost';
 define('ONES_API_LIBRARY_ONLY', true);
 require __DIR__ . '/../api.php';
@@ -11,7 +12,7 @@ if (getenv('ONES_TEST_MYSQL_PORT')) {
     if (!preg_match('/^ones_segment_test[0-9]+$/D', (string)$name)) throw new RuntimeException('Disposable DB required');
     $config['database'] = ['driver'=>'mysql','host'=>'127.0.0.1','port'=>getenv('ONES_TEST_MYSQL_PORT'),'name'=>$name,'user'=>'root','password'=>''];
 }
-$pdo = database($config);
+$pdo = test_database($config);
 cms_check((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 1, 'Fresh isolated DB');
 $base = get_cms($pdo);
 $base['categories'][0]['attributes'] = [['name'=>'Boja','values'=>['Crna','Bijela']]];

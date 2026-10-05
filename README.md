@@ -7,6 +7,7 @@ The project uses PHP 8.5. On Windows, install the isolated project runtime
 
 ```text
 ./deploy/setup-php.ps1
+./.runtime/php-8.5.11/php.exe migrate.php --config=config.example.php --development
 ./deploy/start-local.ps1
 ```
 
@@ -19,8 +20,13 @@ http://127.0.0.1:8000/index.html
 This leaves XAMPP and the global PATH unchanged. The ignored `.runtime/` directory
 is local only and is excluded from deployment packages. On Linux with PHP 8.5
 and the required extensions, use `php -S 127.0.0.1:8000 deploy/local-router.php`.
-Run `php tests/runtime.php` first. The SQLite database is created automatically
-at `data/ones.sqlite`.
+Run `php tests/runtime.php` first, then explicitly initialize/upgrade the local
+database with `php migrate.php --config=config.example.php --development`.
+This creates `data/ones.sqlite`; web requests never create or migrate tables.
+If using a private `config.local.php`, pass that file instead. `--development`
+is only for local SQLite fixtures and permits the demo password. Before upgrading
+an existing database, stop the server and back it up. Startup checks the schema
+without changing it; missing/outdated schemas return HTTP 503 until migration.
 
 Deployment preparation notes are in `DEPLOYMENT.md`.
 
@@ -33,6 +39,10 @@ For PHP hosting with MySQL, fill in `config.local.php` and set:
 ```
 
 Then enter the MySQL host, database name, username, and password from the hosting panel. Keep this file private. During later code uploads, never overwrite the production `config.local.php`.
+
+Production uses a separate CLI migration account/configuration and a web account
+with only SELECT, INSERT, UPDATE and DELETE. Follow section 20 of `DEPLOYMENT.md`
+for migration, maintenance and rollback; never use `--development` on production.
 
 ## CMS
 

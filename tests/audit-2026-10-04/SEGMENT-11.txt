@@ -8,8 +8,11 @@ PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37296578211
 Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37296577070
 Obje provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
 
-T32–T33 su završeni lokalno. Ukupno 34/40 taskova: 32 na GitHubu, 2 lokalno.
-Ovaj novi segment nije commitovan/pushovan. T11 čeka službeni email servis i
+T32–T33 su poslani na GitHub main: cd2399ede6dff49d86477e3301f3844bbc57993f.
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37302201010
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37302200357
+Obje provjere su prošle. Svih 34 tada završena taska su na GitHubu.
+T11 čeka službeni email servis i
 aktivaciju prema dogovoru; privremeni app password nije postavljan.
 
 T32 — FOKUS MODALNIH PROZORA

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 $_SERVER['HTTP_HOST'] = 'localhost';
 $_SERVER['HTTP_USER_AGENT'] = 'oneS-restore-test';
 define('ONES_API_LIBRARY_ONLY', true);
@@ -12,7 +13,7 @@ function restore_check(bool $ok, string $message): void {
 }
 $config = ['database' => ['driver' => 'sqlite', 'sqlite_path' => ':memory:'], 'security' => ['initial_admin_password' => 'Restore test password 2026!']];
 $isLocalHost = true;
-$pdo = database($config);
+$pdo = test_database($config);
 $pdo->prepare('INSERT INTO users (name,email,password_hash,role,created_at) VALUES (?,?,?,?,?)')
     ->execute(['Customer A', 'a@example.invalid', hash_password('Customer A password 2026!'), 'customer', date('c')]);
 $customer = $pdo->query('SELECT * FROM users WHERE role = "customer"')->fetch();

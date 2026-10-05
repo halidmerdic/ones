@@ -4,6 +4,10 @@ Use this checklist for the Hetzner server and `ones.ba`. The live database,
 `config.local.php`, `data/`, and `uploads/` must never be replaced during a
 normal code deployment.
 
+**Current schema procedure:** section 20 (T34–T35) supersedes older references
+below to automatic database initialization. Run the explicit CLI migration during
+maintenance before serving this release. Web requests never perform migrations.
+
 Security segment T01–T03 (2026-10-05):
 
 - Deploy the complete package, including `backup-validation.php`,
@@ -720,3 +724,128 @@ themes, real keyboard interaction, emulated touch, native confirmations,
 rerenders, close guards, resize, logout and Chrome's accessibility tree via CDP.
 The edges suite optionally saves screenshots to `ONES_TEST_SCREENSHOTS`.
 See `tests/audit-2026-10-04/SEGMENT-11.txt` for completed regression results.
+
+## 20. Explicit schema migrations and server pagination (T34–T35)
+
+This release requires schema version 2. `database()` only connects and reads the
+version ledger; it does not create tables, check every column/index, consolidate
+carts or seed accounts. An absent/older/newer schema returns HTTP 503 with
+`DATABASE_MIGRATION_REQUIRED`. HTTP cannot run `migrate.php` or
+`schema-migrations.php` (404). CLI `--check` exits 2 when migration is required,
+1 on another failure, and 0 when ready. It never creates a missing SQLite file.
+
+Deploy this release during maintenance:
+
+1. Stop HTTP writes and any workers using the database. Keep traffic in
+   maintenance until all checks finish. Take a native database backup plus a copy
+   of uploads and the current release; a CMS JSON export alone is not a schema
+   rollback backup. Verify restoration on an isolated database first.
+2. Extract the complete code package into the new release directory. Keep the
+   live database, media and private web `config.local.php`. Prepare a separate
+   CLI configuration outside the document root, readable only by the deploy
+   account, pointing to the same database with schema migration permissions.
+   Never put this account in the web configuration. For a new installation,
+   privately configure a strong `security.initial_admin_password` before seeding.
+3. With PHP 8.5 and the required extensions, run from the new release:
+
+   ```sh
+   php migrate.php --config=/private/path/ones-migration.php
+   php migrate.php --config=/private/path/ones-runtime.php --check
+   ```
+
+   The second configuration has the same settings/credentials as the actual web
+   process. SQLite configurations must use an absolute database path so moving
+   the config cannot point to a different file. `--development` is exclusively
+   for local SQLite tests and is never used on production.
+4. The migration account needs SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER,
+   INDEX and REFERENCES on the application database. The web account needs only
+   SELECT, INSERT, UPDATE and DELETE. Remove broader existing web grants rather
+   than assuming an additional GRANT revokes them. Preserve the previous private
+   config for rollback; do not change any live grants until testing this release.
+5. Verify admin/customer login, catalogue, inquiry creation, filtered lists,
+   details, pagination and native/JSON restore on a staging copy with that
+   restricted web account. Then switch the release, refresh existing browser
+   tabs and remove maintenance. Migration does not configure the pending SMTP
+   service or activate T11; registration/email-change prerequisites still apply.
+
+Migrations serialize through a MySQL named lock or an SQLite file lock. Existing
+unversioned databases are adopted, required columns/coordination tables are
+created once, and existing customer/order data are preserved. Each successful
+phase records its version. Version 2 creates order/customer/date/status indexes
+and `order_search_items`, rebuilding historical item names in batches of 100.
+Repeated execution is idempotent; newer schema versions cannot be downgraded.
+MySQL DDL implicitly commits: a failed migration can leave partial schema work.
+Keep maintenance active, correct the error and rerun, or restore the native
+database backup together with its matching code/config. Do not manually advance
+the version ledger or run old code against an unverified partial upgrade.
+
+List endpoints now accept `page` and `pageSize` (default 25, maximum 50):
+`admin-orders`, `admin-customers` and `customer-orders`. Responses include
+`pagination` (`page`, `pageSize`, `pageCount`, `total`, `start`); admin lists also
+include global `stats`. Invalid queries return 400 `INVALID_QUERY`; stale page
+numbers clamp to the last page, and empty lists are page 1 of 1. Counts and rows
+use one read snapshot. Ordering is descending ID, with matching customer/status
+indexes. Offset pagination is not a frozen snapshot across successive requests:
+new records can shift pages between requests; refresh starts from current data.
+
+Admin order filters run in SQL across the entire history: `search`, `status`,
+inclusive calendar `date`/`dateTo`, and `product` (literal name substring).
+Unicode case folding and literal `%`, `_`, `!` are tested on both backends.
+Historical item names remain searchable after catalogue edits. Substring search
+may still scan rows; this change bounds downloaded rows and PHP/browser memory,
+not a guarantee of constant database query time at every production size.
+Review query plans/latency on a production-sized staging copy before tuning.
+
+Customer summaries contain aggregate counts/latest status, not nested history.
+`admin-customer-detail?customerId=...` loads one customer and a bounded history;
+`admin-order-detail?orderId=...` retrieves one authorized admin record. Note/status
+mutations return the single `order`; the UI then refreshes the active page.
+Draft notes survive filter changes and out-of-order reads. Detail loads can be
+cancelled by closing the dialog; late responses cannot reopen it after logout.
+Contact templates use one separately fetched latest inquiry, so moving to an
+older customer-history page cannot change the inquiry referenced in a message.
+Private profile history is always scoped to the authenticated customer, ignores
+client-supplied owner IDs and omits internal admin notes/customer identity fields.
+The profile counter is the total, and failed page loads retain previous rows with
+an explicit retry of the requested page. Private responses retain `no-store`.
+
+Ship the PHP modules, `api-client.js`, `admin.js`, `profile-orders.js`,
+`profile.js` and matching HTML references (`20261005-security-12`) together.
+Backup format remains version 3; schema version and derived search rows are not
+exported. JSON restore rebuilds search rows in its transaction, preserving the
+existing rollback/session-revocation behavior. All affected MySQL tables,
+including the derived search table, must be InnoDB.
+
+Regression commands:
+
+```text
+php tests/database-migrations.php
+php tests/record-pages.php
+node tests/migration-concurrency.cjs
+```
+
+For HTTP/browser tests, use the disposable package and SMTP capture from section
+16 in `.runtime/segment12-tests/web`, with PHP on 127.0.0.1:18765 and SMTP on
+127.0.0.1:10255. Use a fresh SQLite file under that package's `data/`, or a new
+`ones_segment_test...` database on the isolated MariaDB instance at port 13316.
+Migrate it explicitly with the fixture's strong initial password
+`Segment one admin password 2026!`; never use these synthetic credentials on a
+real server. Set `ONES_DISPOSABLE_TEST=1`, `ONES_TEST_URL` to the loopback URL,
+`ONES_TEST_MAIL` to the capture file, and `PHP_BINARY` to PHP 8.5. Then run:
+
+```text
+php tests/record-pages-http-fixture.php .runtime/segment12-tests/web/config.local.php
+node tests/segment12-browser.cjs
+node tests/record-details-browser.cjs
+node tests/cms-focus-browser.cjs
+node tests/cms-focus-edges.cjs
+node tests/segment8-races.cjs
+```
+
+The seeder refuses an existing populated database and creates 130 customers/464
+orders, including a verified synthetic `page0@example.invalid` customer with
+password `Page customer password 2026!`. Run the pagination suite first: it
+expects those exact counts and then changes a status/note. Recreate the fixture
+before repeating it. Existing focus/restore suites create their own local test
+records. Optional `ONES_TEST_SCREENSHOTS` captures layout evidence. See the
+segment 12 report for completed results and platform limitations.

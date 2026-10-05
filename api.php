@@ -15,6 +15,8 @@ require_once __DIR__ . '/cart-integrity.php';
 require_once __DIR__ . '/cms-integrity.php';
 require_once __DIR__ . '/cms-relations.php';
 require_once __DIR__ . '/phone.php';
+require_once __DIR__ . '/database-schema.php';
+require_once __DIR__ . '/record-pages.php';
 
 function request_host(): string
 {
@@ -180,6 +182,7 @@ if ($configPath === '' && !$isLocalHost) {
     exit;
 }
 
+if (PHP_SAPI === 'cli' && defined('ONES_MIGRATION_CONFIG_PATH')) $configPath = ONES_MIGRATION_CONFIG_PATH;
 $config = $configPath !== '' ? require $configPath : require __DIR__ . '/config.example.php';
 
 $allowedHosts = array_map('strtolower', network_config_list(
@@ -677,10 +680,11 @@ final class OrderSubmissionConflict extends RuntimeException
 {
 }
 
-function database(array $config): PDO
+function database_connect(array $config, bool $allowCreate = false): PDO
 {
     $databaseConfig = is_array($config['database'] ?? null) ? $config['database'] : [];
     $driver = strtolower((string)($databaseConfig['driver'] ?? 'sqlite'));
+    if (!in_array($driver, ['mysql', 'sqlite'], true)) throw new RuntimeException('Nepodržan database.driver.');
 
     if ($driver === 'mysql') {
         $host = (string)($databaseConfig['host'] ?? '');
@@ -690,7 +694,7 @@ function database(array $config): PDO
         $password = (string)($databaseConfig['password'] ?? '');
 
         if ($host === '' || $name === '' || $user === '') {
-            respond(['ok' => false, 'message' => 'MySQL config nije popunjen. Provjerite config.local.php.'], 500);
+            throw new RuntimeException('MySQL config nije popunjen. Provjerite config.local.php.');
         }
 
         $dsn = 'mysql:host=' . $host . ';port=' . $port . ';dbname=' . $name . ';charset=utf8mb4';
@@ -700,73 +704,34 @@ function database(array $config): PDO
             PDO::ATTR_EMULATE_PREPARES => false,
             PDO::ATTR_TIMEOUT => 5,
         ]);
-        $pdo->exec('CREATE TABLE IF NOT EXISTS cms_store (`key` VARCHAR(64) PRIMARY KEY, `value` LONGTEXT NOT NULL, updated_at VARCHAR(64) NOT NULL, revision INT UNSIGNED NOT NULL DEFAULT 1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS cms_revisions (id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT, revision INT UNSIGNED NOT NULL, value LONGTEXT NOT NULL, created_at VARCHAR(64) NOT NULL, INDEX(revision)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS users (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, name VARCHAR(190) NOT NULL, email VARCHAR(190) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, role VARCHAR(40) NOT NULL DEFAULT "customer", created_at VARCHAR(64) NOT NULL, phone VARCHAR(80) NOT NULL DEFAULT "", privacy_accepted_at VARCHAR(64) NOT NULL DEFAULT "", auth_version INT UNSIGNED NOT NULL DEFAULT 0) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS carts (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, status VARCHAR(40) NOT NULL DEFAULT "active", created_at VARCHAR(64) NOT NULL, updated_at VARCHAR(64) NOT NULL, INDEX(user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS cart_items (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, cart_id INT UNSIGNED NOT NULL, product_id VARCHAR(190) NOT NULL, quantity INT UNSIGNED NOT NULL DEFAULT 1, created_at VARCHAR(64) NOT NULL, UNIQUE KEY cart_product (cart_id, product_id), INDEX(cart_id), INDEX(product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS product_favorites (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, product_id VARCHAR(190) NOT NULL, created_at VARCHAR(64) NOT NULL, UNIQUE KEY user_product (user_id, product_id), INDEX(user_id), INDEX(product_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS orders (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, user_id INT UNSIGNED NOT NULL, customer_name VARCHAR(190) NOT NULL, customer_email VARCHAR(190) NOT NULL, phone VARCHAR(80) NOT NULL DEFAULT "", note TEXT NOT NULL, status VARCHAR(40) NOT NULL DEFAULT "Novo", items_json LONGTEXT NOT NULL, created_at VARCHAR(64) NOT NULL, updated_at VARCHAR(64) NOT NULL, admin_note VARCHAR(1000) NOT NULL DEFAULT "", INDEX(user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS request_limits (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, action VARCHAR(80) NOT NULL, identifier VARCHAR(190) NOT NULL, created_at VARCHAR(64) NOT NULL, INDEX action_identifier_created (action, identifier, created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
     } else {
         $dbPath = (string)($databaseConfig['sqlite_path'] ?? (__DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'ones.sqlite'));
         $dir = dirname($dbPath);
+        if (!$allowCreate && !is_file($dbPath)) throw new DatabaseMigrationRequired();
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
         }
 
-        $pdo = new PDO('sqlite:' . $dbPath);
+        $pdo = PDO::connect('sqlite:' . $dbPath);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         $pdo->exec('PRAGMA busy_timeout = 5000');
         $pdo->exec('PRAGMA foreign_keys = ON');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS cms_store (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1)');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS cms_revisions (id INTEGER PRIMARY KEY AUTOINCREMENT, revision INTEGER NOT NULL, value TEXT NOT NULL, created_at TEXT NOT NULL)');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "customer", created_at TEXT NOT NULL, privacy_accepted_at TEXT NOT NULL DEFAULT "", auth_version INTEGER NOT NULL DEFAULT 0)');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS carts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, status TEXT NOT NULL DEFAULT "active", created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS cart_items (id INTEGER PRIMARY KEY AUTOINCREMENT, cart_id INTEGER NOT NULL, product_id TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, FOREIGN KEY(cart_id) REFERENCES carts(id))');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS product_favorites (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, product_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(user_id, product_id), FOREIGN KEY(user_id) REFERENCES users(id))');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, customer_name TEXT NOT NULL, customer_email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT "", note TEXT NOT NULL DEFAULT "", status TEXT NOT NULL DEFAULT "Novo", items_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS request_limits (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, identifier TEXT NOT NULL, created_at TEXT NOT NULL)');
+        $pdo->createFunction('ones_lower', static fn($value) => mb_strtolower((string)$value, 'UTF-8'), 1, Pdo\Sqlite::DETERMINISTIC);
     }
 
-    if (!has_column($pdo, 'users', 'phone')) {
-        $pdo->exec(database_driver($pdo) === 'mysql'
-            ? 'ALTER TABLE users ADD COLUMN phone VARCHAR(80) NOT NULL DEFAULT ""'
-            : 'ALTER TABLE users ADD COLUMN phone TEXT NOT NULL DEFAULT ""');
-    }
-    if (!has_column($pdo, 'users', 'privacy_accepted_at')) {
-        $pdo->exec(database_driver($pdo) === 'mysql'
-            ? 'ALTER TABLE users ADD COLUMN privacy_accepted_at VARCHAR(64) NOT NULL DEFAULT ""'
-            : 'ALTER TABLE users ADD COLUMN privacy_accepted_at TEXT NOT NULL DEFAULT ""');
-    }
-    if (!has_column($pdo, 'users', 'auth_version')) {
-        $pdo->exec(database_driver($pdo) === 'mysql'
-            ? 'ALTER TABLE users ADD COLUMN auth_version INT UNSIGNED NOT NULL DEFAULT 0'
-            : 'ALTER TABLE users ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 0');
-    }
-    if (!has_column($pdo, 'cms_store', 'revision')) {
-        $pdo->exec(database_driver($pdo) === 'mysql'
-            ? 'ALTER TABLE cms_store ADD COLUMN revision INT UNSIGNED NOT NULL DEFAULT 1'
-            : 'ALTER TABLE cms_store ADD COLUMN revision INTEGER NOT NULL DEFAULT 1');
-    }
-    if (!has_column($pdo, 'orders', 'admin_note')) {
-        $pdo->exec(database_driver($pdo) === 'mysql'
-            ? 'ALTER TABLE orders ADD COLUMN admin_note VARCHAR(1000) NOT NULL DEFAULT ""'
-            : 'ALTER TABLE orders ADD COLUMN admin_note TEXT NOT NULL DEFAULT ""');
-    }
-    ensure_cart_item_uniqueness($pdo);
-    initialize_auth_state($pdo);
-    initialize_login_limits($pdo);
-    initialize_email_security($pdo);
-    initialize_cart_integrity($pdo);
-    seed_database($pdo);
     return $pdo;
 }
 
-function seed_database(PDO $pdo): void
+function database(array $config): PDO
 {
-    global $config, $isLocalHost;
+    $pdo = database_connect($config);
+    require_database_schema($pdo);
+    return $pdo;
+}
+
+function seed_database(PDO $pdo, array $config, bool $isLocalHost): void
+{
 
     $keyColumn = quote_identifier($pdo, 'key');
     $count = (int)$pdo->query('SELECT COUNT(*) FROM cms_store WHERE ' . $keyColumn . ' = "cms"')->fetchColumn();
@@ -2096,6 +2061,7 @@ function create_order_from_cart(PDO $pdo, int $userId, int $cartId, array $user,
             ':updated_at' => $now,
         ]);
         $orderId = (int)$pdo->lastInsertId();
+        index_order_items($pdo, $orderId, $items);
 
         $closeCart = $pdo->prepare('UPDATE carts SET status = "submitted", revision = revision + 1, updated_at = :updated_at WHERE id = :id AND user_id = :user_id AND status = "active"');
         $closeCart->execute([':updated_at' => $now, ':id' => $cartId, ':user_id' => $userId]);
@@ -2159,93 +2125,10 @@ function favorite_products_payload(PDO $pdo, int $userId): array
     return $favoriteProducts;
 }
 
-function orders_payload(PDO $pdo): array
-{
-    $stmt = $pdo->query('SELECT id, user_id, customer_name, customer_email, phone, note, admin_note, status, items_json, created_at, updated_at FROM orders ORDER BY id DESC');
-    $orders = [];
-
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $items = json_decode((string)$row['items_json'], true);
-        $orders[] = [
-            'id' => (int)$row['id'],
-            'userId' => (int)$row['user_id'],
-            'customerName' => $row['customer_name'],
-            'customerEmail' => $row['customer_email'],
-            'phone' => $row['phone'],
-            'note' => $row['note'],
-            'adminNote' => $row['admin_note'],
-            'status' => $row['status'],
-            'items' => is_array($items) ? $items : [],
-            'createdAt' => $row['created_at'],
-            'updatedAt' => $row['updated_at'],
-        ];
-    }
-
-    return $orders;
-}
-
-function customer_orders_payload(PDO $pdo, int $userId): array
-{
-    $stmt = $pdo->prepare('SELECT id, phone, note, status, items_json, created_at, updated_at FROM orders WHERE user_id = :user_id ORDER BY id DESC');
-    $stmt->execute([':user_id' => $userId]);
-    $orders = [];
-
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $items = json_decode((string)$row['items_json'], true);
-        $orders[] = [
-            'id' => (int)$row['id'],
-            'phone' => $row['phone'],
-            'note' => $row['note'],
-            'status' => $row['status'],
-            'items' => is_array($items) ? $items : [],
-            'createdAt' => $row['created_at'],
-            'updatedAt' => $row['updated_at'],
-        ];
-    }
-
-    return $orders;
-}
-
-function customers_payload(PDO $pdo): array
-{
-    $stmt = $pdo->query('SELECT id, name, email, phone, created_at FROM users WHERE role = "customer" ORDER BY id DESC');
-    $customers = [];
-    $ordersByUser = [];
-    $orderStmt = $pdo->query('SELECT id, user_id, phone, note, admin_note, status, items_json, created_at, updated_at FROM orders ORDER BY user_id, id DESC');
-
-    foreach ($orderStmt->fetchAll(PDO::FETCH_ASSOC) as $order) {
-        $userId = (int)$order['user_id'];
-        $items = json_decode((string)$order['items_json'], true);
-        $ordersByUser[$userId][] = [
-            'id' => (int)$order['id'],
-            'phone' => $order['phone'],
-            'note' => $order['note'],
-            'adminNote' => $order['admin_note'],
-            'status' => $order['status'],
-            'items' => is_array($items) ? $items : [],
-            'createdAt' => $order['created_at'],
-            'updatedAt' => $order['updated_at'],
-        ];
-    }
-
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $orders = $ordersByUser[(int)$row['id']] ?? [];
-
-        $customers[] = [
-            'id' => (int)$row['id'],
-            'name' => $row['name'],
-            'email' => $row['email'],
-            'phone' => $row['phone'],
-            'createdAt' => $row['created_at'],
-            'orderCount' => count($orders),
-            'lastOrderAt' => $orders[0]['createdAt'] ?? '',
-            'lastOrderStatus' => $orders[0]['status'] ?? '',
-            'orders' => $orders,
-        ];
-    }
-
-    return $customers;
-}
+// Bounded compatibility helpers for library callers. HTTP routes return page metadata too.
+function orders_payload(PDO $pdo): array { return order_page($pdo)['orders']; }
+function customer_orders_payload(PDO $pdo, int $userId): array { return order_page($pdo, [], $userId, false)['orders']; }
+function customers_payload(PDO $pdo): array { return customer_page($pdo)['customers']; }
 
 function table_rows(PDO $pdo, string $table): array
 {
@@ -2340,7 +2223,7 @@ function restore_backup_payload(PDO $pdo, array $backup, ?string $backupDirector
     }
     if (database_driver($pdo) === 'mysql') {
         $engines = $pdo->query("SELECT TABLE_NAME, ENGINE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE()")->fetchAll(PDO::FETCH_KEY_PAIR);
-        foreach (['cms_store', 'cms_revisions', 'users', 'carts', 'cart_items', 'product_favorites', 'orders', 'auth_state', 'email_lock', 'email_challenges', 'customer_email_state'] as $table) {
+        foreach (['cms_store', 'cms_revisions', 'users', 'carts', 'cart_items', 'product_favorites', 'orders', 'order_search_items', 'auth_state', 'email_lock', 'email_challenges', 'customer_email_state'] as $table) {
             if (strtolower((string)($engines[$table] ?? '')) !== 'innodb') {
                 throw new RuntimeException('Restore zahtijeva InnoDB transakcijsku tabelu: ' . $table);
             }
@@ -2367,6 +2250,7 @@ function restore_backup_payload(PDO $pdo, array $backup, ?string $backupDirector
         insert_rows($pdo, 'cart_items', $backup['tables']['cart_items']);
         insert_rows($pdo, 'product_favorites', $backup['tables']['product_favorites']);
         insert_rows($pdo, 'orders', $backup['tables']['orders']);
+        rebuild_order_items($pdo);
         rotate_auth_epoch($pdo);
         $pdo->commit();
     } catch (Throwable $error) {
@@ -2521,6 +2405,7 @@ try {
             respond(['ok' => false, 'message' => 'Korisnik nije pronađen.'], 404);
         }
 
+        $history = order_page($pdo, $_GET, $userId, false);
         respond([
             'ok' => true,
             'user' => array_merge(customer_email_details($pdo, $userId, $user['email']), [
@@ -2529,11 +2414,18 @@ try {
                 'phone' => $user['phone'],
                 'createdAt' => $user['created_at'],
             ]),
-            'orders' => customer_orders_payload($pdo, $userId),
+            'orders' => $history['orders'],
+            'orderPagination' => $history['pagination'],
+            'orderCount' => $history['pagination']['total'],
             'cart' => cart_payload($pdo, $userId),
             'favorites' => favorites_payload($pdo, $userId),
             'favoriteProducts' => favorite_products_payload($pdo, $userId),
         ]);
+    }
+
+    if ($action === 'customer-orders') {
+        $userId = require_customer();
+        respond(['ok' => true] + order_page($pdo, $_GET, $userId, false));
     }
 
     if ($action === 'customer-profile-update') {
@@ -2808,12 +2700,26 @@ try {
 
     if ($action === 'admin-orders') {
         require_admin();
-        respond(['ok' => true, 'orders' => orders_payload($pdo)]);
+        respond(['ok' => true] + order_page($pdo, $_GET));
     }
 
     if ($action === 'admin-customers') {
         require_admin();
-        respond(['ok' => true, 'customers' => customers_payload($pdo)]);
+        respond(['ok' => true] + customer_page($pdo, $_GET));
+    }
+
+    if ($action === 'admin-order-detail') {
+        require_admin();
+        $order = order_detail($pdo, record_integer($_GET, 'orderId', 0));
+        if (!$order) respond(['ok' => false, 'message' => 'Upit nije pronađen.'], 404);
+        respond(['ok' => true, 'order' => $order]);
+    }
+
+    if ($action === 'admin-customer-detail') {
+        require_admin();
+        $detail = customer_detail($pdo, record_integer($_GET, 'customerId', 0), $_GET);
+        if (!$detail) respond(['ok' => false, 'message' => 'Kupac nije pronađen.'], 404);
+        respond(['ok' => true] + $detail);
     }
 
     if ($action === 'admin-order-status') {
@@ -2834,7 +2740,7 @@ try {
 
         $stmt = $pdo->prepare('UPDATE orders SET status = :status, updated_at = :updated_at WHERE id = :id');
         $stmt->execute([':status' => $status, ':updated_at' => date('c'), ':id' => $orderId]);
-        respond(['ok' => true, 'orders' => orders_payload($pdo)]);
+        respond(['ok' => true, 'order' => order_detail($pdo, $orderId)]);
     }
 
     if ($action === 'admin-order-note') {
@@ -2857,7 +2763,7 @@ try {
 
         $stmt = $pdo->prepare('UPDATE orders SET admin_note = :note, updated_at = :updated_at WHERE id = :id');
         $stmt->execute([':note' => $note, ':updated_at' => date('c'), ':id' => $orderId]);
-        respond(['ok' => true, 'orders' => orders_payload($pdo)]);
+        respond(['ok' => true, 'order' => order_detail($pdo, $orderId)]);
     }
 
     if ($action === 'backup-download') {
@@ -2962,6 +2868,10 @@ try {
 } catch (EmailFlowError $error) {
     if ($error->status === 429) header('Retry-After: 60');
     respond(['ok' => false, 'message' => $error->getMessage(), 'code' => 'EMAIL_VERIFICATION'], $error->status);
+} catch (InvalidRecordQuery $error) {
+    respond(['ok' => false, 'code' => 'INVALID_QUERY', 'message' => $error->getMessage()], 400);
+} catch (DatabaseMigrationRequired $error) {
+    respond(['ok' => false, 'code' => 'DATABASE_MIGRATION_REQUIRED', 'message' => $error->getMessage()], 503);
 } catch (Throwable $error) {
     error_log('oneS API error: ' . $error->getMessage());
     respond([

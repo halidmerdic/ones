@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 require __DIR__ . '/strict-errors.php';
 $_SERVER['HTTP_HOST'] = 'localhost';
 define('ONES_API_LIBRARY_ONLY', true);
@@ -13,7 +14,7 @@ if (getenv('ONES_TEST_MYSQL_PORT')) {
 }
 $config = ['database' => $db, 'security' => ['initial_admin_password' => 'Concurrency admin password 2026!']];
 if ($input['action'] === 'init') {
-    $pdo = database($config);
+    $pdo = test_database($config);
     if ((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() !== 1) throw new RuntimeException('Fresh DB required');
     $pdo->prepare('INSERT INTO users(name,email,password_hash,role,created_at) VALUES (?,?,?,"customer",?)')->execute(['Race', 'race@example.invalid', hash_password('Concurrency customer 2026!'), date('c')]);
     $uid = (int)$pdo->lastInsertId();

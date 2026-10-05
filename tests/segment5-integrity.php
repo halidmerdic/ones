@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 $_SERVER['HTTP_HOST'] = 'localhost';
 define('ONES_API_LIBRARY_ONLY', true);
 require __DIR__ . '/../api.php';
@@ -37,7 +38,7 @@ class SnapshotTestPDO extends PDO {
         return $result;
     }
 }
-$pdo = database($config);
+$pdo = test_database($config);
 $dsn = $db['driver'] === 'mysql' ? 'mysql:host=127.0.0.1;port='.$db['port'].';dbname='.$db['name'] : 'sqlite:'.$file;
 $reader = new SnapshotTestPDO($dsn, $db['driver']==='mysql'?'root':null, $db['driver']==='mysql'?'':null, [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES=>false]);
 if ($db['driver'] === 'sqlite') { $pdo->exec('PRAGMA journal_mode = WAL'); $reader->exec('PRAGMA busy_timeout=10000'); }
@@ -94,13 +95,13 @@ try {
     initialize_cart_integrity($pdo);
     check5(cart_payload($pdo,(int)$cart['user_id'])===$migrated,'Migration is idempotent');
     if (database_driver($pdo)==='mysql') {
-        $pdo->exec('ALTER TABLE orders ENGINE=MyISAM');
+        $pdo->exec('ALTER TABLE cms_store ENGINE=MyISAM');
         try { backup_payload($reader); throw new LogicException('Nontransactional backup accepted'); }
         catch (RuntimeException $e) { check5(str_contains($e->getMessage(),'InnoDB'),'Rejects nontransactional backup tables'); }
-        finally { $pdo->exec('ALTER TABLE orders ENGINE=InnoDB'); }
+        finally { $pdo->exec('ALTER TABLE cms_store ENGINE=InnoDB'); }
     }
     echo 'Segment 5 integrity: '.$checks.' checks ('.$db['driver'].')'.PHP_EOL;
 } finally {
     $pdo=null; $reader=null; gc_collect_cycles();
-    foreach (['','-wal','-shm'] as $suffix) if (is_file($file.$suffix)) unlink($file.$suffix);
+    foreach (['','-wal','-shm','.migration.lock'] as $suffix) if (is_file($file.$suffix)) unlink($file.$suffix);
 }

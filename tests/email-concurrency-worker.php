@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/database-fixture.php';
 $_SERVER['HTTP_HOST'] = 'localhost';
 define('ONES_API_LIBRARY_ONLY', true);
 require __DIR__ . '/../api.php';
@@ -11,7 +12,7 @@ if (getenv('ONES_TEST_MYSQL_PORT')) {
     $db = ['driver' => 'mysql', 'host' => '127.0.0.1', 'port' => getenv('ONES_TEST_MYSQL_PORT'), 'name' => $name, 'user' => 'root', 'password' => ''];
 }
 if ($input['action'] === 'init') {
-    $pdo = database(['database' => $db, 'security' => ['initial_admin_password' => 'Concurrency admin password 2026!']]);
+    $pdo = test_database(['database' => $db, 'security' => ['initial_admin_password' => 'Concurrency admin password 2026!']]);
     if ((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() !== 1) throw new RuntimeException('Fresh DB required');
     $token = bin2hex(random_bytes(32));
     insert_rows($pdo, 'email_challenges', [['token_hash' => hash('sha256', $token), 'kind' => 'signup', 'user_id' => 0, 'email' => 'race@example.invalid', 'old_email' => '', 'name' => 'Race test', 'auth_version' => 0, 'auth_epoch' => auth_epoch($pdo), 'created_at' => time(), 'expires_at' => time() + 1800, 'sent' => 1]]);
