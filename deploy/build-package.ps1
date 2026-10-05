@@ -116,7 +116,7 @@ try {
   try {
     foreach ($relativePath in $packageFiles) {
       $sourcePath = Join-Path $projectRoot $relativePath
-      $sourceFile = Get-Item -LiteralPath $sourcePath
+      $sourceFile = Get-Item -LiteralPath $sourcePath -Force
       $entry = $archive.CreateEntry($relativePath, [IO.Compression.CompressionLevel]::Optimal)
       $entry.LastWriteTime = $sourceFile.LastWriteTime
       $entryStream = $entry.Open()

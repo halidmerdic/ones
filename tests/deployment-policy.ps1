@@ -34,6 +34,9 @@ function Test-Package([string]$File) {
     foreach ($name in @('config.local.php','data/test.sqlite','data/ones.sqlite','deployment-old/index.html','ones-backup.zip','README.md','tests/deployment-policy.ps1','deploy/build-package.ps1','_config.yml')) {
       Assert-Policy ($null -eq $archive.GetEntry($name)) "Private file packaged: $name"
     }
+    foreach ($name in @('.htaccess','data/.htaccess','data/backups/.htaccess','uploads/.htaccess')) {
+      Assert-Policy ($null -ne $archive.GetEntry($name)) "Required hidden protection file missing: $name"
+    }
     return $versions
   } finally { $archive.Dispose() }
 }
@@ -70,15 +73,21 @@ try {
   try { & $builder -OutputPath (Join-Path $temporary 'poisoned.zip') | Out-Null } catch { $rejected = $true }
   Assert-Policy $rejected 'Private JSON in public assets was packaged'
 
-  # Jekyll 3/4 include also has a literal prefix fallback; filenames must defeat it.
+  # Reader filters entry basenames at each level; EntryFilter includes bypass excludes.
+  # Match the recursive traversal, not just one full relative path against a glob.
   $yaml = Get-OneSCanonicalText (Join-Path $root '_config.yml')
   $includes = @([regex]::Matches(($yaml -split 'exclude:')[0], "(?m)^  - '([^']+)'$") | ForEach-Object { $_.Groups[1].Value })
   function Included-InPages([string]$Name) {
-    return @($includes | Where-Object { $Name -clike $_ -or $Name.StartsWith($_, [StringComparison]::Ordinal) }).Count -gt 0
+    foreach ($entry in ($Name -split '/')) {
+      if (@($includes | Where-Object { $entry -clike $_ -or $entry.StartsWith($_, [StringComparison]::Ordinal) }).Count -eq 0) { return $false }
+    }
+    return $true
   }
   foreach ($page in (Get-OneSPublicPages)) { Assert-Policy (Included-InPages $page) "Static page missing: $page" }
   foreach ($name in @('assets','assets/vendor/purify-3.4.16.min.js','admin.css','profile-orders.js')) { Assert-Policy (Included-InPages $name) "Static asset missing: $name" }
-  foreach ($name in @('api.php','config.local.php','admin.js.bak','index.html.old','web.config','README.md','tests/audit/report.html','deployment-old/index.html','ones.zip','.env','data/ones.sqlite','vendor/phpmailer/src/SMTP.php')) { Assert-Policy (-not (Included-InPages $name)) "Private static preview entry: $name" }
+  $publicAssets = @(Get-ChildItem -LiteralPath (Join-Path $root 'assets') -Recurse -File | ForEach-Object { $_.FullName.Substring($root.Length).TrimStart([char[]]'\/').Replace('\','/') } | Where-Object { $_ -ne 'assets/vendor/DOMPurify-LICENSE' })
+  foreach ($asset in $publicAssets) { Assert-Policy (Included-InPages $asset) "Public asset missing from static preview: $asset" }
+  foreach ($name in @('api.php','config.local.php','admin.js.bak','index.html.old','web.config','README.md','tests/audit/report.html','deployment-old/index.html','ones.zip','.env','data/ones.sqlite','vendor/phpmailer/src/SMTP.php','assets/private.json','assets/private.php','assets/.env','assets/ones-logo.webp.bak','assets/vendor/purify-3.4.16.min.js.bak','assets/vendor/DOMPurify-LICENSE')) { Assert-Policy (-not (Included-InPages $name)) "Private static preview entry: $name" }
   Assert-Policy ($yaml -match "exclude:\s+- '\*'\s+- '\*\*/\*'") 'Pages must exclude everything not explicitly included'
 
   foreach ($file in @('web.config','data/web.config')) {

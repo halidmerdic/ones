@@ -33,7 +33,21 @@ include:
   - '[v]erify.css'
   - '[r]obots.txt'
   - '[a]ssets'
-  - 'assets/**'
+  # Jekyll filters each directory by entry basename, not its full relative path.
+  # Explicit asset basenames also avoid accidentally including backup suffixes.
+  - '[v]endor'
+  - '[p]urify-3.4.16.min.js'
+  - '[o]nes-logo.webp'
+  - '[h]ero-f3-promax-platform-light.webp'
+  - '[h]ero-f3-promax-platform-light.png'
+  - '[h]ero-f3-promax-platform-dark-v2.webp'
+  - '[h]ero-f3-promax-platform-dark-v2.png'
+  - '[f]avicon.svg'
+  - '[f]3-promax-hero.png'
+  - '[f]3-promax-cutout.png'
+  - '[f]3-lineup-mobile.webp'
+  - '[f]3-lineup-hero.webp'
+  - '[f]3-lineup-hero.png'
 exclude:
   - '*'
   - '**/*'

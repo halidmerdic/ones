@@ -1,10 +1,10 @@
 PLAN POPRAVKI — odobren 05.10.2026.
 Rad u segmentima od 2–4 povezana taska. Jedan task = jedan problem.
-Posljednji segment: T36–T38; završen 05.10.2026. i obuhvaćen ovim commitom.
+Posljednji segment: T36–T38; poslan na GitHub 05.10.2026, commit 8764128.
 T10/T12 i pripremljeni kod T11 poslani su na GitHub: 8f79f61.
 T11 čeka službeni email servis i aktivaciju, prema korisnikovom izboru.
 Privremeni app password ne postavljamo, prema dogovoru.
-Ukupno 39/40 taskova završeno; ovaj commit uključuje posljednja tri taska.
+Ukupno 39/40 taskova završeno i poslano na GitHub.
 T40 je novi zasebni nalaz otkriven i popravljen tokom testiranja T28.
 T01–T03 poslani na GitHub main: 2a5eb82, 05.10.2026.
 T04–T06 poslani na GitHub main: aa274da, 05.10.2026.
@@ -50,9 +50,9 @@ T32 [GITHUB cd2399e] dio F20 Fokus modalnih prozora
 T33 [GITHUB cd2399e] dio F20 Fokus zatvorenog bočnog menija
 T34 [GITHUB 8f0d74a] dio F24 Migracije baze pri svakom zahtjevu
 T35 [GITHUB 8f0d74a] dio F24 Serverska paginacija
-T36 [ZAVRŠENO — OVAJ COMMIT] F31 Verzije CSS resursa
-T37 [ZAVRŠENO — OVAJ COMMIT] dio F32 Razvojni artefakti u javnom direktoriju
-T38 [ZAVRŠENO — OVAJ COMMIT; APACHE PODRŠKA, IIS ODBIJEN] dio F32 IIS zaštita privatnih datoteka
+T36 [GITHUB 8764128] F31 Verzije CSS resursa
+T37 [GITHUB 8764128; DOPUNA U OVOM COMMITU] dio F32 Razvojni artefakti u javnom direktoriju
+T38 [GITHUB 8764128; APACHE PODRŠKA, IIS ODBIJEN] dio F32 IIS zaštita privatnih datoteka
 T39 [GITHUB e73afa4] Novi nalaz: broj u nazivu proizvoda ruši sitemap
 T40 [GITHUB d228a24] Novi nalaz: link kartice prekriva dugmad za upit/korpu/favorite
 
@@ -83,3 +83,5 @@ Nema narednog otvorenog segmenta nezavisnog od T11. Nakon email aktivacije slije
 produkcijski rollout i provjere izvan lokalnog testnog okruženja kao zasebni
 operativni koraci; nijedan PHP deploy nije izvršen. Rezultati CI/Pages provjera
 vezani su za commit i dostupni u GitHub Actions nakon pusha.
+Dopuna nakon prvog pusha: Linux pristup skrivenom .htaccess fajlu i objavljivanje
+Pages asseta po basename pravilima. Lokalna proširena provjera: 152 testa.

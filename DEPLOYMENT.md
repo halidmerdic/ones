@@ -916,8 +916,11 @@ the complete package, run Apache configtest, and verify public routes and denied
 paths through the real host. Do not upload the entire Git checkout. The existing
 static GitHub Pages build now has `_config.yml`: default exclusion with explicit
 public pages/scripts/styles/assets. Bracket patterns avoid Jekyll's literal
-prefix inclusion of filenames such as `admin.js.bak`. This does not add PHP to
-Pages. Verify the cloud Pages result and exclusions after pushing this segment.
+prefix inclusion of filenames such as `admin.js.bak`. Jekyll traverses directories
+using entry basenames: public asset names and their parent directories are listed
+explicitly too. Add new public assets to that list; CI checks every current asset
+is included and private/backup names are excluded. This does not add PHP to Pages.
+Verify the cloud Pages result, actual asset URLs and exclusions after pushing.
 
 IIS is not a supported production target. The previous `web.config` looked like
 support while implementing only part of the Apache restrictions. Root and data

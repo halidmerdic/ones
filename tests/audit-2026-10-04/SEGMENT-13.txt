@@ -137,3 +137,14 @@ provjera. Historijska arhiva od 93 fajla i podržani PHP runtime su sačuvani.
 
 Preostaje T11 nakon izbora službenog email servisa. T36–T38 su obuhvaćeni ovim
 commitom. Time nema narednog otvorenog segmenta popravki nezavisnog od T11.
+
+NAKNADNA PROVJERA GITHUB OKRUŽENJA
+Osnovni segment je poslan na main: 8764128a911c7cece71585a26e2315b038b939b5.
+PHP/JS regresije su prošle, ali Linux packaging korak nije mogao dohvatiti
+skriveni .htaccess bez Get-Item -Force. Pages build je prošao i privatni URL-ovi
+su vraćali 404, ali slike nisu objavljene: Jekyll Reader filtrira basename
+svakog nivoa direktorija, pa prethodni assets/** include nije bio dovoljan.
+Ovaj dodatak popravlja oba slučaja. Test paketa eksplicitno provjerava četiri
+skrivena zaštitna fajla, a Pages test prolazi svaki nivo putanje, sve postojeće
+javne assete i privatne/backup nazive. Nema izmjene produkcijskog servera.
+Proširena deployment policy provjera lokalno prolazi svih 152 testa.
