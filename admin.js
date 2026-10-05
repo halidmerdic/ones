@@ -2241,7 +2241,7 @@ function renderProducts() {
 }
 
 function normalizePhone(phone) {
-  return String(phone || "").replace(/[^\d]/g, "");
+  return window.onesPhone(phone);
 }
 
 function itemsText(items = []) {
@@ -2416,8 +2416,8 @@ function renderOrderDetailModal(orderId) {
   $("#orderDetailModal")?.remove();
   const statuses = ["Novo", "U obradi", "Kontaktiran", "Završeno", "Otkazano"];
   const phone = normalizePhone(order.phone);
-  const whatsapp = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(orderMessage(order, "whatsapp"))}` : "";
-  const viber = phone ? `viber://chat?number=%2B${phone}&text=${encodeURIComponent(orderMessage(order, "viber"))}` : "";
+  const whatsapp = phone ? window.onesPhoneUrl(phone, "whatsapp", orderMessage(order, "whatsapp")) : "";
+  const viber = phone ? window.onesPhoneUrl(phone, "viber", orderMessage(order, "viber")) : "";
   const emailUrl = mailtoUrl(order.customerEmail || "", orderEmailSubject(order), orderEmailBody(order));
   const items = (order.items || [])
     .map((item) => `<li><span>${escapeHtml(item.name)} x${Number(item.quantity) || 1}</span><strong>${escapeHtml(item.price || "0")}</strong></li>`)
@@ -2629,8 +2629,8 @@ function renderCustomerDetailModal(customerId) {
   $("#customerDetailModal")?.remove();
   const phone = normalizePhone(customer.phone);
   const customerText = customerMessage(customer);
-  const whatsapp = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(customerText)}` : "";
-  const viber = phone ? `viber://chat?number=%2B${phone}&text=${encodeURIComponent(customerText)}` : "";
+  const whatsapp = phone ? window.onesPhoneUrl(phone, "whatsapp", customerText) : "";
+  const viber = phone ? window.onesPhoneUrl(phone, "viber", customerText) : "";
   const emailUrl = mailtoUrl(customer.email || "", customerEmailSubject(customer), customerEmailBody(customer));
   const orderItems = (customer.orders || [])
     .map((order) => {

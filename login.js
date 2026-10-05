@@ -36,17 +36,17 @@ function rememberCustomerPreview(user) {
 
 function redirectAfterLogin() {
   const next = new URLSearchParams(window.location.search).get("next");
-  if (!next) {
-    window.location.href = "/";
-    return;
-  }
+  window.location.replace(window.onesSafeReturnUrl(next));
+}
 
-  try {
-    const target = new URL(next, window.location.href);
-    window.location.href = target.origin === window.location.origin ? `${target.pathname}${target.search}${target.hash}` : "/";
-  } catch (error) {
-    window.location.href = "/";
-  }
+const returnTarget = new URL(window.onesSafeReturnUrl(new URLSearchParams(window.location.search).get("next")));
+if (returnTarget.pathname.endsWith("/cart.html") || returnTarget.searchParams.get("cartPending") === "1") {
+  const hint = document.createElement("p");
+  hint.id = "loginReturnHint";
+  hint.setAttribute("role", "status");
+  hint.textContent = returnTarget.pathname.endsWith("/cart.html") ? "Nakon prijave vraćate se u svoju korpu."
+    : "Proizvod još nije dodan. Nakon prijave ponovo odaberite Dodaj u korpu na stranici proizvoda.";
+  $("#customerLoginForm").prepend(hint);
 }
 
 async function customerLogin() {

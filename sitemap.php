@@ -108,45 +108,9 @@ function sitemap_public_products(array $cms): array
     ));
 }
 
-function sitemap_blog_matches_products(array $post, array $products): bool
+function sitemap_public_blogs(array $cms): array
 {
-    $ignored = ['ones' => true, 'elektricni' => true, 'proizvod' => true, 'proizvodi' => true];
-    $keywords = [];
-    foreach ($products as $product) {
-        if (($product['enabled'] ?? true) === false) {
-            continue;
-        }
-        $text = sitemap_slugify((string)($product['name'] ?? '') . ' ' . (string)($product['category'] ?? ''));
-        foreach (array_filter(explode('-', $text)) as $word) {
-            if (strlen($word) >= 2 && !isset($ignored[$word])) {
-                $keywords[$word] = true;
-            }
-        }
-    }
-    foreach (array_keys($keywords) as $keyword) {
-        $keyword = (string)$keyword;
-        if (strpos($keyword, 'romobil') !== false || strpos($keyword, 'skuter') !== false) {
-            $keywords['romobil'] = true;
-            $keywords['skuter'] = true;
-            break;
-        }
-    }
-
-    if (!$keywords) {
-        return true;
-    }
-
-    $haystack = sitemap_slugify(
-        (string)($post['title'] ?? '') . ' '
-        . (string)($post['tag'] ?? '') . ' '
-        . strip_tags((string)($post['text'] ?? ''))
-    );
-    foreach (array_keys($keywords) as $keyword) {
-        if (strpos($haystack, (string)$keyword) !== false) {
-            return true;
-        }
-    }
-    return false;
+    return array_filter($cms['blogs'] ?? [], static fn(array $post): bool => ($post['enabled'] ?? true) !== false);
 }
 
 if (defined('ONES_SITEMAP_LIBRARY_ONLY') && ONES_SITEMAP_LIBRARY_ONLY) return;
@@ -172,10 +136,7 @@ foreach ($publicProducts as $product) {
     }
 }
 
-foreach (($cms['blogs'] ?? []) as $index => $post) {
-    if (($post['enabled'] ?? true) === false || !sitemap_blog_matches_products($post, $publicProducts)) {
-        continue;
-    }
+foreach (sitemap_public_blogs($cms) as $index => $post) {
     $id = trim((string)($post['id'] ?? ''));
     if ($id === '') {
         $id = sitemap_slugify((string)($post['title'] ?? ('blog-' . ($index + 1))));

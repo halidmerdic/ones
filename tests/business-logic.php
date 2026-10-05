@@ -72,7 +72,7 @@ try {
     $orderId = create_order_from_cart($pdo, $userId, $cartId, $user, $phone, 'Testni upit', true);
     assert_business_test($orderId > 0, 'aktivna korpa se pretvara u upit');
     assert_business_test((string)$pdo->query('SELECT status FROM carts WHERE id = ' . $cartId)->fetchColumn() === 'submitted', 'poslana korpa se zatvara');
-    assert_business_test((string)$pdo->query('SELECT phone FROM users WHERE id = ' . $userId)->fetchColumn() === $phone, 'telefon se mijenja tek u uspješnoj transakciji');
+    assert_business_test((string)$pdo->query('SELECT phone FROM users WHERE id = ' . $userId)->fetchColumn() === canonical_phone($phone), 'telefon se mijenja tek u uspješnoj transakciji');
 
     $orderItems = json_decode((string)$pdo->query('SELECT items_json FROM orders WHERE id = ' . $orderId)->fetchColumn(), true);
     assert_business_test(($orderItems[0]['productId'] ?? '') === 'scooter-f3' && ($orderItems[0]['quantity'] ?? 0) === 99, 'upit čuva snapshot proizvoda i količine');
@@ -100,7 +100,7 @@ try {
         $unavailableBlocked = true;
     }
     assert_business_test($unavailableBlocked, 'upit sa nedostupnim proizvodom se odbija');
-    assert_business_test((string)$pdo->query('SELECT phone FROM users WHERE id = ' . $userId)->fetchColumn() === $phone, 'odbijeni upit ne mijenja profil kupca');
+    assert_business_test((string)$pdo->query('SELECT phone FROM users WHERE id = ' . $userId)->fetchColumn() === canonical_phone($phone), 'odbijeni upit ne mijenja profil kupca');
 
     $legacyPdo = new PDO('sqlite::memory:');
     $legacyPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

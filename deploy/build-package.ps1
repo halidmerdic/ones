@@ -29,6 +29,7 @@ $runtimeFiles = @(
   "admin.js",
   "api-client.js",
   "api.php",
+  "phone.php",
   "backup-validation.php",
   "login-security.php",
   "pricing.php",

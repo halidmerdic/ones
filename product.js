@@ -1,4 +1,5 @@
 let cms = null;
+let cartRetryRequested = new URLSearchParams(window.location.search).get("cartPending") === "1";
 let product = null;
 let currentCustomer = null;
 let galleryImages = [];
@@ -156,23 +157,19 @@ function setupMobileNav() {
   window.onesSetupMobileNav();
 }
 
-function contactPhone(value) {
-  const digits = String(value || "").replace(/[^\d]/g, "");
-  return digits.startsWith("0") ? `387${digits.slice(1)}` : digits;
-}
-
 function inquiryUrl(channel = "whatsapp") {
-  const text = encodeURIComponent(`Pozdrav, zanima me ${product.name}. Da li je dostupno i koja je cijena?`);
+  const message = `Pozdrav, zanima me ${product.name}. Da li je dostupno i koja je cijena?`;
+  const text = encodeURIComponent(message);
 
   if (channel === "viber") {
-    return `viber://chat?number=%2B${contactPhone(cms.contact.viber)}&text=${text}`;
+    return window.onesPhoneUrl(cms.contact.viber, "viber", message);
   }
 
   if (channel === "email") {
     return `mailto:${encodeURIComponent(cms.contact.email || "info@fontele.ba")}?subject=${encodeURIComponent(`oneS upit - ${product.name}`)}&body=${text}`;
   }
 
-  return `https://wa.me/${contactPhone(cms.contact.whatsapp)}?text=${text}`;
+  return window.onesPhoneUrl(cms.contact.whatsapp, "whatsapp", message);
 }
 
 function closeInquiryModal() {
@@ -218,8 +215,8 @@ function openInquiryModal() {
         <button type="button" class="inquiry-close" aria-label="Zatvori">×</button>
       </div>
       <div class="inquiry-options">
-        <a href="${inquiryUrl("whatsapp")}" target="_blank" rel="noreferrer"><span>W</span><strong>WhatsApp</strong></a>
-        <a href="${inquiryUrl("viber")}" data-viber-link><span>V</span><strong>Viber</strong></a>
+        <a ${inquiryUrl("whatsapp") ? `href="${inquiryUrl("whatsapp")}"` : "hidden"} target="_blank" rel="noreferrer"><span>W</span><strong>WhatsApp</strong></a>
+        <a ${inquiryUrl("viber") ? `href="${inquiryUrl("viber")}"` : "hidden"} data-viber-link><span>V</span><strong>Viber</strong></a>
         <a href="${inquiryUrl("email")}"><span>@</span><strong>Email</strong></a>
       </div>
     </div>
@@ -230,7 +227,7 @@ function openInquiryModal() {
   });
   modal.addEventListener("keydown", (event) => trapModalFocus(event, modal));
   modal.querySelector(".inquiry-close").addEventListener("click", closeInquiryModal);
-  modal.querySelector("[data-viber-link]").addEventListener("click", () => {
+  modal.querySelector("[data-viber-link]")?.addEventListener("click", () => {
     const message = `Pozdrav, zanima me ${product.name}. Da li je dostupno i koja je cijena?`;
     navigator.clipboard?.writeText(message).then(
       () => flash("Poruka za Viber je kopirana. Zalijepite je u razgovor."),
@@ -504,11 +501,16 @@ async function addToCart(event) {
   if (button) button.disabled = true;
   try {
     await api("cart-add", { productId: product.id, quantity: 1 });
+    cartRetryRequested = false;
+    $("#cartRetryHint")?.remove();
+    const returnedUrl = new URL(window.location.href);
+    returnedUrl.searchParams.delete("cartPending");
+    history.replaceState(null, "", returnedUrl.href);
     await loadCartCount();
     flash("Proizvod je dodan u korpu.");
   } catch (error) {
-    if (error.message.includes("Prijavite se")) {
-      window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;
+    if (error.status === 401) {
+      window.location.href = window.onesLoginUrl(window.location.href, true);
       return;
     }
     flash(error.message);
@@ -573,6 +575,7 @@ function renderProduct() {
         <button class="btn btn-primary" type="button" id="detailAddCart">Dodaj u korpu</button>
         <button class="btn btn-secondary" type="button" id="detailInquiryBtn">Pošalji upit</button>
       </div>
+      ${cartRetryRequested ? `<p id="cartRetryHint" role="status">Proizvod još nije dodan. Odaberite Dodaj u korpu da završite ovu radnju.</p>` : ""}
       <div class="detail-specs">
         <h2>Specifikacije</h2>
         <ul class="spec-list">

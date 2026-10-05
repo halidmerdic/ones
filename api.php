@@ -14,6 +14,7 @@ require_once __DIR__ . '/email-security.php';
 require_once __DIR__ . '/cart-integrity.php';
 require_once __DIR__ . '/cms-integrity.php';
 require_once __DIR__ . '/cms-relations.php';
+require_once __DIR__ . '/phone.php';
 
 function request_host(): string
 {
@@ -1142,8 +1143,8 @@ function cms_validate_payload(array $cms): array
             cms_add_error($errors, 'contact.email', 'nije ispravna email adresa.');
         }
         foreach (['whatsapp', 'viber'] as $key) {
-            if (is_string($contact[$key] ?? null) && !preg_match('/^[0-9+().\s-]+$/', $contact[$key])) {
-                cms_add_error($errors, 'contact.' . $key, 'sadrži nedozvoljene znakove.');
+            if (is_string($contact[$key] ?? null) && canonical_phone($contact[$key]) === '') {
+                cms_add_error($errors, 'contact.' . $key, 'mora biti ispravan telefon, npr. 061 123 456 ili +387 61 123 456.');
             }
         }
     }
@@ -1488,6 +1489,9 @@ function save_cms(PDO $pdo, array $cms, ?int $expectedRevision = null, ?array $d
         }
         $errors = cms_validate_payload($cms);
         if ($errors) throw new CmsValidationError($errors);
+        if ($deletedProductIds !== null) {
+            foreach (['whatsapp', 'viber'] as $channel) $cms['contact'][$channel] = canonical_phone($cms['contact'][$channel]);
+        }
         $removedIds = array_values(array_diff(array_column($previous['products'], 'id'), array_column($cms['products'], 'id')));
         cms_remove_product_dependencies($pdo, $removedIds);
 
@@ -2000,18 +2004,7 @@ function phone_validation_error(string $phone, bool $required = false): ?string
     if ($phone === '') {
         return $required ? 'Unesite broj telefona.' : null;
     }
-    if (cms_text_length($phone) > 30 || preg_match('/[^0-9+()\/ .-]/', $phone)) {
-        return 'Unesite ispravan broj telefona.';
-    }
-    if (substr_count($phone, '+') > 1 || (strpos($phone, '+') !== false && $phone[0] !== '+')) {
-        return 'Unesite ispravan broj telefona.';
-    }
-
-    $digits = preg_replace('/\D/', '', $phone) ?? '';
-    if (strlen($digits) < 6 || strlen($digits) > 15) {
-        return 'Unesite ispravan broj telefona.';
-    }
-    return null;
+    return canonical_phone($phone) !== '' ? null : 'Unesite ispravan broj telefona, npr. 061 123 456 ili +387 61 123 456. Za drugu zemlju unesite + i pozivni broj.';
 }
 
 function cart_payload_by_id(PDO $pdo, int $userId, int $cartId): array
@@ -2054,6 +2047,8 @@ function cart_payload(PDO $pdo, int $userId): array
 
 function create_order_from_cart(PDO $pdo, int $userId, int $cartId, array $user, string $phone, string $note, bool $updateProfilePhone, ?int $expectedRevision = null): int
 {
+    $phone = canonical_phone($phone);
+    if ($phone === '') throw new InvalidArgumentException('Unesite ispravan broj telefona.');
     try {
         $pdo->beginTransaction();
         lock_catalog($pdo);
@@ -2556,6 +2551,7 @@ try {
         if ($phoneError !== null) {
             respond(['ok' => false, 'message' => $phoneError], 400);
         }
+        $phone = canonical_phone($phone);
 
         $current = $pdo->prepare('SELECT id, name, email, password_hash, auth_version FROM users WHERE id = :id AND role = "customer" LIMIT 1');
         $current->execute([':id' => $userId]);

@@ -1,0 +1,155 @@
+SEGMENT 09 — T26, T27, T28, T40 — 05.10.2026.
+
+GITHUB I STATUS
+Prethodni segment T23–T25 je commitovan i poslan na main po zahtjevu korisnika:
+5695977a8c4a4645a38246ea25d31c4473d2ce91
+https://github.com/halidmerdic/ones/commit/5695977a8c4a4645a38246ea25d31c4473d2ce91
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37290030390
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37290029103
+Obje GitHub provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
+Ovaj novi segment ostaje lokalno za pregled. T11 i dalje čeka službeni email
+servis i aktivaciju; privremeni app password nije postavljan.
+T26–T28 i T40 završeni lokalno: ukupno 29/40, od toga 25 na GitHubu i 4 lokalno.
+
+T26 — SKRIVENI FILTER PO KLJUČNIM RIJEČIMA
+Aktivni blogovi i dijelovi te opća javna uputstva više ne moraju sadržavati
+riječi iz naziva proizvoda/kategorije da bi se prikazali. Primjer: obavijest
+„Radno vrijeme“ ostaje javna iako ne sadrži riječ „romobil“. Isto pravilo
+vrijedi za direktni blog URL i sitemap. Pretraga po riječima zadržana je samo
+za preporuku povezanih proizvoda, gdje ne utiče na objavu sadržaja.
+
+Isključeni sadržaj ostaje skriven. Kod uputstava poštuju se javna vidljivost,
+enabled i izričite veze s proizvodom/kategorijom. Ako su navedene obje veze,
+obje moraju biti javne. Uputstvo prazne ali uključene kategorije ostaje javno.
+Uklanjanje svih proizvoda ne uklanja nepovezane javne tekstove. CMS refresh
+uklanja već otvoreni blog ako je isključen/obrisan i ponovo ga prikazuje ako
+je vraćen. Uklonjena sitemap keyword logika uključuje i raniji T39 slučaj
+brojeva u nazivima; regresija tog slučaja ostaje pokrivena.
+
+T27 — JEDINSTVENI TELEFONSKI BROJEVI I LINKOVI
+Nova phone.php funkcija i onesPhone u api-client.js imaju zajedničke testne
+vektore i poređenje rezultata. Primjeri:
+061 123 456 -> +38761123456
+00387 61 123 456 -> +38761123456
+38761123456 -> +38761123456
++387 (0)61 123 456 -> +38761123456
+0049 30 123456 -> +4930123456
+
+WhatsApp dobija broj s pozivnim kodom bez plusa. Viber dobija ispravno kodiran
+plus; poruka se kodira zasebno. Jednako vrijedi za upit iz kataloga, detalj
+proizvoda, korpu, administratorski upit i podatke kupca. Naslijeđeni neispravan
+broj ne proizvodi prazan/pogrešan link; ostaje dostupna email opcija.
+
+Server odbija neispravan broj i direktnim API zahtjevom. Novi profilni brojevi,
+telefoni poslanog upita i redovno spremanje CMS kontakata koriste kanonski oblik.
+Opcionalni prazan telefon profila i dalje je dozvoljen. Spremanje broja profila
+uz upit ostaje u postojećoj transakciji. Frontend poredi kanonske vrijednosti
+pa razmak ili 00387 zapis sam po sebi ne traži promjenu istog broja profila.
+Neispravan telefon pri slanju ne prazni korpu i ne kreira upit.
+
+Stari profili/upiti nisu masovno prepisivani; linkovi obrađuju njihov postojeći
+zapis. Interni reset/restore zadržava originalnu notaciju validiranog snimka,
+a redovno spremanje kanonizira. Nova provjera oblika CMS kontakta važi i pri
+validaciji backupa. Nema promjene DB šeme ili backup formata.
+
+Za strane brojeve obavezan je izričit + ili 00 pozivni broj. Slova, ekstenzije,
+višestruki plus, kontrolni znakovi i neispravne dužine se odbijaju. BiH koristi
++387, domaću početnu nulu i nacionalnu dužinu 6–9 cifara prema ITU/RAK planu;
+međunarodni oblik ograničen je na najviše 15 cifara. To nije provjera vlasništva,
+dodijeljenosti broja niti dostupnosti WhatsApp/Viber naloga. Pozivi/poruke nisu slani.
+Primarni izvori provjereni tokom rada:
+https://www.itu.int/dms_pub/itu-t/oth/02/02/T020200001B0001PDFE.pdf
+https://www.itu.int/rec/T-REC-E.164-202602-I
+
+T28 — POVRATAK IZ PRIJAVE U KORPU
+Anonimna korpa i istek sesije tokom izmjene vode na prijavu s povratnom URL
+adresom korpe, uključujući query i fragment. Prijava prikazuje jasnu obavijest
+o povratku. Uspješna prijava koristi zamjenu historijskog login unosa i vraća
+sačuvanu korpu. I account linkovi na korpi nose odgovarajući povratak.
+
+Povratak prolazi listu dozvoljenih javnih stranica istog origin-a i direktorija
+aplikacije. Vanjski URL, javascript/data shema, credential URL, login petlja,
+admin/API/verification ruta i prikriveni // URL završavaju na početnoj stranici.
+Popravljen je i slučaj gdje bi isti origin s putanjom //evil.invalid ranije
+postao vanjska adresa nakon dodjele same pathname vrijednosti.
+
+Prekinuti Dodaj u korpu iz kataloga ili detalja nakon prijave otvara baš taj
+proizvod i navodi da još nije dodan. Potreban je drugi izričit klik; automatska
+radnja se ne izvršava. Test provjerava nepromijenjenu količinu poslije prijave,
+tačno jedno dodavanje nakon klika te uklanjanje obavijesti i cartPending oznake.
+Ovo pokriva prijavu postojećeg korisnika; slanje/aktivacija emaila ostaje T11.
+
+T40 — NOVI NALAZ: LINK KARTICE PREKRIVA DUGMAD
+Stvarni browser test toka prijave otkrio je da prozirni link preko kartice
+presreće klik Dodaj u korpu. Roditeljski product-body z-index:1 zarobljavao je
+dugmad ispod card-open-link z-index:2 iako su dugmad imala z-index:4.
+product-body sada koristi z-index:auto. Time dugmad izlaze iz tog zasebnog sloja,
+a slika/naslov i dalje vode na detalj kroz postojeći link. Nisu korišteni forced
+klikovi niti uklanjanje overlaya u testu. Ovo je zaseban problem/task, pa plan
+sada ukupno ima 40 taskova. Test obuhvata raspored s 3 i 4 kolone, dodir, miš,
+tastaturu, Pošalji upit, favorite, korpu i otvaranje kartice.
+
+PROVJERE
+Izolovan lokalni deployment paket, PHP 8.5.11 uz E_ALL/strict-errors, SQLite,
+Chrome/Playwright i SMTP capture na loopback adresi. Testovi koriste isključivo
+izmišljene .invalid adrese. Nije kontaktiran stvarni email/WhatsApp/Viber servis.
+
+1. tests/phone.php: 36 telefonskih slučajeva; normalizacija i idempotentnost.
+2. tests/contact-navigation.cjs: 82 provjere, PHP/JS paritet, kodiranje kanala,
+   povratna allowlista, poddirektorij aplikacije i prekinuto dodavanje.
+3. tests/sitemap.php: 15 provjera, uključujući nepovezan aktivni blog, isključeni
+   blog, prazni katalog, brojeve u nazivima i ranije kategorijske regresije.
+4. tests/segment9-browser.cjs: 397 provjera, 7 širina (320, 360, 390, 768, 820,
+   1024, 1440) x 2 teme. Provjerena je stvarno primijenjena tema. Obuhvaćeni su
+   objava/opća uputstva/prazna kategorija, CMS validacija i nepromijenjena revizija
+   nakon odbijanja, profil/order telefon, prijava u korpu, istek sesije, linkovi
+   svih novih potrošača, izričit ponovni Add i uključivanje/isključivanje bloga.
+5. tests/segment9-edges.cjs: 16 provjera u browseru; nedozvoljene povratne adrese
+   ne izazivaju nijedan vanjski zahtjev, ispravan query/fragment ostaje sačuvan,
+   neispravni naslijeđeni telefoni ne daju linkove i email ostaje dostupan.
+6. PHP regresije: auth-security 11, business-logic 20, storage-reliability 13,
+   network-security 13, cms-xss 28, restore-security 9, backup-atomicity 114,
+   admin-bootstrap 22, login-limits 16, input-policy 41, email-security 36,
+   segment5-integrity 34, cms-integrity 422, cms-relations 65. Sve prošle.
+7. JS regresije: logout-client 17, input-policy 41 vektor i potrošači cijena,
+   pricing-clock 22 i public-badges 28. Sve prošle.
+8. tests/product-card-actions.cjs: 85 provjera, 3/4 kolone i svih 7 širina,
+   pravi dodir na mobilnim/tablet širinama, miš na desktopu, aktivacija tastaturom.
+9. tests/segment4-integration.cjs: 276 HTTP/browser regresija, 7 širina x 2 teme,
+   uključujući stvarnu lokalnu potvrdu emaila, izmjene profila i decimalne cijene.
+10. tests/cart-recovery-browser.cjs: 14 regresija, greške učitavanja/izmjene,
+    nedostupan proizvod i izgubljen odgovor nakon stvarnog slanja upita.
+11. PHP syntax: svih 6 novih/izmijenjenih PHP datoteka; JS syntax: svih 43 JS/CJS
+    datoteka; PowerShell parser: build-package.ps1 i smoke.ps1. Sve prošlo.
+12. Sačuvano 6 snimki povratne login poruke na 320/820/1440 u obje teme,
+    segment9-views. Vizuelno pregledane reprezentativne snimke telefona, tableta
+    i desktopa. Svijetla/tamna tema i poruka su čitljive u novom prostoru.
+13. tests/smoke.ps1: 251 provjera, uključujući paket s phone.php, odsustvo
+    privatnih/testnih podataka, zaštitna zaglavlja i javni sitemap. HTTP log nema
+    PHP warning/notice/deprecation/fatal grešaka. git diff --check prolazi za
+    segment; raniji nepovezani admin.css redizajn nije mijenjan.
+
+Privremeni PHP i SMTP procesi su ugašeni. Uklonjeni su testna baza, lokalna
+konfiguracija, aktivacijski tokeni/poruke, paket i privremeni staging iz prošlog
+segmenta. Sačuvani su podržani PHP runtime i šest PNG dokaza u segment9-views.
+
+Priprema testova prvo je koristila nedozvoljen naziv vidljivosti „Interno“ umjesto
+„Sakriveno“, očekivala 400 umjesto postojećeg CMS 422 i prerano otvorila modal
+prije učitavanja CMS-a. To je korigovano u testu. Također je ispravljena postavka
+theme storage ključa i dodana potvrda stvarne teme. Glavni klik test otkrio je
+stvarni T40 problem, nakon čije ispravke je ponovljen. Zasebni test otvaranja
+kartice prvobitno je tražio klik direktno na naslov ispod namjenskog linka;
+test sada provjerava stvarni element ispod koordinata naslova i koristi dodir/
+klik na toj tački. Pripremni neuspjesi nisu uračunati kao uspješne provjere.
+
+OPSEG I NAREDNI RAD
+Širine i dodir su emulirani u Chromeu; fizički iOS/Android i Safari nisu testirani.
+MariaDB nije ponavljana u ovom segmentu: nema izmjena SQL upita, šeme ili protokola
+zaključavanja. Širi storage, tablet overflow i fokus problemi ostaju T29–T33.
+DEPLOYMENT.md odjeljak 17 opisuje potrebne fajlove i ponašanje. phone.php je u
+deployment allowlisti. Korisnikov raniji redizajn ostaje sačuvan. Pri narednom
+commitu iz admin.html, login.html i profile.html izdvojiti samo nove security-9
+verzije naših skripti; admin.css i profile.js su isključivo ranije korisnikove izmjene.
+
+Sljedeći segment: T29 nedostupan browser storage, T30 email u lokalnoj pohrani,
+T31 tablet prelijevanje administracije. T11 čeka službeni email servis.

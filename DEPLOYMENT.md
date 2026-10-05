@@ -569,3 +569,63 @@ server with local SMTP capture, run `tests/segment8-browser.cjs`, followed by
 Browser checks require Chrome/Playwright and the existing `ONES_TEST_URL`,
 `ONES_DISPOSABLE_TEST=1`, `ONES_TEST_MAIL` settings. Optional
 `ONES_TEST_SCREENSHOTS` stores viewport screenshots; never target production.
+
+## 17. Public content, phone links, login return and product card controls (T26–T28, T40)
+
+Enabled blog posts, parts and unlinked public manuals no longer require words
+from product names to appear publicly. Explicit product/category references,
+visibility flags and disabled sections still apply. Public manuals belonging
+to an enabled but empty category remain available. Blog detail and sitemap
+use the same publication decision. Product keyword matching is used only for
+related-product recommendations. Disabling a blog and refreshing the CMS removes
+its displayed article, and enabling it again makes it available.
+
+Ship `phone.php`, `api.php`, `sitemap.php`, `api-client.js`, `admin.js`, `app.js`,
+`blog.js`, `cart.js`, `login.js`, `product.js`, `styles.css` and their changed HTML
+entry points together. The shared client and changed page scripts use
+`20261005-security-9`; the catalogue also uses that version for `styles.css`.
+The deployment builder now includes `phone.php`. No schema or backup format
+change is required. Existing administrator tabs should be refreshed.
+
+PHP and JavaScript share a tested phone normalization contract. Domestic BiH
+`061 123 456`, `00387 61 123 456`, `38761123456` and `+387 (0)61 123 456` become
+`+38761123456`. Other countries require an explicit `+` or `00` country prefix.
+Spaces and common separators are accepted; letters, extensions, multiple plus
+signs and invalid lengths are rejected. This validates notation, not ownership,
+allocation or registration with WhatsApp/Viber. WhatsApp links use country-code
+digits, and Viber links use the encoded plus sign. Invalid historical contact
+data does not generate a conversation link.
+
+New profile phones, order phones and ordinary CMS contact saves use the
+canonical format. An order's optional profile phone update remains in the same
+transaction as its order. Empty optional profile phones remain supported.
+Historical orders/profiles are not bulk rewritten; their links normalize at
+render time. Internal CMS reset/restore retains the validated snapshot's phone
+notation; normal editing canonicalizes it on the next save. Invalid CMS contact
+numbers must be corrected before saving. Country formatting references:
+[ITU/RAK BiH numbering plan](https://www.itu.int/dms_pub/itu-t/oth/02/02/T020200001B0001PDFE.pdf)
+and [ITU E.164](https://www.itu.int/rec/T-REC-E.164-202602-I).
+
+An anonymous or expired cart session goes to login with its cart URL, query and
+fragment preserved. Login accepts only known public HTML destinations on the same
+origin and application path; invalid values return to the application home.
+Login, verification, admin and API endpoints cannot be used as return targets.
+Interrupted Add opens the selected product after login and asks for an explicit
+second click. Login never replays the cart mutation. Successful Add removes the
+pending notice and query marker. This is the existing-account login flow; email
+activation is still pending configuration as described in section 11.
+
+The product body no longer creates a stacking context that traps its action
+buttons below the whole-card link. Inquiry, favorite and cart buttons receive
+their own clicks/taps, while ordinary card content still opens the product.
+
+CI adds `php tests/phone.php` and `node tests/contact-navigation.cjs`. Local
+browser tests require the disposable loopback server, SMTP capture and variables
+described in section 16: `tests/segment9-browser.cjs`,
+`tests/segment9-edges.cjs` and `tests/product-card-actions.cjs`.
+Run mutating suites sequentially; the publication suite disables products at
+its end, and the card suite resets the fixture catalogue. They must never target
+live customer data. The tests cover seven viewport widths, both themes, real
+login/expiry, no duplicate Add, invalid return destinations, canonical contacts
+and mouse/touch/keyboard controls. Browser emulation does not replace physical
+iOS/Android or Safari testing.

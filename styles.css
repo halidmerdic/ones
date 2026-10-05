@@ -1292,6 +1292,11 @@ main section[id] {
   z-index: 1;
 }
 
+.product-card > .product-body {
+  /* Let action buttons rise above the card link, without covering that link. */
+  z-index: auto;
+}
+
 .product-actions,
 .product-actions *,
 .favorite-btn {

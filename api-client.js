@@ -1,4 +1,47 @@
 (function () {
+  window.onesPhone = function (value) {
+    if (typeof value !== "string" || new TextEncoder().encode(value).length > 120 || /[^0-9+()\/ .\t\u00a0\u202f-]/u.test(value)) return "";
+    let number = value.replace(/[()\/ .\t\u00a0\u202f-]/gu, "");
+    if (!/^\+?[0-9]+$/.test(number)) return "";
+    if (number.startsWith("00")) number = "+" + number.slice(2);
+    else if (number.startsWith("0")) number = "+387" + number.slice(1);
+    else if (number.startsWith("387")) number = "+" + number;
+    if (number.startsWith("+3870")) number = "+387" + number.slice(5);
+    if (!/^\+[1-9][0-9]{6,14}$/.test(number)) return "";
+    if (number.startsWith("+387") && !/^\+387[1-9][0-9]{5,8}$/.test(number)) return "";
+    return number;
+  };
+  window.onesPhoneUrl = function (value, channel, message = "") {
+    const number = window.onesPhone(value);
+    if (!number) return "";
+    if (channel === "whatsapp") return `https://wa.me/${number.slice(1)}?text=${encodeURIComponent(message)}`;
+    if (channel === "viber") return `viber://chat?number=${encodeURIComponent(number)}&text=${encodeURIComponent(message)}`;
+    return "";
+  };
+  window.onesSetContactLink = function (link, url) {
+    if (!link) return;
+    link.hidden = !url;
+    if (url) link.href = url;
+    else link.removeAttribute("href");
+  };
+
+  window.onesSafeReturnUrl = function (value) {
+    const base = new URL("./", window.location.href);
+    try {
+      const target = new URL(value || "./", base);
+      const allowed = ["", "index.html", "cart.html", "product.html", "profile.html", "blog.html", "privacy.html", "terms.html"];
+      if (!/^https?:$/.test(target.protocol) || target.origin !== base.origin || target.username || target.password
+        || !allowed.some(file => target.pathname === base.pathname + file)) return base.href;
+      return target.href;
+    } catch { return base.href; }
+  };
+  window.onesLoginUrl = function (next = window.location.href, pendingCart = false) {
+    const target = new URL(window.onesSafeReturnUrl(next));
+    if (pendingCart) target.searchParams.set("cartPending", "1");
+    const login = new URL("login.html", window.location.href);
+    login.searchParams.set("next", target.href);
+    return login.href;
+  };
   window.onesPriceCents = function (value) {
     if (value === null || value === undefined || value === "") return 0;
     if (typeof value !== "string" && typeof value !== "number") return null;

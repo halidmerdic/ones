@@ -100,7 +100,7 @@ function handleCartError(error) {
     try { localStorage.setItem(cartCountPreviewKey, "0"); } catch {}
     updateAccountLink();
     updateCartControls();
-    window.location.href = "login.html";
+    window.location.href = window.onesLoginUrl();
     return;
   }
   flash(error.message);
@@ -119,20 +119,16 @@ function inquiryMessage() {
 function contactUrl(channel) {
   const contact = cms?.contact || { whatsapp: "062455779", viber: "062455779", email: "info@fontele.ba" };
   const text = encodeURIComponent(inquiryMessage());
-  const phone = (value) => {
-    const digits = String(value || "").replace(/[^\d]/g, "");
-    return digits.startsWith("0") ? `387${digits.slice(1)}` : digits;
-  };
 
   if (channel === "viber") {
-    return `viber://chat?number=%2B${phone(contact.viber)}&text=${text}`;
+    return window.onesPhoneUrl(contact.viber, "viber", inquiryMessage());
   }
 
   if (channel === "email") {
     return `mailto:${encodeURIComponent(contact.email || "info@fontele.ba")}?subject=${encodeURIComponent("oneS upit iz korpe")}&body=${text}`;
   }
 
-  return `https://wa.me/${phone(contact.whatsapp)}?text=${text}`;
+  return window.onesPhoneUrl(contact.whatsapp, "whatsapp", inquiryMessage());
 }
 
 function updateCheckoutSteps(done = false) {
@@ -154,7 +150,7 @@ function updateAccountLink() {
       }
       if (item.id !== "bottomAccountLink") item.classList.add("account-active");
     } else {
-      item.href = "login.html";
+      item.href = window.onesLoginUrl();
       if (item.id === "bottomAccountLink") {
         item.innerHTML = bottomProfileIcon;
       } else {
@@ -257,8 +253,8 @@ function renderCart() {
       : `<strong>${cart.count} proizvoda</strong><span>Procjena ukupno: ${cartHasInquiryPrice() ? "Cijena na upit" : money(cartTotal())}</span>`;
   }
 
-  $("#cartWhatsapp").href = contactUrl("whatsapp");
-  $("#cartViber").href = contactUrl("viber");
+  window.onesSetContactLink($("#cartWhatsapp"), contactUrl("whatsapp"));
+  window.onesSetContactLink($("#cartViber"), contactUrl("viber"));
   $("#cartEmail").href = contactUrl("email");
   $("#cartViber").onclick = () => {
     navigator.clipboard?.writeText(inquiryMessage()).then(
@@ -288,14 +284,14 @@ async function submitOrder() {
     return;
   }
 
-  const phone = ($("#orderPhone")?.value || "").trim();
+  const phone = window.onesPhone($("#orderPhone")?.value || "");
   if (!phone) {
-    flash("Unesite broj telefona prije slanja upita.");
+    flash("Unesite ispravan telefon, npr. 061 123 456 ili +387 61 123 456.");
     $("#orderPhone")?.focus();
     return;
   }
 
-  const savedPhone = (currentCustomer?.phone || "").trim();
+  const savedPhone = window.onesPhone(currentCustomer?.phone || "");
   let updateProfilePhone = false;
   if (phone && phone !== savedPhone) {
     updateProfilePhone = confirm(

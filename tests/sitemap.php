@@ -12,14 +12,15 @@ function sitemap_check(bool $condition, string $message): void {
     $checks++;
 }
 foreach (['12', '1440', '2026', 'Model 1440', '1440 Model'] as $name) {
-    $products = [['name'=>$name, 'category'=>'Oprema', 'enabled'=>true]];
-    sitemap_check(sitemap_blog_matches_products(['title'=>$name], $products), 'Numeric name can match a post');
-    sitemap_check(!sitemap_blog_matches_products(['title'=>'Nepovezano'], $products), 'Numeric keyword safely misses a post');
-    $products[0]['category']='Električni romobili';
-    sitemap_check(sitemap_blog_matches_products(['title'=>'Skuter vodič'], $products), 'Numeric words do not break category keyword expansion');
+    $cms = ['products' => [['name' => $name, 'category' => 'Oprema']], 'blogs' => [
+        ['id' => 'notice', 'title' => 'Radno vrijeme', 'enabled' => true],
+        ['id' => 'hidden', 'title' => $name, 'enabled' => false],
+        ['id' => 'legacy', 'title' => 'Obavijest'],
+    ]];
+    sitemap_check(array_column(sitemap_public_blogs($cms), 'id') === ['notice', 'legacy'], 'Blog visibility ignores product keywords');
+    $cms['products'] = [];
+    sitemap_check(array_column(sitemap_public_blogs($cms), 'id') === ['notice', 'legacy'], 'Empty catalogue preserves blog visibility');
 }
-sitemap_check(sitemap_blog_matches_products(['title'=>'Vodič'], []), 'No products keeps existing blog policy');
-sitemap_check(!sitemap_blog_matches_products(['title'=>'Skriveno'], [['name'=>'Skriveno','category'=>'Oprema','enabled'=>false],['name'=>'Aktivno','category'=>'Oprema']]), 'Disabled products do not contribute keywords');
 $cms=default_cms();$cms['products']=['legacy-key'=>$cms['products'][0]];
 $cms['products']['legacy-key']['category']=' '.mb_strtoupper($cms['products']['legacy-key']['category'],'UTF-8').' ';
 $pdo=new PDO('sqlite::memory:');$pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);

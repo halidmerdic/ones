@@ -8,9 +8,13 @@ PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37286356088
 Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37286355402
 Obje GitHub provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
 
-T23–T25 su završeni lokalno i prošli završne regresije.
-Ukupno 25/39 taskova završeno: 22 na GitHubu, 3 lokalno.
-Novi segment nije commitovan niti pushovan.
+T23–T25 su završeni i poslani na GitHub main 05.10.2026:
+5695977a8c4a4645a38246ea25d31c4473d2ce91
+https://github.com/halidmerdic/ones/commit/5695977a8c4a4645a38246ea25d31c4473d2ce91
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37290030390
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37290029103
+Obje provjere su prošle. U tom trenutku 25/39 taskova završeno, svi na GitHubu.
+Nije izvršen deploy na Hetzner PHP aplikaciju. Nastavak je u SEGMENT-09.txt.
 T11 i dalje čeka službeni email servis i aktivaciju, bez app passworda.
 
 T23 — PRIKAZ ISKLJUČENIH OZNAKA
@@ -120,8 +124,8 @@ Nema DB migracije ni promjene backup formata. DEPLOYMENT.md odjeljak 16 opisuje
 novi tok. HTML entrypointi koriste security-8 verzije izmijenjenih skripti.
 admin-feedback.css je zasebna datoteka i dio provjerenog deployment paketa.
 Raniji korisnikov redizajn admin.css, admin.html, login.html, profile.html i
-profile.js ostaje sačuvan. Pri narednom commitu u admin.html izdvojiti samo
-novi admin-feedback.css link i admin.js verziju 7 na 8.
+profile.js ostaje sačuvan. Commit 5695977 iz admin.html uključuje samo novi
+admin-feedback.css link i admin.js verziju 7 na 8; korisnikov redizajn ostaje lokalno.
 
 SLJEDEĆI SEGMENT
 T26 skriveni filter po ključnim riječima, T27 telefonski linkovi, T28 povratak

@@ -1,6 +1,7 @@
 let cms = null;
 let post = null;
 let currentCustomer = null;
+const requestedBlogId = new URLSearchParams(window.location.search).get("id");
 
 function $(selector) {
   return document.querySelector(selector);
@@ -188,18 +189,6 @@ function publicProducts() {
   );
 }
 
-function postMatchesCatalog(item) {
-  const ignored = new Set(["ones", "elektricni", "električni", "proizvod", "proizvodi"]);
-  const keywords = publicProducts()
-    .flatMap((product) => `${product.name || ""} ${product.category || ""}`.toLowerCase().split(/[^\p{L}\p{N}]+/u))
-    .filter((word) => word.length >= 2 && !ignored.has(word));
-  if (keywords.some((word) => word.includes("romobil") || word.includes("skuter"))) {
-    keywords.push("romobil", "skuter");
-  }
-  const haystack = `${item.title || ""} ${item.tag || ""} ${plainText(item.text)}`.toLowerCase();
-  return !keywords.length || [...new Set(keywords)].some((keyword) => haystack.includes(keyword));
-}
-
 function applyBlogSeo() {
   const title = post.seoTitle || `${post.title} | oneS blog`;
   const description = post.seoDescription || plainText(post.text).slice(0, 155) || "oneS blog, savjeti i novosti.";
@@ -288,25 +277,28 @@ function renderBlog() {
   `;
 }
 
+function renderMissingBlog() {
+  $("#blogDetail").innerHTML = `
+    <div class="login-panel profile-panel">
+      <h1>Blog nije pronađen</h1>
+      <p>Vratite se na listu blogova i odaberite tekst.</p>
+      <a class="btn btn-primary" href="./#blog">Nazad na blog</a>
+    </div>
+  `;
+}
+
 async function init() {
   try {
     setupAccountMenu();
     setupMobileNav();
     const accountReady = loadCustomerStatus().then(loadCartCount);
 
-    const requestedId = new URLSearchParams(window.location.search).get("id");
     const data = await api("cms");
     cms = data.cms;
-    post = (cms.blogs || []).find((item, index) => item.enabled !== false && postMatchesCatalog(item) && blogId(item, index) === requestedId);
+    post = (cms.blogs || []).find((item, index) => item.enabled !== false && blogId(item, index) === requestedBlogId);
 
     if (!post) {
-      $("#blogDetail").innerHTML = `
-        <div class="login-panel profile-panel">
-          <h1>Blog nije pronađen</h1>
-          <p>Vratite se na listu blogova i odaberite tekst.</p>
-          <a class="btn btn-primary" href="/#blog">Nazad na blog</a>
-        </div>
-      `;
+      renderMissingBlog();
       return;
     }
 
@@ -325,16 +317,17 @@ async function init() {
 }
 
 window.addEventListener("storage", async (event) => {
-  if (event.key !== "onesCmsUpdatedAt" || !post) return;
+  if (event.key !== "onesCmsUpdatedAt") return;
 
   try {
     const data = await api("cms");
     cms = data.cms;
-    const currentId = blogId(post, 0);
-    post = (cms.blogs || []).find((item, index) => item.enabled !== false && postMatchesCatalog(item) && blogId(item, index) === currentId);
+    post = (cms.blogs || []).find((item, index) => item.enabled !== false && blogId(item, index) === requestedBlogId);
     if (post) {
       applyBlogSeo();
       renderBlog();
+    } else {
+      renderMissingBlog();
     }
   } catch (error) {
     console.warn("CMS refresh failed.", error);

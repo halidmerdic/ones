@@ -254,26 +254,6 @@ function publicProducts() {
   );
 }
 
-function catalogKeywords() {
-  const ignored = new Set(["ones", "elektricni", "električni", "proizvod", "proizvodi"]);
-  const keywords = new Set(
-    publicProducts()
-      .flatMap((product) => `${product.name || ""} ${product.category || ""}`.toLowerCase().split(/[^\p{L}\p{N}]+/u))
-      .filter((word) => word.length >= 2 && !ignored.has(word))
-  );
-  if ([...keywords].some((word) => word.includes("romobil") || word.includes("skuter"))) {
-    keywords.add("romobil");
-    keywords.add("skuter");
-  }
-  return keywords;
-}
-
-function matchesActiveCatalog(...values) {
-  const haystack = values.join(" ").toLowerCase();
-  const keywords = catalogKeywords();
-  return !keywords.size || [...keywords].some((keyword) => haystack.includes(keyword));
-}
-
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
@@ -295,24 +275,19 @@ function inquiryMessage(productName) {
     : cms.contact.defaultMessage;
 }
 
-function contactPhone(value) {
-  const digits = String(value || "").replace(/[^\d]/g, "");
-  return digits.startsWith("0") ? `387${digits.slice(1)}` : digits;
-}
-
 function inquiryUrl(productName, channel = "whatsapp") {
   const message = inquiryMessage(productName);
   const text = encodeURIComponent(message);
 
   if (channel === "viber") {
-    return `viber://chat?number=%2B${contactPhone(cms.contact.viber)}&text=${text}`;
+    return window.onesPhoneUrl(cms.contact.viber, "viber", message);
   }
 
   if (channel === "email") {
     return `mailto:${encodeURIComponent(cms.contact.email || "info@fontele.ba")}?subject=${encodeURIComponent(`oneS upit${productName ? ` - ${productName}` : ""}`)}&body=${text}`;
   }
 
-  return `https://wa.me/${contactPhone(cms.contact.whatsapp)}?text=${text}`;
+  return window.onesPhoneUrl(cms.contact.whatsapp, "whatsapp", message);
 }
 
 const sectionMap = {
@@ -527,8 +502,8 @@ async function addToCart(productId, button) {
     updateCartCount(data.cart.count);
     flash("Proizvod je dodan u korpu.");
   } catch (error) {
-    if (error.message.includes("Prijavite se")) {
-      window.location.href = `login.html?next=${encodeURIComponent(window.location.href)}`;
+    if (error.status === 401) {
+      window.location.href = window.onesLoginUrl(`product.html?id=${encodeURIComponent(productId)}`, true);
       return;
     }
     flash(error.message);
@@ -600,8 +575,8 @@ function openInquiryModal(productName) {
         <button type="button" class="inquiry-close" aria-label="Zatvori">×</button>
       </div>
       <div class="inquiry-options">
-        <a href="${inquiryUrl(productName, "whatsapp")}" target="_blank" rel="noreferrer"><span>W</span><strong>WhatsApp</strong></a>
-        <a href="${inquiryUrl(productName, "viber")}" data-viber-link><span>V</span><strong>Viber</strong></a>
+        <a ${inquiryUrl(productName, "whatsapp") ? `href="${inquiryUrl(productName, "whatsapp")}"` : "hidden"} target="_blank" rel="noreferrer"><span>W</span><strong>WhatsApp</strong></a>
+        <a ${inquiryUrl(productName, "viber") ? `href="${inquiryUrl(productName, "viber")}"` : "hidden"} data-viber-link><span>V</span><strong>Viber</strong></a>
         <a href="${inquiryUrl(productName, "email")}"><span>@</span><strong>Email</strong></a>
       </div>
     </div>
@@ -612,7 +587,7 @@ function openInquiryModal(productName) {
   });
   modal.addEventListener("keydown", (event) => trapModalFocus(event, modal));
   modal.querySelector(".inquiry-close").addEventListener("click", closeInquiryModal);
-  modal.querySelector("[data-viber-link]").addEventListener("click", () => {
+  modal.querySelector("[data-viber-link]")?.addEventListener("click", () => {
     navigator.clipboard?.writeText(inquiryMessage(productName)).then(
       () => flash("Poruka za Viber je kopirana. Zalijepite je u razgovor."),
       () => {}
@@ -760,7 +735,7 @@ function renderComingSoon() {
 
 function renderParts() {
   qs("#partsStrip").innerHTML = (cms.parts || [])
-    .filter((item) => item.enabled !== false && matchesActiveCatalog(item.name, item.text))
+    .filter((item) => item.enabled !== false)
     .map(
       (item) => `
         <article class="part-card">
@@ -775,12 +750,12 @@ function renderParts() {
 
 function renderManuals() {
   const activeProductIds = new Set(publicProducts().map((product) => product.id));
-  const activeCategories = new Set(publicProducts().map((product) => product.category));
+  const activeCategories = new Set((cms.categories || []).filter(category => category.enabled !== false).map(category => category.name));
   const publicManuals = (cms.manuals || []).filter((manual) => {
     if (manual.enabled === false || (manual.visibility || "Javno") !== "Javno") return false;
-    if (manual.relatedProductId) return activeProductIds.has(manual.relatedProductId);
-    if (manual.category) return activeCategories.has(manual.category);
-    return matchesActiveCatalog(manual.title, manual.type);
+    if (manual.relatedProductId && !activeProductIds.has(manual.relatedProductId)) return false;
+    if (manual.category && !activeCategories.has(manual.category)) return false;
+    return true;
   });
   const categories = ["Sve", ...new Set(publicManuals.map((manual) => manual.category).filter(Boolean))];
   const types = ["Sve", ...new Set(publicManuals.map((manual) => manual.type).filter(Boolean))];
@@ -863,7 +838,7 @@ function renderLocations() {
 function renderBlogs() {
   qs("#blogGrid").innerHTML = (cms.blogs || [])
     .map((post, index) => ({ post, index }))
-    .filter(({ post }) => post.enabled !== false && matchesActiveCatalog(post.title, post.tag, post.text))
+    .filter(({ post }) => post.enabled !== false)
     .map(
       ({ post, index }) => `
         <a class="blog-card" href="${blogUrl(post, index)}" aria-label="Otvori blog ${escapeHtml(post.title)}">
@@ -1024,13 +999,13 @@ function setupContactLinks() {
 
   const whatsappBottom = qs("#whatsappBottom");
   if (whatsappBottom) {
-    whatsappBottom.href = inquiryUrl();
+    window.onesSetContactLink(whatsappBottom, inquiryUrl());
     whatsappBottom.addEventListener("click", requireContactLogin);
   }
 
   const viberBottom = qs("#viberBottom");
   if (viberBottom) {
-    viberBottom.href = inquiryUrl("", "viber");
+    window.onesSetContactLink(viberBottom, inquiryUrl("", "viber"));
     viberBottom.addEventListener("click", requireContactLogin);
   }
 }
