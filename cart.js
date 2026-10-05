@@ -45,32 +45,11 @@ function money(value) {
 }
 
 function isDateActive(dateValue) {
-  if (!dateValue) return true;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const end = new Date(dateValue);
-  end.setHours(23, 59, 59, 999);
-  return end >= today;
+  return window.onesDateActive(dateValue);
 }
 
 function priceText(product) {
-  if (numericPrice(product.salePrice) > 0 && product.saleUntil && isDateActive(product.saleUntil)) {
-    return formatPrice(product.salePrice);
-  }
-
-  if (numericPrice(product.discountPrice) > 0) {
-    return formatPrice(product.discountPrice);
-  }
-
-  if (numericPrice(product.mpcPrice) > 0) {
-    return formatPrice(product.mpcPrice);
-  }
-
-  if (numericPrice(product.price) > 0) {
-    return formatPrice(product.price);
-  }
-
-  return "Cijena na upit";
+  return window.onesActivePrice(product).label;
 }
 
 function itemTotal(item) {
@@ -108,6 +87,12 @@ function updateCartControls() {
 }
 
 function handleCartError(error) {
+  if (error.code === "CART_CONFLICT") {
+    if (error.cart) { cart = error.cart; renderCart(); }
+    else { cartReady = false; updateCartControls(); }
+    flash(error.message);
+    return;
+  }
   if (error.status === 401) {
     cartReady = false;
     currentCustomer = null;
@@ -330,6 +315,8 @@ async function submitOrder() {
   }
   try {
     const data = await api("order-submit", {
+      cartId: cart.cartId,
+      cartRevision: cart.revision,
       phone,
       note: $("#orderNote")?.value || "",
       website: $("#orderWebsite")?.value || "",
@@ -398,7 +385,7 @@ async function updateQuantity(itemId, quantity) {
   if (cartMutationPending || orderSubmitting || !cartReady) return;
   setCartMutationPending(true);
   try {
-    const data = await api("cart-update", { itemId: Number(itemId), quantity: Number(quantity) });
+    const data = await api("cart-update", { cartId: cart.cartId, cartRevision: cart.revision, itemId: Number(itemId), quantity: Number(quantity) });
     cart = data.cart;
     updateCheckoutSteps(false);
     renderCart();
@@ -413,7 +400,7 @@ async function removeItem(itemId) {
   if (cartMutationPending || orderSubmitting || !cartReady) return;
   setCartMutationPending(true);
   try {
-    const data = await api("cart-remove", { itemId: Number(itemId) });
+    const data = await api("cart-remove", { cartId: cart.cartId, cartRevision: cart.revision, itemId: Number(itemId) });
     cart = data.cart;
     updateCheckoutSteps(false);
     renderCart();
@@ -431,3 +418,5 @@ restoreCustomerPreview();
 restoreCartCountPreview();
 
 loadCart();
+
+window.addEventListener("ones-pricing-date", () => { if (cartReady) renderCart(); });

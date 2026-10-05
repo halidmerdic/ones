@@ -1,0 +1,122 @@
+SEGMENT 05 — T13, T14, T15 — 05.10.2026.
+
+STATUS I GITHUB
+Na zahtjev korisnika prethodni segment je commitovan i poslan na main:
+8f79f6122ea30ebe19cf4b72d827cae60f173078
+https://github.com/halidmerdic/ones/commit/8f79f6122ea30ebe19cf4b72d827cae60f173078
+PHP/JavaScript CI i statički Pages build uspješni. Posljednji nije deploy PHP-a
+na Hetzner. Produkcijska aplikacija i baza nisu mijenjane.
+
+T13–T15 su završeni lokalno, još nisu commitovani/pushovani. Ukupno je završeno
+14/38 taskova (11 na GitHubu, 3 lokalno). T11 kod jeste na GitHubu, ali zadatak
+ostaje otvoren do email servisa i aktivacije koju je korisnik odgodio.
+
+T13 — ROK AKCIJE I POSLOVNA VREMENSKA ZONA
+Rok YYYY-MM-DD važi do kraja navedenog dana u Europe/Sarajevo. PHP eksplicitno
+koristi tu zonu, uključujući ljetno/zimsko računanje vremena. Javnim proizvodima,
+korpi i favoritima dodaje se efektivna cijena s datumom obračuna. Backend kreira
+snapshot upita iz serverskih cijena, bez povjerenja u cijenu poslanu iz browsera.
+
+Sve stranice koriste isti helper i potvrđeni serverski datum. Lokalni sat i zona
+uređaja ne odlučuju je li akcija aktivna. Datum se osvježava u poslovnu ponoć,
+nakon povratka na stranicu i izlaska iz backgrounda. Cijene se ponovo prikažu bez
+brisanja telefona, napomene ili CMS nacrta. Stariji zakašnjeli odgovor ne vraća
+poslovni datum unazad. Ako osvježavanje poslije isteka ne uspije, stari brojčani
+iznos se ne produžava: prikazuje se cijena na upit dok veza ne bude uspostavljena.
+Admin pregled koristi isti poslovni datum i čuva nespremljene ulaze.
+
+T14 — PARALELNE IZMJENE KORPE
+Svaka izmjena i slanje provjeravaju cartId i cartRevision. Transakcija prvo
+zaključava vlasnika, zatim isti red korpe i provjerava active status/verziju.
+Verzija raste pri uspješnoj promjeni i zatvaranju. Dodavanje, ažuriranje, brisanje,
+čitanje/kreiranje aktivne korpe i slanje sada slijede isti protokol zaključavanja.
+Odgovor mutacije sastavlja se unutar njene transakcije.
+
+Zahtjev sa starom verzijom, tuđom ili već poslanom korpom dobije 409/CART_CONFLICT.
+Nema prepisivanja novije količine, zakašnjelog upisa u submitted korpu niti
+automatskog ponavljanja mutacije. Browser osvježi korpu i zadrži telefon/napomenu;
+korisnik pregleda novo stanje prije novog pokušaja. Nedostupno osvježavanje
+onemogućava slanje iz neprovjerenog stanja. Stari cache bez verzije traži reload.
+
+Baza nameće najviše jednu aktivnu korpu korisnika: SQLite partial unique index;
+MySQL/MariaDB unique index nad generisanom nullable active_user_id kolonom.
+Ponovljeno pokretanje migracije je sigurno; MySQL koristi named lock, SQLite
+write transakciju. Stare duple aktivne korpe se spajaju u najnoviju. Količine i
+nedostupni proizvodi ostaju sačuvani; zbir preko 99 za isti proizvod zaustavlja
+migraciju umjesto tihog odbacivanja. Za taj legacy slučaj potrebna je odluka
+administratora iz sačuvane kopije baze. Submitted korpe/snapshotovi se ne mijenjaju.
+
+T15 — KONZISTENTAN BACKUP
+CMS, CMS revizija i sve uključene poslovne tabele čitaju se u jednoj snapshot
+transakciji. MySQL eksplicitno postavlja REPEATABLE READ samo za taj posao,
+nezavisno od serverskog defaulta, i odbija netransakcijske tabele. SQLite koristi
+zajedničku read transakciju. Backup je jedno potvrđeno stanje, i kad drugi proces
+upisuje između SELECT poziva. Isti put koriste download i pre-restore backup.
+Greška zatvara/rollbackuje transakciju; poziv iz tuđe otvorene transakcije se
+odbija bez njenog commita. Mediji i privatna konfiguracija i dalje se čuvaju posebno.
+
+Novi format 3 sadrži cart revision. Import formata 1/2 ostaje podržan uz eksplicitnu
+migraciju, a v3 zahtijeva reviziju i odbija duple aktivne korpe. Generisana MySQL
+kolona nije sadržaj backupa niti dozvoljen ulaz. Postojeća provjera referenci,
+potpuni rollback neuspješnog restorea i poništavanje sesija/email stanja ostaju.
+
+PROVJERE
+- PHP 8.5.11, strogi E_ALL: segment5-integrity 34 SQLite / 35 MariaDB provjera.
+  Granice ponoći u četiri PHP zone; DST dani 23/24/25 sati; neispravni datumi;
+  stvarni commit druge konekcije usred izvoza; CMS/revizija u istom snapshotu;
+  rollback greške, odbijanje nested izvoza, DB unique invariant; stvarna legacy
+  migracija i idempotentnost; v2/v3 kompatibilnost; odbijanje MyISAM izvoza.
+- segment5-concurrency: 25 provjera na SQLite i 25 na MariaDB, osam odvojenih
+  PHP procesa. Jedna aktivna korpa, samo jedna prihvaćena mutacija iste revizije,
+  add/update/remove naspram slanja, zabrana kasnih izmjena, tuđi vlasnik i samo
+  jedan prihvaćen od osam paralelnih pokušaja slanja.
+- pricing-clock.cjs: 22 provjere pravog midnight timera, zakašnjelog odgovora,
+  prekida veze/opravka i sva četiri potrošača cijene.
+- segment5-browser: 183 HTTP/browser provjere: 320/360/390/768/820/1024/1440 px,
+  obje teme; America/Los_Angeles, Pacific/Kiritimati, UTC, Europe/Sarajevo;
+  browser sat u 2035; serverska akcija, omiljeni, korpa, osvježavanje datuma,
+  dvije sesije, konflikt bez gubitka forme i serverski snapshot cijene upita.
+- Regresije: auth-security 11, business-logic 20, storage-reliability 13,
+  network-security 13, cms-xss 28, restore-security 9, admin-bootstrap 22,
+  login-limits 16, input-policy 41 PHP i 41 PHP/JS parity vektor,
+  email-security 36 SQLite, email-concurrency 1/8, login-concurrency 5/20,
+  logout-client 17; backup-atomicity 114 SQLite i 114 MariaDB.
+- segment4-integration 276 provjera na 7 širina × 2 teme; cart-recovery 14;
+  segment1-integration 161 na 7 širina × 2 teme, uključujući ponovljeni restore;
+  smoke 249 provjera, uključujući deployment ZIP sa novim modulom.
+- PHP/JS/PowerShell sintaksa provjerena. Testovi nove API verzije nose reviziju
+  korpe; poređenje CMS-a nakon odbijenog restorea izuzima promjenjivi serverski sat.
+  Jedno prvo pokretanje smoke testa imalo je naslijeđenu testnu MySQL varijablu;
+  zaštita je odbila ponovno korištenje baze, pa je konačni smoke ponovljen sa
+  svježim SQLite fixtureom. Nije bilo pisanja u produkcijske podatke.
+- Završnih 12 HTTP/admin provjera potvrdilo je novu provjeru verzije prije slanja,
+  zabranu ponovnog slanja i čuvanje CMS nacrta pri osvježavanju cijene na
+  320/820/1440 px. HTTP log nema PHP warning/notice/deprecation/fatal poruka.
+  git diff --check izmjena ovog segmenta je prošao.
+
+GRANICE I OBJAVA
+MariaDB testna instanca je 10.4.22 sa native prepared statements. Browser testovi
+koriste Chrome/Playwright i touch emulaciju; fizički iOS/Android i Safari nisu
+testirani. Poznati T31–T33 problemi rasporeda/fokusa ostaju za njihove segmente.
+Ovaj segment ne predstavlja tvrdnju da u cijelom projektu nema drugih grešaka.
+GitHub CI za prethodni commit je prošao; nova lokalna proširenja CI-ja čekaju push.
+Privremeni PHP, SMTP capture i MariaDB serveri su ugašeni, a testne baze i
+privatni fixturei uklonjeni. Podržani lokalni PHP runtime ostaje za naredni segment.
+
+DEPLOYMENT.md, odjeljci 12/13, opisuju format cijene, poslovni datum, redoslijed
+nadogradnje, migraciju i rollback. PHP i JS treba objaviti zajedno u maintenance
+prozoru, nakon backupa i uz razriješenu raniju T11 email aktivaciju. Stara verzija
+aplikacije ne smije paralelno pisati dok se uvodi novi cart invariant.
+
+Ranije korisnikove UI izmjene ostaju lokalno u admin.css/admin.html/login.html/
+profile.html/profile.js. Pri sljedećem commitu ponovo izdvojiti samo segmentne
+izmjene iz zajedničkih fajlova; admin.css ovaj segment nije mijenjao.
+
+Reference za izolaciju snapshotova:
+https://dev.mysql.com/doc/refman/26.7/en/innodb-consistent-read.html
+https://www.sqlite.org/isolation.html
+https://www.sqlite.org/lang_transaction.html
+
+SLJEDEĆI SEGMENT
+Nakon pregleda: T16 tipovi CMS kolekcija, T17 dosljednost referenci, T18
+nepromjenjivi ID proizvoda. T11 čeka korisnikov izbor email servisa.

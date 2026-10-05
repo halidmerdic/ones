@@ -1,9 +1,11 @@
+const { withCartVersion } = require('./cart-helper.cjs');
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const baseURL = process.env.ONES_TEST_URL;
 if (!baseURL || new URL(baseURL).hostname !== '127.0.0.1' || process.env.ONES_DISPOSABLE_TEST !== '1') throw Error('Disposable loopback only');
 let checks = 0;
 async function post(ctx, action, data) {
+  data = await withCartVersion(ctx, baseURL, action, data);
   const token = await (await ctx.get(baseURL + '/api.php?action=csrf-token')).json();
   return ctx.post(baseURL + '/api.php?action=' + action, { data, headers: { 'X-CSRF-Token': token.csrfToken } });
 }

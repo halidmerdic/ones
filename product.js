@@ -256,11 +256,7 @@ function visibleBadge(product) {
 }
 
 function isDateActive(dateValue) {
-  if (!dateValue) return true;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const end = new Date(`${dateValue}T23:59:59`);
-  return end >= today;
+  return window.onesDateActive(dateValue);
 }
 
 function numericPrice(value) {
@@ -283,23 +279,7 @@ function formatDateOnly(value) {
 }
 
 function activePrice(product) {
-  if (numericPrice(product.salePrice) > 0 && product.saleUntil && isDateActive(product.saleUntil)) {
-    return { label: formatPrice(product.salePrice), type: "sale" };
-  }
-
-  if (numericPrice(product.discountPrice) > 0) {
-    return { label: formatPrice(product.discountPrice), type: "discount" };
-  }
-
-  if (numericPrice(product.mpcPrice) > 0) {
-    return { label: formatPrice(product.mpcPrice), type: "regular" };
-  }
-
-  if (numericPrice(product.price) > 0) {
-    return { label: formatPrice(product.price), type: "regular" };
-  }
-
-  return { label: "Cijena na upit", type: "inquiry" };
+  return window.onesActivePrice(product);
 }
 
 function priceHtml(product) {
@@ -710,3 +690,5 @@ window.addEventListener("storage", async (event) => {
 });
 
 init();
+
+window.addEventListener("ones-pricing-date", () => { if (product && cms) renderProduct(); });

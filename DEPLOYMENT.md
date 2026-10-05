@@ -13,7 +13,7 @@ Security segment T01–T03 (2026-10-05):
   mechanism. Existing browser sessions are invalidated once on this upgrade.
   Every successful CMS JSON restore then revokes all older sessions atomically;
   log in again using the administrator password contained in the restored backup.
-- Restore accepts complete version 1/2 backups with a valid `admin@ones.local`
+- Restore accepts complete version 1/2/3 backups with a valid `admin@ones.local`
   account and password hashes. Incomplete/redacted or inconsistent backups are
   rejected before replacement. Legacy version 1 fields are migrated explicitly.
 - MySQL/MariaDB restore requires InnoDB for every affected table. Test restoration
@@ -377,4 +377,50 @@ negative signs, currency suffixes and thousands separators are rejected. PHP and
 JavaScript parse identical integer-fening values; cart sums use integer arithmetic
 including large totals. Invalid old values are never stripped into a different
 number: they must be corrected before saving. Existing order snapshots are not
-rewritten. Date/timezone handling of sale expiry is tracked separately as T13.
+rewritten. Sale end dates are inclusive calendar dates in `Europe/Sarajevo`.
+The API supplies effective prices and its business date; browser clocks and
+time zones do not decide expiry. Open pages refresh the server date at midnight
+and on resume, including DST. If the clock cannot be refreshed after expiry,
+the browser withholds the old numeric price until reconnection. Order snapshots
+always use server prices.
+
+## 13. Cart integrity and backup format 3
+
+Deploy PHP and the versioned JavaScript together during a maintenance window,
+after taking a database backup. Do not run an old application version while the
+cart migration is executing. The migration adds a positive cart `revision` and
+enforces one active cart per user: a partial unique index on SQLite, a generated
+nullable `active_user_id` with a unique index on MySQL/MariaDB. MySQL requires
+InnoDB and generated-column support. Named locks serialize this migration across
+new application workers; SQLite uses its write transaction. This does not replace
+the broader migration cleanup still tracked as T34.
+
+Existing duplicate active carts merge into the newest cart, preserving quantities
+and unavailable products. If a combined product exceeds the allowed 99 units,
+migration stops instead of silently dropping units. Resolve those duplicates from
+the saved database copy with the administrator before retrying. Submitted carts
+and order snapshots are preserved. Running the migration again is safe.
+
+Cart add/update/remove and order submission require integer `cartId` and
+`cartRevision` from the displayed cart response. All writers lock the same user
+and cart before checking status/version. A stale request gets HTTP 409 with
+`CART_CONFLICT`, makes no cart/order change and is never replayed automatically.
+The browser refreshes the cart while retaining the phone and note. Old cached
+clients without a revision must reload the page.
+
+Backup exports now use format 3 with cart revisions. Imports accept formats 1/2/3,
+with explicit migration for old carts; generated index columns are never exported
+or accepted as input. A format-3 backup requires this application version to
+restore. Keep the pre-upgrade backup for application rollback.
+
+Downloads and pre-restore backups read CMS, its revision, users, carts, items,
+favorites and orders within one snapshot transaction. MySQL explicitly uses
+REPEATABLE READ for that transaction and rejects non-InnoDB tables. SQLite uses
+one read transaction. Errors roll back the read transaction; nested exports are
+rejected without committing a caller's transaction. The snapshot reflects one
+committed point in time; later commits belong to the next backup. Media files and
+private configuration still need their separate backup described above.
+
+Tests: `php tests/segment5-integrity.php`, `node tests/segment5-concurrency.cjs`,
+`node tests/pricing-clock.cjs`, and the disposable-server browser suite
+`tests/segment5-browser.cjs`. Concurrency uses independent PHP processes/connections.

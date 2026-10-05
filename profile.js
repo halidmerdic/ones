@@ -77,16 +77,13 @@ function productUrl(product) {
 }
 
 function profilePrice(product) {
-  const saleEnd = product.saleUntil ? new Date(`${String(product.saleUntil).slice(0, 10)}T23:59:59`) : null;
-  const activeSale = saleEnd && !Number.isNaN(saleEnd.getTime()) && saleEnd >= new Date() ? product.salePrice : null;
-  const values = [activeSale, product.discountPrice, product.mpcPrice, product.price];
-  const value = values.find((candidate) => (window.onesPriceCents(candidate) ?? 0) > 0);
-  if (!value) return "Cijena na upit";
-  const label = window.onesFormatPrice(value);
-  return `${label} KM`;
+  const price = window.onesActivePrice(product);
+  return price.type === "inquiry" ? price.label : price.label + " KM";
 }
 
+let displayedFavorites = [];
 function renderFavorites(products) {
+  displayedFavorites = products;
   const list = $("#profileFavorites");
 
   if (!products.length) {
@@ -303,3 +300,5 @@ $("#cancelEmailChangeBtn").addEventListener("click", async (event) => {
 setupMobileNav();
 
 initProfile();
+
+window.addEventListener("ones-pricing-date", () => { renderFavorites(displayedFavorites); });

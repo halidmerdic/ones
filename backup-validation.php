@@ -97,8 +97,8 @@ function backup_cms_shapes(array $cms): void
 
 function normalize_backup_payload($backup): array
 {
-    if (!is_array($backup) || !in_array($backup['version'] ?? null, [1, 2], true)) {
-        backup_invalid('version', 'podržani su samo formati 1 i 2.');
+    if (!is_array($backup) || !in_array($backup['version'] ?? null, [1, 2, 3], true)) {
+        backup_invalid('version', 'podržani su samo formati 1, 2 i 3.');
     }
     $legacy = $backup['version'] === 1;
     $allowedTop = ['version', 'createdAt', 'containsSensitiveData', 'cms', 'cmsRevision', 'tables'];
@@ -166,7 +166,7 @@ function normalize_backup_payload($backup): array
 
     $schemas = [
         'users' => ['id' => 0, 'name' => 190, 'email' => 190, 'password_hash' => 255, 'role' => 40, 'created_at' => 64, 'phone' => 80, 'privacy_accepted_at' => 64, 'auth_version' => 0],
-        'carts' => ['id' => 0, 'user_id' => 0, 'status' => 40, 'created_at' => 64, 'updated_at' => 64],
+        'carts' => ['id' => 0, 'user_id' => 0, 'status' => 40, 'created_at' => 64, 'updated_at' => 64, 'revision' => 0],
         'cart_items' => ['id' => 0, 'cart_id' => 0, 'product_id' => 190, 'quantity' => 0, 'created_at' => 64],
         'product_favorites' => ['id' => 0, 'user_id' => 0, 'product_id' => 190, 'created_at' => 64],
         'orders' => ['id' => 0, 'user_id' => 0, 'customer_name' => 190, 'customer_email' => 190, 'phone' => 80, 'note' => 10000, 'status' => 40, 'items_json' => 1000000, 'created_at' => 64, 'updated_at' => 64, 'admin_note' => 1000],
@@ -186,6 +186,7 @@ function normalize_backup_payload($backup): array
         $ids[$table] = [];
         foreach ($backup['tables'][$table] as $index => $row) {
             $path = $table . '.' . $index;
+            if ($table === 'carts' && $backup['version'] < 3 && is_array($row)) $row += ['revision' => 1];
             if (!is_array($row) || !$row || array_diff(array_keys($row), array_keys($schema))) {
                 backup_invalid($path, 'red je prazan ili sadrži nepoznate kolone.');
             }
@@ -294,6 +295,14 @@ function normalize_backup_payload($backup): array
     }
     if ($legacy) {
         $backup['tables']['cart_items'] = consolidate_cart_item_rows($backup['tables']['cart_items']);
+    }
+    try {
+        [$carts, $items] = normalize_active_carts($backup['tables']['carts'], $backup['tables']['cart_items']);
+        if ($backup['version'] === 3 && count($carts) !== count($backup['tables']['carts'])) backup_invalid('carts', 'ponovljena aktivna korpa.');
+        $backup['tables']['carts'] = $carts;
+        $backup['tables']['cart_items'] = $items;
+    } catch (RuntimeException $error) {
+        backup_invalid('carts', $error->getMessage());
     }
     return $backup;
 }

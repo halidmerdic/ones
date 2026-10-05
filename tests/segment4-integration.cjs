@@ -1,3 +1,4 @@
+const { withCartVersion } = require('./cart-helper.cjs');
 const { chromium, request } = require('playwright');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -7,7 +8,8 @@ if (!baseURL || new URL(baseURL).hostname !== '127.0.0.1' || process.env.ONES_DI
 let checks = 0;
 const contexts = [];
 async function get(ctx, action) { const r = await ctx.get(baseURL + '/api.php?action=' + action); assert.equal(r.status(), 200); return r.json(); }
-async function post(ctx, action, data) { return ctx.post(baseURL + '/api.php?action=' + action, { data, headers: { 'X-CSRF-Token': (await get(ctx, 'csrf-token')).csrfToken } }); }
+async function post(ctx, action, data) {
+  data = await withCartVersion(ctx, baseURL, action, data); return ctx.post(baseURL + '/api.php?action=' + action, { data, headers: { 'X-CSRF-Token': (await get(ctx, 'csrf-token')).csrfToken } }); }
 async function status(response, expected) { assert.equal(response.status(), expected, await response.text()); checks++; return response.json(); }
 async function context(ip) { const c = await request.newContext({ extraHTTPHeaders: { 'CF-Connecting-IP': ip.replace('203.0.113.', '198.51.100.') } }); contexts.push(c); return c; }
 (async () => {
@@ -91,7 +93,7 @@ async function context(ip) { const c = await request.newContext({ extraHTTPHeade
         await page.goto(baseURL + '/profile.html'); await page.waitForFunction(() => document.querySelector('#emailVerificationState').textContent.includes('je potvrđena'));
         assert.equal(await page.locator('#profileFavorites b').first().textContent(), '0.1 KM'); checks++;
         await page.locator('#currentPasswordInput').fill(nextPassword); await page.locator('#newPasswordInput').fill('č'.repeat(8)); await page.locator('#savePasswordBtn').click();
-        assert.match(await page.locator('#profilePasswordStatus').textContent(), /najmanje 15/); checks++;
+        assert.match(await page.locator('#profilePasswordStatus, .admin-toast').last().textContent(), /najmanje 15/); checks++;
         await page.goto(baseURL + '/cart.html'); await page.waitForFunction(() => document.querySelectorAll('[data-qty]').length > 0);
         assert.equal(await page.evaluate(() => money(cartTotal())), '0.5 KM'); checks++;
         await page.goto(baseURL + '/product.html?id=' + first.id); await page.waitForFunction(() => document.querySelector('#productTitle')?.textContent || document.body.textContent.includes('0.1 KM'));

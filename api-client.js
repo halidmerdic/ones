@@ -14,6 +14,42 @@
   };
   window.onesFormatPrice = value => window.onesFormatCents(window.onesPriceCents(value) ?? 0);
 
+  let businessDate = "";
+  let clockAsOf = 0;
+  let clockTimer;
+  let clockRequest;
+  function acceptPricingClock(clock) {
+    if (!clock || clock.zone !== "Europe/Sarajevo" || !/^\d{4}-\d{2}-\d{2}$/.test(clock.date)) return;
+    if (!Number.isFinite(clock.asOf) || clock.asOf < clockAsOf || !Number.isFinite(clock.refreshAfterMs)) return;
+    clockAsOf = clock.asOf;
+    const changed = businessDate !== clock.date;
+    businessDate = clock.date;
+    clearTimeout(clockTimer);
+    clockTimer = setTimeout(() => refreshPricingClock(true), Math.max(1, Math.min(90000000, clock.refreshAfterMs)));
+    if (changed) window.dispatchEvent(new Event("ones-pricing-date"));
+  }
+  async function refreshPricingClock(expired = false) {
+    if (expired) { businessDate = ""; window.dispatchEvent(new Event("ones-pricing-date")); }
+    if (!clockRequest) clockRequest = api("pricing-clock").catch(() => {
+      clearTimeout(clockTimer);
+      clockTimer = setTimeout(() => refreshPricingClock(true), 30000);
+    }).finally(() => { clockRequest = null; });
+    return clockRequest;
+  }
+  // Never consult Date.now() or the device's time zone for store prices.
+  window.onesDateActive = value => !value || (!!businessDate && /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= businessDate);
+  window.onesActivePrice = product => {
+    if (!businessDate) return { label: "Cijena na upit", type: "inquiry" };
+    if (product.effectivePrice?.date === businessDate) return product.effectivePrice;
+    for (const [field, type] of [["salePrice", "sale"], ["discountPrice", "discount"], ["mpcPrice", "regular"], ["price", "regular"]]) {
+      if (field === "salePrice" && (!product.saleUntil || !window.onesDateActive(product.saleUntil))) continue;
+      if ((window.onesPriceCents(product[field]) ?? 0) > 0) return { label: window.onesFormatPrice(product[field]), type };
+    }
+    return { label: "Cijena na upit", type: "inquiry" };
+  };
+  window.addEventListener?.("pageshow", () => refreshPricingClock(true));
+  if (typeof document !== "undefined") document.addEventListener?.("visibilitychange", () => { if (!document.hidden) refreshPricingClock(true); });
+
   // New passwords count Unicode code points; bcrypt's separate limit is bytes.
   window.onesPasswordError = function (password, admin = false) {
     if (typeof password !== "string" || /\u0000|[\uD800-\uDFFF]/u.test(password)) return "Lozinka sadrži neispravan znak.";
@@ -27,6 +63,7 @@
   let csrfToken = "";
   let csrfRequest = null;
   let logoutRequest = null;
+  let lastCart = null;
 
   async function readJson(response) {
     let data = null;
@@ -43,6 +80,7 @@
       throw error;
     }
 
+    acceptPricingClock(data.pricingClock);
     return data;
   }
 
@@ -74,6 +112,12 @@
   }
 
   async function api(action, payload) {
+    // Catalogue/product buttons use the last version this page actually read.
+    // Cart-page edits pass their displayed version explicitly.
+    if (action === "cart-add" && payload?.cartId === undefined) {
+      if (!lastCart) lastCart = (await api("cart")).cart;
+      payload = { ...payload, cartId: lastCart.cartId, cartRevision: lastCart.revision };
+    }
     const hasPayload = payload !== undefined;
     const options = hasPayload
       ? {
@@ -88,7 +132,18 @@
         };
 
     const response = await fetch(`api.php?action=${encodeURIComponent(action)}`, options);
-    return readJson(response);
+    try {
+      const data = await readJson(response);
+      if (data.cart) lastCart = data.cart;
+      if (action === "customer-logout") lastCart = null;
+      return data;
+    } catch (error) {
+      if (error.code === "CART_CONFLICT") {
+        lastCart = null;
+        try { error.cart = (await api("cart")).cart; } catch { /* Preserve original error; never replay a mutation. */ }
+      }
+      throw error;
+    }
   }
 
   async function logoutCustomer() {

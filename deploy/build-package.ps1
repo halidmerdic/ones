@@ -32,6 +32,7 @@ $runtimeFiles = @(
   "login-security.php",
   "pricing.php",
   "email-security.php",
+  "cart-integrity.php",
   "verify.html",
   "verify.js",
   "verify.css",

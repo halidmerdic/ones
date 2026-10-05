@@ -1,3 +1,4 @@
+const { withCartVersion } = require('./cart-helper.cjs');
 // Real local API for authentication/cart; controlled responses for failure scenarios.
 const { chromium, request } = require('playwright');
 const assert = require('node:assert/strict');
@@ -14,6 +15,7 @@ async function get(ctx, action) {
   return response.json();
 }
 async function post(ctx, action, data) {
+  data = await withCartVersion(ctx, baseURL, action, data);
   return ctx.post(baseURL + '/api.php?action=' + action, {
     data, headers: { 'X-CSRF-Token': (await get(ctx, 'csrf-token')).csrfToken },
   });

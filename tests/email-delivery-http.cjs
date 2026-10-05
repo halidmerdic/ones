@@ -1,3 +1,4 @@
+const { withCartVersion } = require('./cart-helper.cjs');
 const { chromium } = require('playwright');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
@@ -13,7 +14,8 @@ const seed = spawnSync(php, ['-r', `$_SERVER['HTTP_HOST']='localhost'; define('O
 assert.equal(seed.status, 0, seed.stderr);
 let checks = 0;
 async function get(ctx, action) { return (await ctx.get(baseURL + '/api.php?action=' + action)).json(); }
-async function post(ctx, action, data) { return ctx.post(baseURL + '/api.php?action=' + action, { data, headers: { 'X-CSRF-Token': (await get(ctx, 'csrf-token')).csrfToken } }); }
+async function post(ctx, action, data) {
+  data = await withCartVersion(ctx, baseURL, action, data); return ctx.post(baseURL + '/api.php?action=' + action, { data, headers: { 'X-CSRF-Token': (await get(ctx, 'csrf-token')).csrfToken } }); }
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {

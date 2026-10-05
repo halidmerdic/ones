@@ -1,3 +1,4 @@
+const { withCartVersion } = require('./cart-helper.cjs');
 // Requires a disposable packaged server, NEVER a live/project-data server.
 const { chromium, request } = require('playwright');
 const assert = require('node:assert/strict');
@@ -17,6 +18,7 @@ async function get(ctx, action) {
   return response.json();
 }
 async function post(ctx, action, data) {
+  data = await withCartVersion(ctx, baseURL, action, data);
   const token = (await get(ctx, 'csrf-token')).csrfToken;
   return ctx.post(baseURL + '/api.php?action=' + action, { data, headers: { 'X-CSRF-Token': token } });
 }
@@ -58,7 +60,8 @@ async function apiContext() {
   assert.equal((await restore(admin, invalid)).status(), 400);
   assert.equal((await get(admin, 'admin-status')).loggedIn, true);
   assert.equal((await get(customer, 'customer-status')).loggedIn, true);
-  assert.deepEqual(await get(admin, 'admin-cms'), current);
+  const afterRejectedRestore = await get(admin, 'admin-cms');
+  assert.deepEqual({cms:afterRejectedRestore.cms,revision:afterRejectedRestore.revision}, {cms:current.cms,revision:current.revision});
   checks += 4;
   for (const mutate of [
     value => { value.cms.products[0].id = []; },

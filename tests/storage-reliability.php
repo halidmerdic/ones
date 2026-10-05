@@ -70,7 +70,7 @@ try {
 
     $backup = backup_payload($pdo);
     [$backupValid, $backupMessage] = validate_backup_payload($backup);
-    assert_storage_test($backupValid && $backup['version'] === 2 && $backup['cmsRevision'] === $revision, 'backup sadrži ispravan CMS i reviziju: ' . $backupMessage);
+    assert_storage_test($backupValid && $backup['version'] === 3 && $backup['cmsRevision'] === $revision, 'backup sadrži ispravan CMS i reviziju: ' . $backupMessage);
 
     $invalidBackup = $backup;
     $invalidBackup['cms']['products'] = 'nije-lista';

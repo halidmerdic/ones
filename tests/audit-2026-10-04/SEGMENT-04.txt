@@ -6,13 +6,16 @@ https://github.com/halidmerdic/ones/commit/a6370a116d097849d7c0357f1f2a3282dbdca
 GitHub PHP/JavaScript CI i automatski statički Pages build su prošli. Pages build
 nije objava PHP aplikacije na Hetzneru. Produkcijski PHP kod nije uploadovan.
 
-Ovaj segment je lokalni i nije commitovan/pushovan. T10 i T12 su završeni.
-T11 je implementiran i testiran lokalno; nije potpuno zatvoren. Korisnik je
-potvrdio da još nema email servis i odobrio lokalnu pripremu, uz aktivaciju kasnije.
-Ukupno 11 od 38 taskova završeno (9 na GitHubu, 2 lokalno); T11 čeka infrastrukturu.
-Ranije postojeće UI izmjene su sačuvane. Pri sljedećem commitu treba pažljivo
-izdvojiti naše izmjene u zajedničkim admin.html/login.html/profile.html/profile.js;
-admin.css sadrži samo ranije korisnikove izmjene, nije mijenjan ovim segmentom.
+Segment je poslan na GitHub 05.10.2026, commit 8f79f61:
+https://github.com/halidmerdic/ones/commit/8f79f6122ea30ebe19cf4b72d827cae60f173078
+PHP/JavaScript CI i statički Pages build su prošli:
+https://github.com/halidmerdic/ones/actions/runs/37264682899
+https://github.com/halidmerdic/ones/actions/runs/37264682755
+T10 i T12 su završeni. T11 je implementiran i lokalno testiran, ali čeka email
+servis i aktivaciju koju je korisnik izričito odgodio. Produkcija nije deployana.
+Raniji UI dizajn je ostao lokalno. Zajednički admin.html/login.html/profile.html/
+profile.js commitovani su samo s pripadajućim sigurnosnim izmjenama. Izdvojeni
+Git index snapshot dodatno je prošao 18 browser provjera na 320/820/1440 px.
 
 T10 — UNICODE LOZINKE
 Minimum se sada broji kao 15 Unicode code point znakova: mb_strlen na serveru,
@@ -107,7 +110,9 @@ PHP 8.5.11 uz E_ALL i pretvaranje upozorenja/deprecations u greške:
 - login-concurrency: 20 procesa, tačno pet prihvaćenih na SQLite.
 - segment1-integration: 161; cms-save-browser: 294; cart-recovery-browser: 14.
 - smoke.ps1: 249 provjera na disposable SQLite serveru s dva testna proizvoda.
-- PHP/JS/PowerShell sintaksa i git diff --check prošli. Završni HTTP server log
+- PHP/JS/PowerShell sintaksa i git diff --check aplikacijskih fajlova prošli.
+  Originalni vendored PHPMailer README sadrži jedan upstream završni razmak;
+  ostavljen je netaknut radi odgovarajućeg upstream checksuma. Završni HTTP server log
   nema PHP upozorenja, notices ili deprecations. Popravljena je početno nađena
   pogrešna lokacija SMTP Timelimit postavke; konačni transport test je prošao.
 
@@ -118,11 +123,9 @@ Nova stranica potvrde nema horizontalno prelijevanje; pregledane su slike za
 mobile/tablet/desktop u segment4-views. Poboljšan je kontrast njenog tamnog dugmeta.
 Fizički iOS/Android uređaji i Safari nisu testirani. T31–T33 se ne zatvaraju.
 MariaDB je izolirana testna instanca 10.4.22; produkcijska baza nije mijenjana.
-Novi GitHub CI testovi su pripremljeni lokalno; nisu pokrenuti u oblaku jer ovaj
-segment nije pushovan. Testni serveri, email capture i privremene baze uklanjaju
-se na kraju rada; izolirani PHP runtime ostaje za dalji razvoj.
+GitHub CI je prošao za 8f79f61. Privremeni testni serveri i baze ovog segmenta
+su ugašeni/uklonjeni; izolirani PHP runtime ostaje za dalji razvoj.
 
 SLJEDEĆI SEGMENT
-Nakon korisnikovog pregleda: T13 vremenska zona akcijskih cijena, T14 paralelne
-izmjene korpe, T15 konzistentan snapshot backupa. T11 aktivirati naknadno čim
-korisnik odabere mail servis. Ne počinjati nove taskove prije pregleda segmenta.
+Korisnik je odobrio i započet je T13–T15. Rezultati su u SEGMENT-05.txt.
+T11 aktivirati naknadno čim korisnik odabere mail servis.

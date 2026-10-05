@@ -357,12 +357,7 @@ function formatDateTime(value) {
 }
 
 function isDateActive(dateValue) {
-  if (!dateValue) return true;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const end = new Date(dateValue);
-  end.setHours(23, 59, 59, 999);
-  return end >= today;
+  return window.onesDateActive(dateValue);
 }
 
 function adminPriceHtml(product) {
@@ -1956,7 +1951,7 @@ function renderProducts() {
                 return `
                   <div class="product-admin-row ${editingProductId === product.id ? "active" : ""} ${product.enabled === false ? "product-disabled" : ""} ${productMissingSaleDate(product) ? "product-missing-sale-date" : ""}">
                     <input data-product-field="name" data-product-index="${index}" value="${escapeHtml(product.name)}" />
-                    ${adminPriceHtml(product)}
+                    <div data-price-product="${escapeHtml(product.id)}">${adminPriceHtml(product)}</div>
                     <select data-product-field="category" data-product-index="${index}">
                       ${categoryOptions.map((category) => `<option value="${escapeHtml(category)}" ${category === product.category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}
                     </select>
@@ -3021,3 +3016,5 @@ async function initAdmin() {
 
 initAdmin();
 
+
+window.addEventListener("ones-pricing-date", () => { document.querySelectorAll("[data-price-product]").forEach(el => { const p = cms.products.find(p => p.id === el.dataset.priceProduct); if (p) el.innerHTML = adminPriceHtml(p); }); });
