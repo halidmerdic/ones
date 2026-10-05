@@ -13,6 +13,7 @@ require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/email-security.php';
 require_once __DIR__ . '/cart-integrity.php';
 require_once __DIR__ . '/cms-integrity.php';
+require_once __DIR__ . '/cms-relations.php';
 
 function request_host(): string
 {
@@ -264,6 +265,9 @@ function body_json(bool $checkCmsShapes = false): array
         $errors = cms_shape_errors($wire instanceof stdClass ? ($wire->cms ?? null) : null, true);
         if ($wire instanceof stdClass && property_exists($wire, 'deletedProductIds') && !is_array($wire->deletedProductIds)) {
             cms_add_error($errors, 'deletedProductIds', 'mora biti JSON lista.');
+        }
+        if ($wire instanceof stdClass && property_exists($wire, 'referenceChanges')) {
+            $errors = array_merge($errors, cms_reference_changes_errors($wire->referenceChanges, true));
         }
         if ($errors) throw new CmsValidationError($errors);
     }
@@ -796,9 +800,9 @@ function seed_database(PDO $pdo): void
     }
 }
 
-function get_cms(PDO $pdo): array
+function get_cms(PDO $pdo, bool $currentRead = false): array
 {
-    $stmt = $pdo->prepare('SELECT value FROM cms_store WHERE ' . quote_identifier($pdo, 'key') . ' = "cms"');
+    $stmt = $pdo->prepare('SELECT value FROM cms_store WHERE ' . quote_identifier($pdo, 'key') . ' = "cms"' . ($currentRead && $pdo->inTransaction() && database_driver($pdo) === 'mysql' ? ' LOCK IN SHARE MODE' : ''));
     $stmt->execute();
     $data = json_decode((string)$stmt->fetchColumn(), true);
 
@@ -1455,10 +1459,10 @@ function prune_cms_revisions(PDO $pdo, int $keep = 25): void
     }
 }
 
-function save_cms(PDO $pdo, array $cms, ?int $expectedRevision = null, ?array $deletedProductIds = null): int
+function save_cms(PDO $pdo, array $cms, ?int $expectedRevision = null, ?array $deletedProductIds = null, array $referenceChanges = []): int
 {
     $cms = cms_sanitize_content($cms);
-    $errors = cms_validate_payload($cms);
+    $errors = cms_shape_errors($cms);
     if ($errors) throw new CmsValidationError($errors);
     $ownsTransaction = !$pdo->inTransaction();
     if ($ownsTransaction) {
@@ -1466,29 +1470,26 @@ function save_cms(PDO $pdo, array $cms, ?int $expectedRevision = null, ?array $d
     }
 
     try {
-        if (database_driver($pdo) === 'sqlite') $pdo->exec('UPDATE cms_store SET revision = revision WHERE 0');
+        $current = lock_catalog($pdo, true);
         $keyColumn = quote_identifier($pdo, 'key');
-        $selectSql = 'SELECT value, revision FROM cms_store WHERE ' . $keyColumn . ' = "cms"';
-        if (database_driver($pdo) === 'mysql') {
-            $selectSql .= ' FOR UPDATE';
-        }
-        $current = $pdo->query($selectSql)->fetch(PDO::FETCH_ASSOC);
-        if (!$current) {
-            throw new RuntimeException('CMS zapis nije pronađen u bazi.');
-        }
 
         $currentRevision = max(1, (int)($current['revision'] ?? 1));
         if ($expectedRevision !== null && $expectedRevision !== $currentRevision) {
             throw new CmsRevisionConflict('CMS je u međuvremenu promijenjen u drugoj kartici. Osvježite CMS prije ponovnog spremanja.');
         }
 
+        $previous = json_decode((string)$current['value'], true, 512, JSON_THROW_ON_ERROR);
         if ($deletedProductIds !== null) {
-            $cms = cms_check_product_identities($pdo, json_decode((string)$current['value'], true, 512, JSON_THROW_ON_ERROR), $cms, $deletedProductIds);
+            $cms = cms_check_product_identities($pdo, $previous, $cms, $deletedProductIds);
+            $cms = cms_resolve_relations($pdo, $previous, $cms, $deletedProductIds, $referenceChanges);
         } else {
             // Internal restore/reset paths replace a complete, validated snapshot.
-            foreach ($cms['products'] as &$product) unset($product['_identity']);
-            unset($product);
+            $cms = cms_strip_identities($cms);
         }
+        $errors = cms_validate_payload($cms);
+        if ($errors) throw new CmsValidationError($errors);
+        $removedIds = array_values(array_diff(array_column($previous['products'], 'id'), array_column($cms['products'], 'id')));
+        cms_remove_product_dependencies($pdo, $removedIds);
 
         $history = $pdo->prepare('INSERT INTO cms_revisions (revision, value, created_at) VALUES (:revision, :value, :created_at)');
         $history->execute([
@@ -1962,7 +1963,7 @@ function write_cart_item(PDO $pdo, int $cartId, string $productId, int $quantity
 
 function products_by_id(PDO $pdo): array
 {
-    $cms = public_cms(get_cms($pdo));
+    $cms = public_cms(get_cms($pdo, $pdo->inTransaction()));
     $products = [];
     foreach (($cms['products'] ?? []) as $product) {
         if (!empty($product['id'])) {
@@ -2055,6 +2056,7 @@ function create_order_from_cart(PDO $pdo, int $userId, int $cartId, array $user,
 {
     try {
         $pdo->beginTransaction();
+        lock_catalog($pdo);
         $pdo->exec('UPDATE email_lock SET id = id WHERE id = 1');
         lock_cart_owner($pdo, $userId);
         $identity = $pdo->prepare('SELECT name, email FROM users WHERE id = :id AND role = "customer"');
@@ -2355,6 +2357,7 @@ function restore_backup_payload(PDO $pdo, array $backup, ?string $backupDirector
 
     try {
         $pdo->beginTransaction();
+        lock_catalog($pdo, true);
         $pdo->exec('UPDATE email_lock SET id = id WHERE id = 1');
         $revision = save_cms($pdo, $backup['cms']);
         $pdo->exec('DELETE FROM email_challenges');
@@ -2429,7 +2432,7 @@ try {
 
     if ($action === 'admin-cms') {
         require_admin();
-        respond(['ok' => true, 'cms' => admin_cms_view($pdo), 'revision' => get_cms_revision($pdo)]);
+        respond(['ok' => true] + admin_cms_response($pdo));
     }
 
     if ($action === 'admin-status') {
@@ -2724,28 +2727,8 @@ try {
     if ($action === 'favorite-toggle') {
         $userId = require_customer();
         $body = body_json();
-        $productId = trim((string)($body['productId'] ?? ''));
-        $products = products_by_id($pdo);
-
-        if ($productId === '' || !isset($products[$productId]) || ($products[$productId]['enabled'] ?? true) === false) {
-            respond(['ok' => false, 'message' => 'Proizvod nije pronađen.'], 404);
-        }
-
-        $existing = $pdo->prepare('SELECT id FROM product_favorites WHERE user_id = :user_id AND product_id = :product_id LIMIT 1');
-        $existing->execute([':user_id' => $userId, ':product_id' => $productId]);
-        $favoriteId = $existing->fetchColumn();
-
-        if ($favoriteId) {
-            $delete = $pdo->prepare('DELETE FROM product_favorites WHERE id = :id AND user_id = :user_id');
-            $delete->execute([':id' => (int)$favoriteId, ':user_id' => $userId]);
-            $favorited = false;
-        } else {
-            $insert = $pdo->prepare('INSERT INTO product_favorites (user_id, product_id, created_at) VALUES (:user_id, :product_id, :created_at)');
-            $insert->execute([':user_id' => $userId, ':product_id' => $productId, ':created_at' => date('c')]);
-            $favorited = true;
-        }
-
-        respond(['ok' => true, 'favorited' => $favorited, 'favorites' => favorites_payload($pdo, $userId)]);
+        if (!is_string($body['productId'] ?? null) || trim($body['productId']) === '') respond(['ok'=>false,'message'=>'Proizvod nije ispravan.'],400);
+        respond(['ok'=>true] + toggle_favorite($pdo, $userId, trim($body['productId'])));
     }
 
     if ($action === 'pricing-clock') respond(['ok' => true]);
@@ -2945,14 +2928,6 @@ try {
         if (!isset($body['cms']) || !is_array($body['cms'])) {
             respond(['ok' => false, 'message' => 'CMS podaci nedostaju.'], 400);
         }
-        $validationErrors = cms_validate_payload($body['cms']);
-        if ($validationErrors) {
-            respond([
-                'ok' => false,
-                'message' => 'CMS nije sačuvan. ' . $validationErrors[0],
-                'errors' => $validationErrors,
-            ], 422);
-        }
         $expectedRevision = null;
         if (array_key_exists('revision', $body)) {
             if (!is_int($body['revision']) || $body['revision'] < 1) {
@@ -2964,11 +2939,11 @@ try {
         if (!is_array($deletedProductIds)) throw new CmsValidationError(['deletedProductIds: mora biti lista.']);
         if ($expectedRevision === null) throw new CmsValidationError(['revision: osvježite CMS prije spremanja.']);
         try {
-            $revision = save_cms($pdo, $body['cms'], $expectedRevision, $deletedProductIds);
+            save_cms($pdo, $body['cms'], $expectedRevision, $deletedProductIds, $body['referenceChanges'] ?? []);
         } catch (CmsRevisionConflict $error) {
             respond(['ok' => false, 'message' => $error->getMessage(), 'revision' => get_cms_revision($pdo)], 409);
         }
-        respond(['ok' => true, 'cms' => admin_cms_view($pdo), 'revision' => $revision]);
+        respond(['ok' => true] + admin_cms_response($pdo));
     }
 
     if ($action === 'reset-cms') {
@@ -2976,11 +2951,11 @@ try {
         $body = body_json();
         $expectedRevision = isset($body['revision']) && is_int($body['revision']) ? $body['revision'] : null;
         try {
-            $revision = save_cms($pdo, default_cms(), $expectedRevision);
+            save_cms($pdo, default_cms(), $expectedRevision);
         } catch (CmsRevisionConflict $error) {
             respond(['ok' => false, 'message' => $error->getMessage(), 'revision' => get_cms_revision($pdo)], 409);
         }
-        respond(['ok' => true, 'cms' => admin_cms_view($pdo), 'revision' => $revision]);
+        respond(['ok' => true] + admin_cms_response($pdo));
     }
 
     respond(['ok' => false, 'message' => 'Nepoznata akcija.'], 404);

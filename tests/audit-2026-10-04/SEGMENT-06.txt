@@ -9,8 +9,13 @@ https://github.com/halidmerdic/ones/actions/runs/37276820995
 https://github.com/halidmerdic/ones/actions/runs/37276819149
 Nije izvršen deploy PHP aplikacije na Hetzner niti izmjena produkcijske baze.
 
-T16–T18 i T39 završeni su lokalno i spremni za pregled; još nisu commitovani
-ni poslani na GitHub. Ukupno 18/39 taskova završeno: 14 na GitHubu, 4 lokalno.
+T16–T18 i T39 naknadno su commitovani i poslani na GitHub 05.10.2026:
+e73afa446915e9b849397725df1caf75a325b05b
+https://github.com/halidmerdic/ones/commit/e73afa446915e9b849397725df1caf75a325b05b
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37280793717
+Statički Pages build: https://github.com/halidmerdic/ones/actions/runs/37280793014
+Oba su uspješno završila. Na kraju ovog segmenta svih 18/39 završenih taskova
+je na GitHubu. Nije izvršen deploy na Hetzner PHP aplikaciju.
 T39 je zaseban novi nalaz iz završnog smoke testa, a ne proširenje značenja T18.
 T11 ostaje otvoren do službenog email servisa i aktivacije. Prema dogovoru,
 privremeni app password nije podešen. Testni SMTP je isključivo lokalni capture.
@@ -104,7 +109,7 @@ PROVJERE
   login-concurrency 5/20, segment5-concurrency 25, pricing-clock 22.
 - Konačni smoke: 249 provjera, uključujući ZIP sa cms-integrity.php i sitemap.
   PHP/JS sintaksa i diff whitespace provjere segmentnih izmjena su prošle.
-  Novi PHP/konkurentni testovi uključeni su u GitHub CI za sljedeći push.
+  Novi PHP/konkurentni testovi prošli su u GitHub CI-ju commita e73afa4.
 
 Prva browser pokretanja ispravila su označavanje novog ID objašnjenja i testni
 selektor polja Boja. Prvi MySQL concurrency fixture nije postavio UTF-8 charset
@@ -131,5 +136,7 @@ admin.js sa security-5 na security-6; pri commitu izdvojiti taj hunk od ranijeg
 UI redizajna. Ostala četiri navedena fajla ovaj segment nije mijenjao.
 
 SLJEDEĆI SEGMENT
-T19 brisanje proizvoda i zavisnosti, T20 brisanje kategorije i zavisnosti,
-T21 preimenovanje/brisanje oznaka. T11 čeka službeni email servis i aktivaciju.
+Korisnik je odobrio i započet je T19–T21: brisanje proizvoda i zavisnosti,
+brisanje kategorije i zavisnosti te preimenovanje/brisanje oznaka. Uključen je
+i povezani T22, uklanjanje automatskog brisanja praznih kategorija.
+T11 čeka službeni email servis i aktivaciju.

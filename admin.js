@@ -101,6 +101,9 @@ let customers = [];
 let activePanel = "settings";
 let editingProductId = null;
 let savedProductIds = new Set();
+let savedCategories = new Map();
+let savedBadges = new Map();
+let categoryReplacements = new Map();
 let editingCategoryIndex = null;
 let editingCategoryAttributeIndex = null;
 let productFilters = {
@@ -258,11 +261,19 @@ function cmsSnapshot() {
   return JSON.stringify(cms);
 }
 
+function hasPendingEntityNames() {
+  return [...document.querySelectorAll('input[data-cms-entity-name]')].some(input => typeof input.cmsEntityName === "function" && input.value.trim() !== input.cmsEntityName());
+}
+
+function syncCmsEntityNames() {
+  return [...document.querySelectorAll('input[data-cms-entity-name]')].every(input => typeof input.commitCmsName !== "function" || input.commitCmsName());
+}
+
 function updateSaveState() {
   const saveButton = $("#saveBtn");
   if (!saveButton) return;
   saveButton.hidden = passwordNeedsChange;
-  const dirty = Boolean(cmsBaseline) && cmsSnapshot() !== cmsBaseline;
+  const dirty = Boolean(cmsBaseline) && (cmsSnapshot() !== cmsBaseline || hasPendingEntityNames());
   saveButton.classList.toggle("has-unsaved", dirty);
   saveButton.disabled = cmsSaving || cmsPendingUploads > 0 || passwordNeedsChange || $("#adminEditor").hidden;
   saveButton.textContent = cmsSaving ? "Spremanje..." : cmsPendingUploads ? "Upload u toku..." : dirty ? "Sačuvaj izmjene" : "Sačuvaj CMS";
@@ -502,6 +513,7 @@ async function loadCms() {
     cmsRevision = Number(data.revision) || 1;
     cms = { ...structuredClone(defaultCms), ...data.cms };
     savedProductIds = new Set(cms.products.map(product => product.id));
+    resetCmsRelations();
     cms.contact = { ...structuredClone(defaultCms.contact), ...(data.cms?.contact || {}) };
     cms.sections = { ...structuredClone(defaultCms.sections), ...(data.cms?.sections || {}) };
     cms.settings = { ...structuredClone(defaultCms.settings), ...(data.cms?.settings || {}) };
@@ -547,6 +559,7 @@ async function loadActivePanelData(force = false) {
 
 async function activatePanel(panelId) {
   if (cmsSaving) return;
+  if (!syncCmsEntityNames()) return;
   activePanel = passwordNeedsChange ? "security" : panelId;
   rememberActivePanel();
   closeAdminMenu();
@@ -556,11 +569,13 @@ async function activatePanel(panelId) {
 }
 
 async function saveCms() {
+  if (document.querySelector('#cmsRelationDialog')) return;
   if (cmsSaving || passwordNeedsChange || $("#adminEditor").hidden) return;
   if (cmsPendingUploads) {
     flash("Sačekajte završetak uploada prije spremanja CMS-a.");
     return;
   }
+  if (!syncCmsEntityNames()) return;
   syncOpenProductSpecs();
 
   const invalidPriceProduct = (cms.products || []).find(product =>
@@ -574,7 +589,6 @@ async function saveCms() {
     delete cms.sections.productFilters;
   }
 
-  const removedEmptyCategories = pruneEmptyCategories();
   (cms.categories || []).forEach((category) => ensureCategoryAttributes(category));
 
   (cms.products || []).forEach((product) => {
@@ -607,10 +621,16 @@ async function saveCms() {
   try {
     const editedProductId = editingProductId;
     const deletedProductIds = [...savedProductIds].filter(id => !cms.products.some(product => product.id === id));
-    const data = await api("save-cms", { cms, revision: cmsRevision, deletedProductIds });
+    const referenceChanges = {
+      categories: [...savedCategories].filter(([proof]) => !cms.categories.some(item => item._identity === proof))
+        .map(([proof, from]) => ({ from, to: categoryReplacements.get(proof) ?? null })),
+      badges: [...savedBadges].filter(([proof]) => !cms.badges.some(item => item._identity === proof)).map(([,name]) => name),
+    };
+    const data = await api("save-cms", { cms, revision: cmsRevision, deletedProductIds, referenceChanges });
     cmsRevision = Number(data.revision) || cmsRevision + 1;
     cms = data.cms;
     savedProductIds = new Set(cms.products.map(product => product.id));
+    resetCmsRelations();
     captureCmsBaseline();
     renderAll();
     if (editedProductId && (cms.products || []).some((product) => product.id === editedProductId)) {
@@ -619,7 +639,7 @@ async function saveCms() {
     }
     captureCmsBaseline();
     localStorage.setItem("onesCmsUpdatedAt", String(Date.now()));
-    flash(removedEmptyCategories ? `CMS je sacuvan. Uklonjeno praznih kategorija: ${removedEmptyCategories}.` : "CMS je sacuvan u bazi.");
+    flash("CMS je sacuvan u bazi.");
   } catch (error) {
     flash(error.message, /međuvremenu|osvježite cms/i.test(error.message) ? 9000 : 2800);
   } finally {
@@ -1235,7 +1255,7 @@ function createDefaultProduct() {
     name: "Novi proizvod",
     category: cms.categories[0]?.name || "Bez kategorije",
     status: "Dostupno",
-    badge: "Novo",
+    badge: "-",
     tone: "red",
     mpcPrice: "0",
     discountPrice: "0",
@@ -1319,9 +1339,15 @@ function renderProductEditorModal() {
 
   $("#closeProductEditorBtn").addEventListener("click", closeProductEditor);
   $("#saveProductCmsBtn").addEventListener("click", saveCms);
-  $("#deleteProductBtn").addEventListener("click", () => {
+  $("#deleteProductBtn").addEventListener("click", async () => {
+    if (cmsSaving || cmsPendingUploads) return;
+    const manualCount = cms.manuals.filter(manual => manual.relatedProductId === editorProduct.id).length;
+    const decision = await confirmCmsRelation("Obriši proizvod", `Obrisati „${editorProduct.name}”? Pri spremanju CMS-a uklanja se ${manualCount} povezanih manuala, ovaj proizvod iz aktivnih korpi i omiljenih proizvoda. Poslane narudžbe i njihove cijene ostaju sačuvane.`);
+    if (!decision.confirmed) return;
     const index = cms.products.indexOf(editorProduct);
+    if (index < 0) return;
     cms.products.splice(index, 1);
+    cms.manuals = cms.manuals.filter(manual => manual.relatedProductId !== editorProduct.id);
     editingProductId = null;
     closeProductEditor();
   });
@@ -1555,7 +1581,7 @@ function renderSections() {
   });
 }
 
-function renderArrayPanel(panelId, title, items, emptyItem, renderItem) {
+function renderArrayPanel(panelId, title, items, emptyItem, renderItem, onDelete = null) {
   const panel = $(`[data-panel="${panelId}"]`);
   const contentView = contentListViews[panelId] || { search: "" };
   contentListViews[panelId] = contentView;
@@ -1600,6 +1626,7 @@ function renderArrayPanel(panelId, title, items, emptyItem, renderItem) {
   list.className = "admin-card-list";
   pageData.items.forEach(({ item, index }) => {
     const itemCard = card(item.name || item.title || item.q || "Novi unos", () => {
+      if (onDelete) { void onDelete(item); return; }
       items.splice(index, 1);
       renderAll();
     });
@@ -1627,14 +1654,90 @@ function checkboxField(label, checked, onChange) {
   return wrapper;
 }
 
-function pruneEmptyCategories() {
-  const usedCategories = new Set((cms.products || []).map((product) => product.category).filter(Boolean));
-  const before = (cms.categories || []).length;
-  cms.categories = (cms.categories || []).filter((category) => usedCategories.has(category.name));
-  return before - cms.categories.length;
+function resetCmsRelations() {
+  savedCategories = new Map(cms.categories.map(item => [item._identity, item.name]));
+  savedBadges = new Map(cms.badges.map(item => [item._identity, item.name]));
+  categoryReplacements = new Map();
 }
 
-function closeCategoryEditor() {
+function replaceCategoryReferences(from, to) {
+  cms.products.forEach(item => { if (item.category === from) item.category = to; });
+  cms.manuals.forEach(item => { if (item.category === from) item.category = to; });
+  cms.badges.forEach(item => { if (item.applyCategory === from) item.applyCategory = to; });
+  for (const [proof, name] of categoryReplacements) if (name === from) categoryReplacements.set(proof, to);
+}
+
+function replaceBadgeReferences(from, to) {
+  [...cms.products,...cms.categories].forEach(item => {
+    if (item.badge !== from) return;
+    item.badge = to;
+    if (to === "-") item.badgeUntil = "";
+  });
+}
+
+function namedEntityField(label, collection, item) {
+  const wrapper = field(label, item.name, () => {});
+  const input = wrapper.querySelector("input");
+  input.dataset.cmsEntityName = "true";
+  input.cmsEntityName = () => item.name;
+  if (collection === "badges" && item.name === "-") input.readOnly = true;
+  input.commitCmsName = (showError = true) => {
+    const name = input.value.trim();
+    if (name === item.name) { if (showError) input.value = name; input.removeAttribute("aria-invalid"); return true; }
+    const baseline = collection === "categories" ? savedCategories : savedBadges;
+    const unavailable = [...baseline].some(([proof, oldName]) => proof !== item._identity && oldName === name);
+    if (!name || (collection === "badges" && name === "-") || unavailable || cms[collection].some(other => other !== item && other.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      input.setAttribute("aria-invalid", "true");
+      if (showError) flash("Unesite slobodan naziv. Naziv postojeće ili obrisane stavke ne može se ponovo koristiti u istom spremanju.", 9000);
+      return false;
+    }
+    if (collection === "categories") replaceCategoryReferences(item.name, name);
+    else replaceBadgeReferences(item.name, name);
+    item.name = name;
+    if (showError) input.value = name;
+    input.removeAttribute("aria-invalid");
+    updateSaveState();
+    return true;
+  };
+  input.addEventListener("input", () => input.commitCmsName(false));
+  input.addEventListener("change", () => input.commitCmsName());
+  return wrapper;
+}
+
+function confirmCmsRelation(title, description, options = null) {
+  if (document.querySelector("#cmsRelationDialog")) return Promise.resolve({confirmed:false});
+  return new Promise(resolve => {
+    const dialog = document.createElement("dialog");
+    dialog.id = "cmsRelationDialog";
+    dialog.className = "cms-relation-dialog";
+    dialog.setAttribute("aria-labelledby", "cmsRelationTitle");
+    dialog.setAttribute("aria-describedby", "cmsRelationDescription");
+    const heading = document.createElement("h2"); heading.id = "cmsRelationTitle"; heading.textContent = title;
+    const text = document.createElement("p"); text.id = "cmsRelationDescription"; text.textContent = description;
+    const form = document.createElement("form"); form.method = "dialog";
+    let select = null;
+    form.append(heading,text);
+    if (options) {
+      const label = document.createElement("label"); label.textContent = "Zamjenska kategorija";
+      select = document.createElement("select"); select.id = "cmsRelationTarget"; select.required = true;
+      select.setAttribute("aria-label", "Zamjenska kategorija");
+      select.append(new Option("Odaberite kategoriju", ""));
+      options.forEach(option => select.append(new Option(option.label, option.value)));
+      label.append(select); form.append(label);
+    }
+    const actions = document.createElement("div"); actions.className = "cms-relation-actions";
+    const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "btn btn-secondary"; cancel.textContent = "Odustani";
+    cancel.addEventListener("click", () => dialog.close("cancel"));
+    const confirm = document.createElement("button"); confirm.type = "submit"; confirm.className = "btn btn-primary"; confirm.value = "confirm"; confirm.textContent = options ? "Premjesti i obriši" : "Obriši";
+    actions.append(cancel,confirm); form.append(actions); dialog.append(form);
+    dialog.addEventListener("keydown", event => event.stopPropagation());
+    dialog.addEventListener("close", () => { const result = {confirmed:dialog.returnValue === "confirm",value:select?.value ?? null}; dialog.remove(); resolve(result); }, {once:true});
+    document.body.append(dialog); dialog.showModal(); cancel.focus();
+  });
+}
+
+function closeCategoryEditor(skipNames = false) {
+  if (!skipNames && !syncCmsEntityNames()) return;
   $("#categoryEditModal")?.remove();
   editingCategoryIndex = null;
   editingCategoryAttributeIndex = null;
@@ -1693,29 +1796,26 @@ function renderCategoryEditorModal() {
   document.body.appendChild(modal);
   document.body.classList.add("modal-open");
 
-  $("#closeCategoryEditorBtn").addEventListener("click", closeCategoryEditor);
-  $("#deleteCategoryBtn").addEventListener("click", () => {
-    if (productCount > 0 && !confirm("Ova kategorija ima proizvode. Ako je obrišete, proizvodi će zadržati naziv kategorije dok ga ne promijenite. Nastaviti?")) return;
-    cms.categories.splice(editingCategoryIndex, 1);
-    closeCategoryEditor();
+  $("#closeCategoryEditorBtn").addEventListener("click", () => closeCategoryEditor());
+  $("#deleteCategoryBtn").addEventListener("click", async () => {
+    if (cmsSaving || cmsPendingUploads) return;
+    const refs = productCount + cms.manuals.filter(m => m.category === category.name).length + cms.badges.filter(b => b.applyCategory === category.name).length;
+    const options = cms.categories.filter(c => c !== category).map(c => ({value:c.name,label:c.name + (c.enabled === false ? " (skrivena)" : "")}));
+    if (refs && !options.length) { flash("Kategorija ima vezani sadržaj. Prvo napravite zamjensku kategoriju.", 9000); return; }
+    const decision = await confirmCmsRelation("Obriši kategoriju", refs ? `Kategorija „${category.name}” ima ${refs} veza s proizvodima, manualima i oznakama. Odaberite kategoriju u koju se sve veze premještaju. Proizvodi i njihove specifikacije ostaju sačuvani.` : `Obrisati praznu kategoriju „${category.name}”? Promjena se primjenjuje kada sačuvate CMS.`, refs ? options : null);
+    if (!decision.confirmed) return;
+    const target = refs ? decision.value : null;
+    if (category._identity) categoryReplacements.set(category._identity, target);
+    for (const [proof, name] of categoryReplacements) if (name === category.name) categoryReplacements.set(proof, target);
+    if (target !== null) replaceCategoryReferences(category.name, target);
+    cms.categories.splice(cms.categories.indexOf(category), 1);
+    closeCategoryEditor(true);
   });
 
   const body = $("#categoryEditBody");
   const basic = editorSection("Osnovno");
   basic.content.append(
-    field("Naziv", category.name, (value) => {
-      const oldName = category.name;
-      category.name = value;
-      (cms.products || []).forEach((product) => {
-        if (product.category === oldName) product.category = value;
-      });
-      (cms.manuals || []).forEach((manual) => {
-        if (manual.category === oldName) manual.category = value;
-      });
-      (cms.badges || []).forEach((badge) => {
-        if (badge.applyCategory === oldName) badge.applyCategory = value;
-      });
-    }),
+    namedEntityField("Naziv", "categories", category),
     field("Opis", category.text, (value) => (category.text = value), "textarea"),
     checkboxField("Prikaži ovu kategoriju kao filter na stranici", category.enabled, (value) => (category.enabled = value))
   );
@@ -1897,8 +1997,17 @@ function renderBadges() {
   renderArrayPanel("badges", "Badgevi", cms.badges, { name: "Novi badge", enabled: true }, (itemCard, item) => {
     item.enabled = item.enabled !== false;
 
-    itemCard.append(field("Naziv badgea", item.name, (value) => (item.name = value)));
+    itemCard.append(namedEntityField("Naziv badgea", "badges", item));
     itemCard.append(selectField("Status badgea", item.enabled ? "Aktivan" : "Isključen", ["Aktivan", "Isključen"], (value) => (item.enabled = value === "Aktivan")));
+  }, async item => {
+    if (cmsSaving || cmsPendingUploads) return;
+    if (item.name === "-") { flash("Oznaka - znači da badge nije dodijeljen i ne briše se."); return; }
+    const count = [...cms.products,...cms.categories].filter(record => record.badge === item.name).length;
+    const decision = await confirmCmsRelation("Obriši oznaku", `Obrisati oznaku „${item.name}”? Uklanja se ${count} dodjela i njihovi rokovi. Proizvodi i kategorije ostaju sačuvani. Promjena se primjenjuje pri spremanju CMS-a.`);
+    if (!decision.confirmed) return;
+    replaceBadgeReferences(item.name, "-");
+    cms.badges.splice(cms.badges.indexOf(item), 1);
+    renderAll();
   });
 }
 
@@ -1986,6 +2095,7 @@ function renderProducts() {
   `;
 
   $("#addProductBtn").addEventListener("click", () => {
+    if (!cms.categories.length) { flash("Prvo napravite kategoriju za novi proizvod.", 9000); return; }
     const defaultProduct = createDefaultProduct();
     cms.products.unshift(structuredClone(defaultProduct));
     productFilters = { search: "", category: "Sve", badge: "Sve", visibility: "Sve" };
@@ -2868,6 +2978,7 @@ async function resetCmsDemo() {
     cmsRevision = Number(data.revision) || cmsRevision + 1;
     cms = data.cms;
     savedProductIds = new Set(cms.products.map(product => product.id));
+    resetCmsRelations();
     captureCmsBaseline();
     renderAll();
     captureCmsBaseline();
@@ -2942,7 +3053,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("beforeunload", (event) => {
-  if (!cmsBaseline || cmsSnapshot() === cmsBaseline || $("#adminEditor").hidden) return;
+  if (!cmsBaseline || (cmsSnapshot() === cmsBaseline && !hasPendingEntityNames()) || $("#adminEditor").hidden) return;
   event.preventDefault();
   event.returnValue = "";
 });
@@ -2993,8 +3104,8 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
 
 window.addEventListener("storage", async (event) => {
   if (event.key !== "onesCmsUpdatedAt" || $("#adminEditor").hidden) return;
-  if (cmsSaving || cmsPendingUploads) return;
-  if (cmsBaseline && cmsSnapshot() !== cmsBaseline) {
+  if (cmsSaving || cmsPendingUploads || document.querySelector("#cmsRelationDialog")) return;
+  if (cmsBaseline && (cmsSnapshot() !== cmsBaseline || hasPendingEntityNames())) {
     flash("CMS je promijenjen u drugoj kartici. Vaše nesačuvane izmjene nisu prepisane; osvježite stranicu tek kada ih više ne trebate.", 9000);
     return;
   }

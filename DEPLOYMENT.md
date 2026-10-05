@@ -459,7 +459,7 @@ The evidence is not stored in CMS data or backups and is absent from public
 responses. A restore rotates its signing epoch and requires a fresh login/load.
 Restore and reset remain explicit whole-snapshot operations. Explicit deletion
 plus creation is a separate operation from renaming an existing product; the
-complete dependency handling for deletion remains tracked as T19–T21.
+complete dependency handling for deletion is described in section 15.
 
 Tests: `php tests/cms-integrity.php`, `node tests/cms-concurrency.cjs`, and
 `tests/segment6-browser.cjs` / `tests/segment6-product-lifecycle.cjs` against a
@@ -468,3 +468,71 @@ words in valid product names cannot cause a sitemap TypeError. The concurrency
 suite uses eight independent PHP connections and supports isolated SQLite and
 MySQL/MariaDB fixtures. Never point mutation tests at production or the real
 project database.
+
+## 15. Deleting and renaming catalogue entities
+
+Deploy `cms-relations.php`, `cms-relations.css`, the changed PHP files and admin
+HTML/JS together. Admin JS/CSS uses the `20261005-security-7` cache version.
+Refresh existing admin tabs. This segment changes no database schema or backup
+format. The pending email activation from section 11 still applies.
+
+Deletion remains a draft until the administrator saves the CMS. The editor asks
+for confirmation and describes the consequences. Removing a product deletes its
+linked CMS manual entries, active cart items and favorites in the same transaction
+as the CMS update. It increments each affected cart's revision once. Other cart
+items, submitted carts and order snapshots remain unchanged. Uploaded manual files
+are retained because backups and historical links may still use them; this is
+not filesystem deletion. Resetting demo CMS uses the same active-dependency cleanup
+for products that disappear. Restoring a backup remains an explicit full snapshot
+replacement, including the backed-up business tables.
+
+A category with products, manuals or scoped badges requires a replacement
+category. All three kinds of reference move together, with product IDs and
+specifications preserved. An unused category can be explicitly deleted without a
+replacement. Saving unrelated content never removes empty categories. When no
+categories remain, create a category before adding a product.
+
+Renaming a badge updates its assignments on products and categories. Deleting
+it clears those assignments and their expiry dates, without deleting the
+products/categories. The `-` no-badge marker is reserved. New products start
+without an assigned badge. Existing disabled-badge display behavior is still
+tracked separately as T23.
+
+Admin responses now attach transport-only `_identity` evidence to categories
+and badges as well as products. Return it unchanged when renaming/editing;
+new records omit it. Evidence is not persisted or exported. `save-cms` also
+accepts `referenceChanges`, an object with these lists:
+
+```json
+{
+  "categories": [{"from": "Old category", "to": "Replacement category"}],
+  "badges": ["Deleted badge"]
+}
+```
+
+Use `to: null` only when no remaining content refers to the deleted category.
+Names in this deletion declaration refer to the last saved CMS; replacement
+names refer to the final draft. Renames are inferred from identity evidence.
+Reusing another original entity's name in the same save is ambiguous and rejected;
+save an intermediate change before reusing that name. Duplicate, unknown or
+undeclared deletions fail without changing data. Product deletion still uses
+`deletedProductIds`. Final CMS validation runs after reference resolution, inside
+the transaction, and any later failure rolls back cleanup and revision history.
+
+All dependent writers now acquire the catalogue lock before user/cart locks;
+order submission and restore acquire it before the email lock too. MySQL uses
+shared catalogue locks for customer operations and an exclusive lock for CMS
+writes; SQLite uses its transaction write lock. A cart/favorite writer cannot
+reinsert a product after its deletion commits. A stale cart gets 409 and reloads
+before retry. Orders committed before deletion keep their original snapshot.
+Admin CMS content, identity evidence and revision are returned under one lock.
+Backup export keeps its separate, non-locking snapshot read semantics from
+section 13. Do not run old PHP workers alongside the new lock protocol during
+deployment; use the maintenance window described above.
+
+Tests: `php tests/cms-relations.php`, `node tests/cms-relations-concurrency.cjs`,
+`tests/segment7-browser.cjs` and `tests/segment7-draft-chains.cjs` on a disposable
+loopback server. Tests include
+rollback after cleanup, deletion racing cart/favorite/order writes and cancelled
+dialogs, replacement selection, empty-category retention and both themes on
+mobile/tablet/desktop viewport sizes.

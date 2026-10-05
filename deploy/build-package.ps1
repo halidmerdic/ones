@@ -34,6 +34,8 @@ $runtimeFiles = @(
   "email-security.php",
   "cart-integrity.php",
   "cms-integrity.php",
+  "cms-relations.php",
+  "cms-relations.css",
   "verify.html",
   "verify.js",
   "verify.css",

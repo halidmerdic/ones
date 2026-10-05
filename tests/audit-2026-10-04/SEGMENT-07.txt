@@ -1,0 +1,146 @@
+SEGMENT 07 — T19, T20, T21, T22 — 05.10.2026.
+
+GITHUB I STATUS
+Na zahtjev korisnika prethodni segment T16–T18/T39 commitovan je i poslan na main:
+e73afa446915e9b849397725df1caf75a325b05b
+https://github.com/halidmerdic/ones/commit/e73afa446915e9b849397725df1caf75a325b05b
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37280793717
+Statički Pages build: https://github.com/halidmerdic/ones/actions/runs/37280793014
+Obje provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
+
+T19–T22 su završeni lokalno i prošli završne regresije; ovaj segment još nije
+commitovan niti pushovan. Ukupno 22/39 taskova završeno: 18 na GitHubu, 4 lokalno.
+T22 je uključen jer automatsko brisanje praznih kategorija zaobilazi eksplicitni
+postupak brisanja iz T20. Svaki task i dalje rješava svoj zaseban problem.
+T11 ostaje otvoren do službenog email servisa i aktivacije, bez privremenog
+app passworda, prema dogovoru. Testni SMTP ne šalje poruke izvan računara.
+
+T19 — BRISANJE PROIZVODA I ZAVISNOSTI
+Editor prije brisanja prikazuje posljedice i broj vezanih manuala. Odustajanje
+čuva nacrt. Potvrda mijenja nacrt, a tek Sačuvaj CMS mijenja bazu. U istom
+serverskom saveu uklanjaju se proizvod, vezani zapisi manuala, njegove stavke
+iz aktivnih korpi i njegovi favoriti. Nepovezane stavke ostaju. Svaka pogođena
+korpa dobija jednu novu reviziju, pa otvoreni stari prikaz ne može poslati upit
+bez pregleda promjene. Manual se ne pretvara u opći javni dokument.
+
+Submitted korpe i snapshotovi već poslanih narudžbi ostaju neizmijenjeni.
+Fizičke datoteke manuala ostaju radi backupa i historijskih linkova; uklanja
+se njihov CMS zapis. Demo reset čisti aktivne zavisnosti proizvoda koji nestaju.
+Restore i dalje zamjenjuje cijeli odabrani snapshot, uključujući poslovne tabele.
+
+CMS save, čišćenje, nova revizija i CMS historija čine jednu transakciju.
+Greška nakon čišćenja vraća sve tabele na prethodno stanje. Svi zavisni upisi
+koriste isti redoslijed zaključavanja: prvo katalog, zatim email lock kada je
+potreban, pa korisnik/korpa. MySQL koristi shared/exclusive katalog lock, a
+SQLite svoj write lock. Paralelni add/favorite ne može ponovo upisati obrisani
+proizvod. Upit koji je potvrđen prije brisanja čuva svoj tadašnji snapshot;
+zahtjev koji kasni dobije konflikt. Favorite-toggle je također transakcijski.
+
+Admin CMS, njegovi identiteti i revizija čitaju se pod jednim zaključavanjem.
+Backup zadržava odvojeno snapshot čitanje: novi lock protokol ne smije pretvoriti
+izvoz u niz čitanja različitih potvrđenih stanja.
+
+T20 — BRISANJE KATEGORIJE I ZAVISNOSTI
+Kategorija s proizvodima, manualima ili applyCategory vezama oznaka zahtijeva
+izričit odabir zamjenske kategorije. Server prenosi sve tri vrste veza u istom
+saveu. ID proizvoda, specifikacije i poslovne veze ostaju. Ako zamjenska
+kategorija ne postoji, editor upućuje da se prvo napravi. Posljednja korištena
+kategorija ne može nestati uz pokvarene reference. Prazna kategorija se može
+izričito obrisati bez zamjene.
+
+Server ne pogađa identitet po poziciji u listi: admin odgovor nosi HMAC _identity
+za kategorije i oznake. Novi zapis nema dokaz do prvog spremanja. Izričite
+categoryReplacements iz nacrta šalju se kao referenceChanges.categories sa
+izvornim spremljenim nazivom i konačnom zamjenom. Nedostajući, ponovljeni ili
+neispravni zahtjevi za brisanje odbijaju se bez izmjene baze. Dokazi se ne
+pohranjuju u CMS niti iznose u javni prikaz/backup.
+
+T21 — PREIMENOVANJE I BRISANJE OZNAKA
+Preimenovanje ažurira dodjele na proizvodima i kategorijama; rokovi se čuvaju.
+Izričito brisanje uklanja te dodjele i njihove rokove, bez brisanja proizvoda
+ili kategorija. Server izvodi prijelaz i validira konačne reference, čak i kada
+zahtjev zaobilazi editor. Marker '-' ostaje rezervisan za nedodijeljenu oznaku.
+Novi proizvod počinje bez oznake, pa brisanje ranijeg badgea Novo ne može
+pokvariti stvaranje proizvoda.
+
+Višestruki rename/delete/move koraci u jednom nacrtu prate izvorni identitet
+i konačni cilj. Ponovna upotreba naziva drugog izvornog zapisa u istom saveu
+odbija se kao dvosmislena; može se prvo spremiti međukorak. Unos naziva je
+dio nacrta već tokom pisanja, uključujući razmake. Neispravan nezavršen naziv
+zadržava upozorenje o nesačuvanom unosu. Spremanje bez izlaska iz polja i
+zatvaranje kategorije tipkom Escape ne gube važeći naziv.
+
+T22 — PRAZNE KATEGORIJE
+Uklonjen je pruneEmptyCategories iz svakog spremanja. Nova prazna kategorija,
+njeni atributi, opis i planirana svrha ostaju nakon savea/reloada. Kategorija
+nestaje samo kroz izričito brisanje ili posebnu zamjenu cijelog CMS snimka.
+Ako nema nijedne kategorije, editor traži kreiranje kategorije prije proizvoda.
+
+PROVJERE
+- cms-relations: 65 SQLite / 65 MariaDB provjera sa strogim E_ALL. Migracije
+  referenci, identiteti, neispravne/ponovljene deklaracije, očuvanje specifikacija,
+  potpuno vraćanje nakon kasne greške, aktivne/historijske korpe, narudžbe,
+  zabrana ponovnog upisa obrisanog proizvoda i dosljedan admin odgovor.
+- cms-relations-concurrency: 31 SQLite / 30 MariaDB provjera, do osam odvojenih
+  PHP procesa. Brisanje naspram add/favorite/submit. Broj jedne dodatne provjere
+  zavisi od toga je li konkurentni upit završio prije brisanja; oba ishoda se
+  eksplicitno provjeravaju, bez zahtjeva da određeni worker pobijedi.
+- segment7-browser: 496 HTTP/browser provjera na 320/360/390/768/820/1024/1440 px,
+  svaka u svijetloj i tamnoj temi. Loši protokolarni tipovi, rename/delete badgea,
+  posljedice brisanja proizvoda, eksplicitna zamjena kategorije, odustajanje,
+  Escape, zabrana praznog izbora, očuvanje praznih kategorija i JS greške.
+  Snimke novih dijaloga su u segment7-views; pregledane mobilna/tablet/desktop.
+- segment7-draft-chains: 57 provjera na 320/820/1440 px. Preimenovanje pa
+  brisanje, dvostruko premještanje, preimenovanje konačnog cilja, zaštita
+  posljednje korištene kategorije, višestruko preimenovanje badgea, pisanje
+  razmaka, spremanje bez blura i upozorenje za nezavršen neispravan unos.
+- Browser regresije: cms-save-browser 294, segment6-browser 552,
+  segment6-product-lifecycle 36, segment4-integration 276,
+  segment1-integration 161 i cart-recovery-browser 14.
+- PHP regresije: auth 11, business 20, storage 13, network 13, cms-xss 28,
+  restore 9, admin-bootstrap 22, login-limits 16, input-policy 41,
+  email-security 36, cms-integrity 422, sitemap 22. Backup-atomicity 114 SQLite
+  i 114 MariaDB; segment5-integrity 34 SQLite i 35 MariaDB.
+- JS: logout-client 17; PHP/JS input parity 41 vektor; email-concurrency 1/8;
+  login-concurrency 5/20; segment5-concurrency 25; cms-concurrency 17;
+  pricing-clock 22. PHP/JS sintaksa provjerena.
+- Konačni smoke: 247 provjera, uključujući deployment ZIP s oba nova modula
+  i sitemap. Posljednji HTTP log nema PHP warning/notice/deprecation/fatal
+  poruka. PowerShell sintaksa i diff whitespace provjere naših izmjena prolaze.
+  Novi PHP i concurrency testovi su dodani u CI za naredni push.
+
+Prva browser provjera zahtijevala je čekanje stvarnog native dialog close
+događaja poslije Escape/klika, umjesto čitanja DOM-a prije njegovog zatvaranja.
+Regresijski segment6 fixture sada eksplicitno resetuje svoj testni CMS jer
+prethodni segment namjerno ostavlja novu praznu kategoriju na početku liste.
+Raniji test je pogrešno pretpostavljao da prva kategorija uvijek pripada prvom
+proizvodu. Jedan završni poziv koristio je skraćen pogrešan naziv testne skripte;
+pravilan cart-recovery-browser je zatim pokrenut i prošao. Ovi testni problemi
+nisu zanemareni: ispravljeni slučajevi i završne regresije ponovo su izvršeni.
+
+GRANICE I OBJAVA
+MariaDB fixture je 10.4.22 sa native prepared statements; PHP je 8.5.11.
+Browser provjere koriste Chrome/Playwright, emulirane širine i touch; fizički
+Android/iOS i Safari nisu testirani. Novi native dialog drži fokus i omogućava
+odustajanje, dok širi raniji T31–T33 problemi layouta/fokusa ostaju u planu.
+Isključene oznake i njihov prikaz ostaju odvojeni T23.
+
+DEPLOYMENT.md odjeljak 15 opisuje novi protokol i maintenance nadogradnju svih
+PHP/JS dijelova zajedno. Stari PHP worker ne smije paralelno pisati bez novog
+redoslijeda zaključavanja. Nema nove DB migracije niti backup formata.
+cms-relations.php i cms-relations.css su u deployment ZIP-u; admin HTML koristi
+security-7 verziju skripte i novog CSS-a. Dokazi i privatni testni fixturei ne
+pripadaju deployment paketu.
+
+Privremeni PHP, SMTP capture i MariaDB serveri su ugašeni. Testne baze,
+privatna konfiguracija, SMTP tokeni/poruke i privremeni paketi uklonjeni su.
+Podržani PHP runtime i šest snimki dijaloga ostaju za naredni rad i pregled.
+
+Raniji korisnikov redizajn admin.css/admin.html/login.html/profile.html/profile.js
+ostaje sačuvan. Ovaj segment u admin.html dodaje novi CSS i mijenja admin.js
+verziju 6 na 7; pri narednom commitu izdvojiti samo ta dva hunka. Novi stilovi
+su u zasebnom cms-relations.css, bez miješanja s ranijim izmjenama admin.css.
+
+SLJEDEĆI SEGMENT
+T23 prikaz isključenih oznaka, T24 gubitak interne napomene pri promjeni statusa,
+T25 prikaz API greške kao prazne evidencije. T11 čeka službeni email servis.

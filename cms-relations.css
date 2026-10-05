@@ -1,0 +1,22 @@
+.cms-relation-dialog {
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 1.5rem;
+  overflow: auto;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 1rem;
+  background: #fff;
+  color: #111;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+.cms-relation-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.cms-relation-dialog h2 { margin: 0 0 1rem; }
+.cms-relation-dialog p { line-height: 1.5; }
+.cms-relation-dialog label { display: grid; gap: .5rem; }
+.cms-relation-dialog select { width: 100%; min-width: 0; min-height: 44px; padding: .5rem; font: inherit; }
+.cms-relation-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.5rem; }
+.cms-relation-actions button { flex: 1 1 10rem; min-height: 44px; white-space: normal; }
+html[data-theme="dark"] .cms-relation-dialog { background: #191b1f; color: #f5f5f5; border-color: #555; }
+html[data-theme="dark"] .cms-relation-dialog select { background: #25282e; color: #f5f5f5; }

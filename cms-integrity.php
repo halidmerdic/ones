@@ -183,12 +183,16 @@ function cms_product_identity(string $id, string $epoch): string
 
 function admin_cms_view(PDO $pdo): array
 {
-    $cms = get_cms($pdo);
+    $cms = get_cms($pdo, $pdo->inTransaction());
     $epoch = auth_epoch($pdo);
     foreach ($cms['products'] as &$product) {
         if (is_array($product) && is_string($product['id'] ?? null)) $product['_identity'] = cms_product_identity($product['id'], $epoch);
     }
     unset($product);
+    foreach (['categories','badges'] as $collection) {
+        foreach ($cms[$collection] as &$item) $item['_identity'] = cms_named_identity($collection, $item['name'], $epoch);
+        unset($item);
+    }
     return $cms;
 }
 

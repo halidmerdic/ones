@@ -87,6 +87,7 @@ function cart_transaction(PDO $pdo, int $userId, callable $work)
     $owns = !$pdo->inTransaction();
     try {
         if ($owns) $pdo->beginTransaction();
+        lock_catalog($pdo);
         lock_cart_owner($pdo, $userId);
         $result = $work();
         if ($owns) $pdo->commit();

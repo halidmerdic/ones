@@ -36,7 +36,7 @@ async function save(page,selector){
     const xml=await sitemap.text();assert.ok(xml.includes('product.html?id='+id));
     assert.equal(await page.evaluate(xml=>new DOMParser().parseFromString(xml,'application/xml').documentElement.nodeName,xml),'urlset');checks+=3;
     // Removing a newly saved record must send its explicit ID after a reload.
-    await page.locator('#deleteProductBtn').click();await save(page,'#saveBtn');
+    await page.locator('#deleteProductBtn').click();await page.locator('#cmsRelationDialog').getByRole('button',{name:'Obriši',exact:true}).click();await page.locator('#cmsRelationDialog').waitFor({state:'detached'});await save(page,'#saveBtn');
     state=await get(ctx.request,'admin-cms');
     assert.equal(state.cms.products.length,baseline.cms.products.length);
     assert.equal(state.cms.products.some(p=>p.id===id),false);

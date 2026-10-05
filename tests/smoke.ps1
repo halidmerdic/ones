@@ -48,7 +48,7 @@ try {
     $packageArchive.Dispose()
   }
 
-  $requiredPackageEntries = @(".htaccess", "api.php", "backup-validation.php", "login-security.php", "pricing.php", "email-security.php", "cart-integrity.php", "cms-integrity.php", "verify.html", "verify.js", "verify.css", "vendor/phpmailer/src/PHPMailer.php", "vendor/phpmailer/src/SMTP.php", "vendor/phpmailer/src/Exception.php", "vendor/htmlpurifier/library/HTMLPurifier.auto.php", "assets/vendor/purify-3.4.16.min.js", "assets/favicon.svg", "data/.htaccess", "uploads/.htaccess")
+  $requiredPackageEntries = @(".htaccess", "api.php", "backup-validation.php", "login-security.php", "pricing.php", "email-security.php", "cart-integrity.php", "cms-integrity.php", "cms-relations.php", "cms-relations.css", "verify.html", "verify.js", "verify.css", "vendor/phpmailer/src/PHPMailer.php", "vendor/phpmailer/src/SMTP.php", "vendor/phpmailer/src/Exception.php", "vendor/htmlpurifier/library/HTMLPurifier.auto.php", "assets/vendor/purify-3.4.16.min.js", "assets/favicon.svg", "data/.htaccess", "uploads/.htaccess")
   $missingPackageEntries = @($requiredPackageEntries | Where-Object { $_ -notin $packageEntries })
   $privatePackageEntries = @($packageEntries | Where-Object {
     $_ -eq "config.local.php" -or

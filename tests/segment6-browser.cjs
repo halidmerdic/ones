@@ -12,7 +12,9 @@ async function post(c,a,data){data=await withCartVersion(c,baseURL,a,data);retur
  const browser=await chromium.launch({channel:'chrome',headless:true});
  try{
   assert.equal((await post(admin,'admin-login',{password:'Segment one admin password 2026!'})).status(),200);
-  let current=await get(admin,'admin-cms');let cms=structuredClone(current.cms),product=cms.products[0],id=product.id;
+  let current=await get(admin,'admin-cms');
+  assert.equal((await post(admin,'reset-cms',{revision:current.revision})).status(),200);
+  current=await get(admin,'admin-cms');let cms=structuredClone(current.cms),product=cms.products[0],id=product.id;
   cms.categories[0].attributes=[{name:'Boja',values:['Crna','Bijela']}];
   cms.categories[0].badge=cms.badges[0].name;cms.badges[0].applyCategory=cms.categories[0].name;
   product.badge=cms.badges[0].name;product.specs={};product.attributes={};product.gallery=[];
@@ -60,7 +62,7 @@ async function post(c,a,data){data=await withCartVersion(c,baseURL,a,data);retur
     const beforeCount=await page.evaluate(()=>cms.products.length);await page.locator('#addProductBtn').click();
     const newId=await page.locator('#productEditModal').getByLabel('ID',{exact:true}).inputValue();assert.match(newId,/^product-[0-9a-f-]{36}$/);checks++;
     assert.equal(await page.locator('#productEditModal').getByLabel('ID',{exact:true}).evaluate(e=>e.readOnly),true);checks++;
-    await page.locator('#deleteProductBtn').click();assert.equal(await page.evaluate(()=>cms.products.length),beforeCount);checks++;
+    await page.locator('#deleteProductBtn').click();await page.locator('#cmsRelationDialog').getByRole('button',{name:'Obriši',exact:true}).click();await page.locator('#cmsRelationDialog').waitFor({state:'detached'});assert.equal(await page.evaluate(()=>cms.products.length),beforeCount);checks++;
     await page.goto(baseURL+'/product.html?id='+encodeURIComponent(id));await page.waitForFunction(()=>product?.id);
     assert.equal(await page.evaluate(()=>product.id),id);assert.ok((await page.locator('body').textContent()).includes('Povezano uputstvo'));checks+=2;
     assert.deepEqual(errors,[]);checks++;
