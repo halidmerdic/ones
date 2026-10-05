@@ -1,0 +1,75 @@
+/* Size layouts by the space remaining after the CMS sidebar. */
+.cms-page .admin-main {
+  min-width: 0;
+  container: cms-panel / inline-size;
+}
+.cms-page .admin-panel,
+.cms-page .admin-panel :is(input, select, textarea),
+.cms-page .admin-panel :is(.admin-card, .product-admin-row, .order-row, .customer-row) > * {
+  min-width: 0;
+}
+.cms-page .admin-panel { overflow-wrap: anywhere; }
+.cms-page .admin-panel :is(input, select, textarea, img, .btn) { max-width: 100%; }
+.cms-page .product-edit-dialog {
+  overflow-wrap: anywhere;
+  container: cms-dialog / inline-size;
+}
+.cms-page .product-edit-header > *,
+.cms-page .product-edit-dialog :is(label, input, select, textarea) { min-width: 0; max-width: 100%; }
+
+@container cms-dialog (max-width: 950px) {
+  .product-edit-body,
+  .product-edit-section-content,
+  .order-detail-body,
+  .customer-detail-body { grid-template-columns: minmax(0, 1fr); }
+  .product-edit-header { flex-wrap: wrap; }
+  .product-edit-actions { flex-wrap: wrap; }
+}
+
+@container cms-panel (max-width: 1150px) {
+  .admin-topbar,
+  .admin-panel-heading {
+    flex-wrap: wrap;
+  }
+  .product-admin-head,
+  .category-admin-head { display: none; }
+  .product-admin-filters,
+  .order-filters,
+  .customer-filters,
+  .product-admin-row,
+  .category-admin-row,
+  .order-row,
+  .customer-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+  .product-admin-row > input[data-product-field="name"],
+  .product-admin-actions { grid-column: 1 / -1; }
+  .product-admin-actions { flex-wrap: wrap; }
+  .order-row-items span { white-space: normal; }
+  .admin-card,
+  .attribute-builder-row,
+  .attribute-edit-panel,
+  .blog-editor-layout,
+  .security-grid { grid-template-columns: minmax(0, 1fr); }
+  .admin-list-tools { grid-template-columns: minmax(0, 1fr); }
+  .admin-pagination { flex-wrap: wrap; }
+  .admin-pagination-actions { flex-wrap: wrap; justify-content: flex-start; }
+  .admin-pagination-actions > * { flex-shrink: 0; }
+  .admin-pagination .btn { white-space: nowrap; }
+}
+
+@container cms-panel (max-width: 600px) {
+  .product-admin-filters,
+  .order-filters,
+  .customer-filters,
+  .product-admin-row,
+  .category-admin-row,
+  .category-form-grid,
+  .order-row,
+  .customer-row,
+  .blog-editor-meta,
+  .blog-editor-seo-fields { grid-template-columns: minmax(0, 1fr); }
+  .admin-pagination { flex-wrap: wrap; }
+  .admin-pagination-actions { flex-wrap: wrap; }
+}

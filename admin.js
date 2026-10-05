@@ -717,7 +717,7 @@ async function saveCms() {
       renderProductEditorModal();
     }
     captureCmsBaseline();
-    localStorage.setItem("onesCmsUpdatedAt", String(Date.now()));
+    window.onesStorage.local.setItem("onesCmsUpdatedAt", String(Date.now()));
     flash("CMS je sacuvan u bazi.");
   } catch (error) {
     flash(error.message, /međuvremenu|osvježite cms/i.test(error.message) ? 9000 : 2800);
@@ -1561,7 +1561,7 @@ function renderNav() {
 }
 
 function rememberActivePanel() {
-  localStorage.setItem("onesCmsActivePanel", activePanel);
+  window.onesStorage.local.setItem("onesCmsActivePanel", activePanel);
 }
 
 function showPanel() {
@@ -3076,7 +3076,7 @@ function applyAdminUrlContext() {
   const params = new URLSearchParams(window.location.search);
   const requestedPanel = params.get("panel");
   const requestedProduct = params.get("product");
-  const savedPanel = localStorage.getItem("onesCmsActivePanel");
+  const savedPanel = window.onesStorage.local.getItem("onesCmsActivePanel");
 
   if (requestedPanel && panels.some((panel) => panel.id === requestedPanel)) {
     activePanel = requestedPanel;

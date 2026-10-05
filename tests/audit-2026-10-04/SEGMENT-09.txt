@@ -7,9 +7,14 @@ https://github.com/halidmerdic/ones/commit/5695977a8c4a4645a38246ea25d31c4473d2c
 PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37290030390
 Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37290029103
 Obje GitHub provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
-Ovaj novi segment ostaje lokalno za pregled. T11 i dalje čeka službeni email
-servis i aktivaciju; privremeni app password nije postavljan.
-T26–T28 i T40 završeni lokalno: ukupno 29/40, od toga 25 na GitHubu i 4 lokalno.
+T26–T28 i T40 poslani su na GitHub main 05.10.2026:
+d228a2488e446ad1ae0f1488816540b4ecb5d9d8
+https://github.com/halidmerdic/ones/commit/d228a2488e446ad1ae0f1488816540b4ecb5d9d8
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37293139698
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37293139239
+Obje provjere su prošle. U tom trenutku svih 29/40 završenih taskova je na GitHubu.
+Nastavak je u SEGMENT-10.txt. T11 čeka službeni email servis i aktivaciju;
+privremeni app password nije postavljan. Nije izvršen deploy PHP aplikacije.
 
 T26 — SKRIVENI FILTER PO KLJUČNIM RIJEČIMA
 Aktivni blogovi i dijelovi te opća javna uputstva više ne moraju sadržavati
@@ -147,9 +152,9 @@ OPSEG I NAREDNI RAD
 MariaDB nije ponavljana u ovom segmentu: nema izmjena SQL upita, šeme ili protokola
 zaključavanja. Širi storage, tablet overflow i fokus problemi ostaju T29–T33.
 DEPLOYMENT.md odjeljak 17 opisuje potrebne fajlove i ponašanje. phone.php je u
-deployment allowlisti. Korisnikov raniji redizajn ostaje sačuvan. Pri narednom
-commitu iz admin.html, login.html i profile.html izdvojiti samo nove security-9
-verzije naših skripti; admin.css i profile.js su isključivo ranije korisnikove izmjene.
+deployment allowlisti. Korisnikov raniji redizajn ostaje sačuvan. Commit d228a24
+iz admin.html, login.html i profile.html uključuje samo security-9 verzije naših
+skripti; raniji redizajn admin.css/profile.js nije uključen u taj commit.
 
 Sljedeći segment: T29 nedostupan browser storage, T30 email u lokalnoj pohrani,
 T31 tablet prelijevanje administracije. T11 čeka službeni email servis.

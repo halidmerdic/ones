@@ -3,26 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="storage.js?v=20261005-security-10"></script>
     <title>Moj profil | oneS</title>
     <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#111216" />
-    <script>
-      (function () {
-        try {
-          const base = "onesTheme";
-          let theme = localStorage.getItem(base + ":store:last");
-          if (theme !== "dark" && theme !== "light") {
-            for (let i = 0; i < localStorage.length; i += 1) {
-              const key = localStorage.key(i);
-              if (!key || key.indexOf(base + ":customer:") !== 0) continue;
-              theme = localStorage.getItem(key);
-              if (theme === "dark" || theme === "light") break;
-            }
-          }
-          if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
-        } catch (error) {}
-      })();
-    </script>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=20260808-1" />
     <link rel="stylesheet" href="styles.css?v=20260903-ui-1" />
     <link rel="stylesheet" href="admin.css?v=20260903-ui-1" />
@@ -143,9 +127,9 @@
       <a href="profile.html" class="active"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path><path d="M4 21a8 8 0 0 1 16 0"></path></svg></span><strong>Profil</strong></a>
     </nav>
 
-    <script src="theme.js?v=20260803-load-1"></script>
+    <script src="theme.js?v=20261005-security-10"></script>
     <script src="assets/vendor/purify-3.4.16.min.js"></script>
-    <script src="api-client.js?v=20261005-security-9"></script>
-    <script src="profile.js?v=20261005-security-5"></script>
+    <script src="api-client.js?v=20261005-security-10"></script>
+    <script src="profile.js?v=20261005-security-10"></script>
   </body>
 </html>

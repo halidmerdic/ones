@@ -25,6 +25,7 @@ $runtimeFiles = @(
   ".htaccess",
   "admin.css",
   "admin-feedback.css",
+  "admin-responsive.css",
   "admin.html",
   "admin.js",
   "api-client.js",
@@ -62,6 +63,7 @@ $runtimeFiles = @(
   "styles.css",
   "terms.html",
   "theme.js",
+  "storage.js",
   "uploads/.htaccess",
   "web.config"
 )

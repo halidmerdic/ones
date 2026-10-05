@@ -363,7 +363,7 @@ function flash(message) {
 
 function updateCartCount(count) {
   cartCount = count || 0;
-  try { localStorage.setItem(cartCountPreviewKey, String(cartCount)); } catch {}
+  try { window.onesStorage.local.setItem(cartCountPreviewKey, String(cartCount)); } catch {}
   const badges = document.querySelectorAll(".cart-count-sync");
   badges.forEach((badge) => {
     badge.textContent = String(cartCount);
@@ -372,7 +372,7 @@ function updateCartCount(count) {
 }
 
 function restoreCartCountPreview() {
-  const count = Number(window.__onesCartPreview || localStorage.getItem(cartCountPreviewKey) || 0);
+  const count = Number(window.__onesCartPreview || window.onesStorage.local.getItem(cartCountPreviewKey) || 0);
   if (count > 0) updateCartCount(count);
 }
 
@@ -419,11 +419,11 @@ function updateAccountLinks() {
 
 function rememberCustomerPreview(user) {
   try {
-    localStorage.removeItem(customerPreviewKey);
+    window.onesStorage.local.removeItem(customerPreviewKey);
     if (user) {
-      sessionStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
+      window.onesStorage.session.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
     } else {
-      sessionStorage.removeItem(customerPreviewKey);
+      window.onesStorage.session.removeItem(customerPreviewKey);
     }
   } catch {}
 }

@@ -201,11 +201,10 @@
             throw new Error("Odjava nije potvrđena. Provjerite vezu i pokušajte ponovo.");
           }
         }
-        for (const storageName of ["localStorage", "sessionStorage"]) {
-          try {
-            window[storageName].removeItem("onesCustomerPreview");
-            window[storageName].removeItem("onesCartCountPreview");
-          } catch {}
+        window.onesCleanLegacyStorage();
+        for (const storage of [window.onesStorage.local, window.onesStorage.session]) {
+          storage.removeItem("onesCustomerPreview");
+          storage.removeItem("onesCartCountPreview");
         }
         window.__onesCartPreview = 0;
         window.__onesCustomerStatusPromise = Promise.resolve({ ok: true, loggedIn: false, user: null });

@@ -629,3 +629,59 @@ live customer data. The tests cover seven viewport widths, both themes, real
 login/expiry, no duplicate Add, invalid return destinations, canonical contacts
 and mouse/touch/keyboard controls. Browser emulation does not replace physical
 iOS/Android or Safari testing.
+
+## 18. Optional browser storage, device theme and CMS width (T29–T31)
+
+Ship the new `storage.js` and `admin-responsive.css`, the changed theme/client/
+page scripts and all ten HTML entry points together. `storage.js` loads in the
+head before any cache reads; the changed scripts use `20261005-security-10`.
+Both new files are included by the deployment builder. No PHP/DB/schema or
+backup format change is needed. Refresh existing tabs after deployment so they
+stop using old code which writes account-specific theme keys.
+
+All deployed pages use `onesStorage.local` and `.session` for optional browser
+caches. Property getters, reads, writes, removals and enumeration can fail without
+blocking catalogue loading, login/logout, cart, profile or CMS writes. An in-page
+memory fallback keeps the latest value and a removal tombstone, so failed writes
+cannot reveal an older cached value. Pending operations retry when that storage
+key is used again or the wrapper enumerates keys. There is no promise of cache
+persistence after navigation while browser storage is denied. Cookies used for
+the server session are separate; no cache grants authentication or authorization.
+If local storage cannot publish the CMS timestamp, other tabs can still fetch
+the latest saved CMS on reload.
+
+The public theme now uses only `onesTheme:store:last`; CMS retains the separate
+`onesTheme:admin` preference. Neither key depends on a customer ID or email.
+The initial head script and the theme toggle use the same preference; the system
+theme is the fallback. Valid theme changes synchronize across tabs. Login,
+logout and changing accounts no longer select another stored customer theme.
+Startup/pageshow and legacy-key storage events remove `onesTheme:customer:*`
+from local and session storage. A generic guest preference may migrate to the
+public preference, but account-specific values are never copied. The old local
+customer preview is removed; session previews are limited to the display name.
+Confirmed logout removes customer/cart previews through the same safe wrapper.
+If browser rules prevent deletion/enumeration, cleanup completes when access is
+available on a later retry or page visit. Unrelated browser keys are preserved.
+The privacy page describes the actual fields and this migration behavior.
+
+The CMS main panel is a CSS inline-size container. Wide record rows become
+two-column cards below 1150 px of available panel width and one column below
+600 px, accounting for the fixed sidebar. Filters, pagination and long text wrap
+without hiding controls. Dialog content responds to its own width and long
+product titles cannot push actions outside the dialog. This stylesheet is scoped
+to the CMS; the existing user-authored admin/profile visual changes are preserved.
+The layout tests cover sidebar breakpoints, 16 widths from 320 to 1920 CSS px,
+both themes, every CMS section and opening/closing the product editor. A 640 CSS
+px viewport also checks the space available to a 1280 px window at 200% zoom;
+this is viewport equivalence, not an automated browser zoom gesture.
+
+Tests: `node tests/storage.cjs` and `node tests/logout-client.cjs` run in CI.
+On the disposable loopback server with SMTP capture, run
+`tests/segment10-layout.cjs`, `tests/segment10-storage-browser.cjs` and
+`tests/theme-privacy-browser.cjs` sequentially, followed by
+`tests/segment10-dialogs.cjs` for category/order/customer dialog geometry.
+They create synthetic users/orders
+and modify the test CMS; never run them against production. The storage suite
+uses separate users/IP fixtures to respect real request limits. Existing login,
+cart-recovery and restore suites remain applicable. See `SEGMENT-10.txt` for
+the completed run results and platform limitations.

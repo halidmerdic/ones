@@ -1,7 +1,5 @@
 (function () {
-  const baseKey = "onesTheme";
-  const storeFallbackKey = `${baseKey}:store:last`;
-  let storageKey = resolveStorageKey();
+  const storageKey = /\/admin\.html$/.test(location.pathname) ? "onesTheme:admin" : "onesTheme:store:last";
 
   const icons = {
     dark: `
@@ -21,13 +19,6 @@
     return document.body?.dataset.themeScope || (location.pathname.includes("admin") ? "admin" : "store");
   }
 
-  function resolveStorageKey(user) {
-    const scope = pageScope();
-    if (scope === "admin") return `${baseKey}:admin`;
-    if (user?.email) return `${baseKey}:customer:${String(user.email).toLowerCase()}`;
-    return `${baseKey}:guest`;
-  }
-
   function applyTheme(theme) {
     const nextTheme = theme === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = nextTheme;
@@ -45,38 +36,7 @@
   }
 
   function preferredTheme() {
-    const saved = localStorage.getItem(storageKey);
-    if (saved === "dark" || saved === "light") return saved;
-    if (pageScope() === "store") {
-      const lastStoreTheme = localStorage.getItem(storeFallbackKey);
-      if (lastStoreTheme === "dark" || lastStoreTheme === "light") return lastStoreTheme;
-
-      for (let index = 0; index < localStorage.length; index += 1) {
-        const key = localStorage.key(index);
-        if (!key || !key.startsWith(`${baseKey}:customer:`)) continue;
-        const customerTheme = localStorage.getItem(key);
-        if (customerTheme === "dark" || customerTheme === "light") return customerTheme;
-      }
-    }
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-
-  async function resolveCustomerTheme() {
-    if (pageScope() === "admin" || location.protocol === "file:") return;
-
-    try {
-      const data = await loadCustomerStatus();
-      if (!data) return;
-      const nextKey = resolveStorageKey(data.loggedIn ? data.user : null);
-      if (nextKey === storageKey) return;
-
-      storageKey = nextKey;
-      const theme = preferredTheme();
-      if (pageScope() === "store") localStorage.setItem(storeFallbackKey, theme);
-      applyTheme(theme);
-    } catch {
-      // Theme still works with the guest key if the server is not reachable.
-    }
+    return window.onesStoredTheme();
   }
 
   function loadCustomerStatus() {
@@ -101,8 +61,7 @@
     toggle() {
       const current = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
       const next = current === "dark" ? "light" : "dark";
-      localStorage.setItem(storageKey, next);
-      if (pageScope() === "store") localStorage.setItem(storeFallbackKey, next);
+      window.onesStorage.local.setItem(storageKey, next);
       applyTheme(next);
     },
     apply: applyTheme,
@@ -110,7 +69,9 @@
   window.onesCustomerStatus = loadCustomerStatus;
 
   applyTheme(preferredTheme());
-  resolveCustomerTheme();
+  window.addEventListener("storage", event => {
+    if (event.key === null || event.key === storageKey) applyTheme(preferredTheme());
+  });
 
   document.addEventListener("click", (event) => {
     const button = event.target.closest("[data-theme-toggle]");

@@ -7,6 +7,9 @@ function client(handler, blockedStorage = false) {
   const cache = new Map([['onesCustomerPreview', 'Customer'], ['onesCartCountPreview', '3']]);
   const storage = { removeItem(key) { if (blockedStorage) throw Error('Storage denied'); cache.delete(key); } };
   const window = { localStorage: storage, sessionStorage: storage };
+  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname, '../storage.js'), 'utf8'), { window });
+  // Simulate previews written after startup migration, as a real login does.
+  cache.set('onesCustomerPreview', 'Customer'); cache.set('onesCartCountPreview', '3');
   vm.runInNewContext(source, { window, fetch: async url => {
     const action = new URL(url, 'http://127.0.0.1').searchParams.get('action');
     if (action === 'csrf-token') return { ok: true, status: 200, json: async () => ({ ok: true, csrfToken: 'test' }) };

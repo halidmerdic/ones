@@ -1,0 +1,156 @@
+SEGMENT 10 — T29, T30, T31 — 05.10.2026.
+
+GITHUB I STATUS
+Prethodni segment T26–T28 i T40 je commitovan i poslan na main:
+d228a2488e446ad1ae0f1488816540b4ecb5d9d8
+https://github.com/halidmerdic/ones/commit/d228a2488e446ad1ae0f1488816540b4ecb5d9d8
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37293139698
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37293139239
+Obje provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
+
+T29–T31 su završeni lokalno. Ukupno 32/40 taskova: 29 na GitHubu, 3 lokalno.
+Ovaj segment još nije commitovan/pushovan. T11 čeka službeni email servis i
+aktivaciju; privremeni app password nije postavljan.
+
+T29 — RAD KADA BROWSER STORAGE NIJE DOSTUPAN
+Nova zajednička storage.js biblioteka učitava se u headu prije prvog pristupa
+cacheu na svih deset runtime HTML stranica. Svi runtime JS i inline potrošači
+koriste onesStorage.local/session. Obrađene su greške na samom property getteru
+localStorage/sessionStorage, getItem, setItem, removeItem, length i key.
+Kvar čitanja, blokada browser politike ili popunjena kvota više ne zaustavljaju
+učitavanje kataloga, prijavu, korpu, profil, CMS sekcije ili promjenu teme.
+
+Posljednja vrijednost ostaje u memoriji otvorene stranice. Neuspjeli upis ili
+brisanje označeni su kao nepotvrđeni; stariji zapis s diska se ne vraća preko
+novije vrijednosti. Brisanje koristi oznaku odsustva vrijednosti. Kada pristup
+ponovo postane moguć, wrapper ponavlja operaciju na sljedećoj upotrebi ključa
+ili enumeraciji. Ne briše se kompletan browser storage niti nepovezani ključevi.
+
+Uspješno spremanje CMS-a više ne postaje lažna greška ako objava timestamp-a
+u lokalnoj pohrani ne uspije. Isto vrijedi za osvježavanje broja korpe nakon
+serverske radnje i popunjavanje profila. Odjava i dalje prvo zahtijeva potvrdu
+servera, a tek onda čisti preview i lokalno stanje. Nijedan cache ne dodjeljuje
+pristup podacima niti zamjenjuje serversku sesiju.
+
+Memorijski fallback traje do odlaska/reloada stranice. Kada je localStorage
+blokiran, obavijest drugim karticama o CMS izmjeni nije garantovana; reload
+učitava aktuelni CMS sa servera. Serverski sesijski cookie je zaseban zahtjev
+za prijavu i nije dio ove opcionalne cache funkcije.
+
+T30 — UKLANJANJE EMAIL IDENTITETA IZ POHRANE
+Javna tema koristi samo onesTheme:store:last, a CMS onesTheme:admin. Izbor teme
+je postavka preglednika; prijava, odjava i promjena naloga ga više ne vežu za
+email, hash emaila ili drugi korisnički identifikator. Prvi prikaz i theme toggle
+koriste isti izvor i sistemsku temu kao fallback. Promjena teme se prenosi
+u druge otvorene kartice. Administratorska tema je zasebna od javne.
+
+Pri otvaranju/pageshow uklanjaju se svi onesTheme:customer:* ključevi iz lokalne
+i sesijske pohrane. Ako stara otvorena kartica ponovo upiše takav ključ, druga
+kartica s novim kodom reaguje na storage događaj i uklanja ga. Može se prenijeti
+postojeća opća guest tema, ali se vrijednosti korisničkih ključeva ne kopiraju.
+Stari trajni onesCustomerPreview se briše; sesijski preview se svodi na ime.
+Kod naslijeđenog preview-a s emailom prvo se uklanja stari zapis, a zatim upisuje
+samo ime. Tako email ne ostaje na disku ni kada kvota blokira novi upis.
+Potvrđena odjava uklanja ime i broj korpe putem istog sigurnog wrappera.
+
+Ako browser izričito blokira enumeraciju/brisanje, nije moguće fizički ukloniti
+nedostupne podatke. Čišćenje se ponavlja kada pristup bude dozvoljen pri sljedećoj
+posjeti/pageshow ili upotrebi već poznatog ključa. U međuvremenu se ne kreiraju
+novi email ključevi. privacy.html sada tačno opisuje polja pohrane, migraciju,
+opću temu, CMS sekciju/timestamp i memorijski fallback. Ovo je tehnička izmjena
+ponašanja i obavijesti, ne tvrdnja o kompletnoj pravnoj usklađenosti.
+
+T31 — ŠIRINA ADMINISTRACIJE NA TABLETU
+Ponovljen je izvorni nalaz: bez ispravke 1024 px viewport daje scrollWidth 1136 px.
+Nova admin-responsive.css koristi stvarnu širinu glavnog CMS panela, nakon što
+bočni meni zauzme svoj prostor. Redovi i filteri prelaze na dvije kolone ispod
+1150 px širine tog panela te na jednu ispod 600 px. Polja, akcije i navigacija
+stranica ostaju dostupni; problem se ne skriva pomoću overflow-x:hidden.
+Prelomljeni su dugi tekstovi i grupisane kontrole paginacije, bez lomljenja
+riječi unutar dugmadi Prethodna/Sljedeća.
+
+Dialog se također prilagođava vlastitoj širini. Test s dugim neprekinutim nazivom
+otkrio je da naslov može istisnuti akcije izvan editora čak i na desktopu; header
+sada dozvoljava skupljanje/prelom, a uže tijelo dialoga prelazi na jednu kolonu.
+Pravila su ograničena na CMS. Raniji korisnikov admin.css redizajn nije mijenjan;
+novi stylesheet učitan je nakon postojećih CMS stilova.
+
+PROVJERE
+Izolovan lokalni deployment paket s PHP 8.5.11, strict-errors/E_ALL, SQLite,
+Chrome/Playwright i lokalnim SMTP captureom. Korisnici su testni .invalid podaci;
+poruke nisu prosljeđivane stvarnim primaocima. Nema izmjena PHP/SQL šeme/lockova,
+pa MariaDB nije ponavljana u ovom segmentu.
+
+1. tests/storage.cjs: 72 provjere svih vrsta storage grešaka, čitanja nakon
+   neuspjelog upisa, neuspjelog brisanja, oporavka, migracije i pokrivenosti
+   svih runtime JS/HTML potrošača zajedničkim wrapperom.
+2. tests/logout-client.cjs: 17 provjera; odbijena/nepotvrđena odjava, izgubljen
+   odgovor, nedostupan storage i paralelni zahtjevi i dalje rade ispravno.
+3. tests/segment10-storage-browser.cjs: 400 provjera kroz 20 konteksta. Property
+   getter blokiran na 320/360/390/768/820/1024/1440, obje teme; get/set/remove,
+   key/length i svi metodi zasebno blokirani na 820. Stvarni dodavanje/slanje
+   korpe, spremanje profila i CMS-a, navigacija sekcija, javne stranice, odjava
+   i uklanjanje starih podataka poslije oporavka. Nije bilo pageerror događaja.
+4. tests/theme-privacy-browser.cjs: 43 provjere, svih 10 ulaznih stranica,
+   stari email ključevi/preview, dva stvarna naloga i odjava, očuvanje generičke
+   teme i nepovezanih ključeva, reload, sinhronizacija kartica, stara kartica
+   koja ponovo piše email ključ te kvota puna pri migraciji preview-a.
+5. tests/segment10-layout.cjs: 514 provjera. Širine 320, 360, 390, 640, 768,
+   820, 920, 921, 1024, 1100, 1200, 1201, 1280, 1366, 1440 i 1920 u obje teme.
+   Sve CMS sekcije, dokument/panel/vidljivi potomci bez horizontalnog prelijevanja,
+   stvarno otvaranje/zatvaranje editora i dugačak naslov. Fiks ne zaklanja akcije.
+   640 CSS px pokriva prostor ekvivalentan prozoru 1280 px pri 200% zoomu;
+   nije simuliran stvarni browser zoom gest niti pinch zoom.
+6. Zasebna provjera kandidata za GitHub: runtime kopija koristi admin.css i
+   admin/login/profile HTML/JS sa HEAD-a, uz isključivo ispravke ovog segmenta.
+   Time se izbjegava zavisnost od nepovezanog lokalnog redizajna. Ponovo prošli
+   layout 514, privacy 41 i storage 40 provjera (blokiran getter i quota, oba
+   stvarna toka). Završna privacy provjera 43 uključuje dodatnu quota ispravku.
+7. Regresije: cart-recovery-browser 14; segment1-integration 161 (restore,
+   poništavanje sesija, čišćenje modala, ponovna prijava, XSS, 7 širina x 2 teme).
+   JS input-policy 41 vektor i potrošači, pricing-clock 22, public-badges 28,
+   contact-navigation 82. Sve prošlo. Storage i logout unit suite ponovljeni
+   nakon završne ispravke quota migracije i ponovo prošli.
+8. tests/smoke.ps1: 259 provjera, uključujući deployment paket s novim JS/CSS
+   fajlovima, zaštite, osnovne PHP sigurnosne regresije i sitemap.
+9. U segment10-views sačuvano je šest screenshotova proizvoda na 320/1024/1440,
+   u obje teme. Vizuelno pregledan telefon, tablet i desktop. Mobilni snimak
+   prikazuje skrolani dio kartice s akcijama/paginacijom.
+10. tests/segment10-dialogs.cjs: 73 provjere za kategoriju/upit/kupca na
+    320/820/1024/1440 u obje teme, uključujući dugi naslov, širinu dialoga,
+    horizontalnu dostupnost i stvarni klik dugmeta Zatvori.
+11. Završni JS syntax za svih 49 JS/CJS fajlova i parser za dva izmijenjena
+    PowerShell skripta su prošli. HTTP log bez PHP warning/notice/deprecation/
+    fatal grešaka. git diff --check prolazi za segment (raniji admin.css izuzet).
+12. Poređenjem s kopijom napravljenom prije rada potvrđeno je očuvanje svih pet
+    ranije izmijenjenih korisnikovih fajlova. Razlike su isključivo planirani
+    storage/script/style dodaci ovog segmenta; admin.css je ostao identičan.
+
+Privremeni PHP i SMTP procesi su ugašeni. Uklonjeni su obje testne baze, lokalna
+testna konfiguracija, aktivacijski tokeni/poruke, deployment paketi i pomoćne
+kopije za staging/kompatibilnost. Podržani PHP runtime i šest PNG dokaza ostaju.
+
+Tokom pripreme ispravljen je selector za zatvaranje editora u testu. Prva layout
+matrica otkrila je stvarno prelijevanje dugih naslova dialoga; nakon CSS ispravke
+je ponovljena. Prvi stress test koristio je isti testni nalog za više od tri
+upita u deset minuta i dobio očekivani 429; sada svaki slučaj ima zaseban nalog
+i IP fixture, bez slabljenja serverskog limita. Restore regresija je na već
+iskorištenoj bazi dobila registration 429; ponovljena je na novoj praznoj testnoj
+bazi i prošla. Pripremni neuspjesi nisu uračunati kao uspješni rezultati.
+
+OPSEG I NAREDNI SEGMENT
+Browser testovi su Chrome sa emuliranim širinama/dodirom, ne fizički iOS/Android
+uređaji ili Safari. Fokus i zatvoreni bočni meni ostaju T32–T33; CSS popravka
+širine ih ne zatvara automatski. Sljedeći segment su T32 i T33.
+T11 i dalje čeka službeni email servis, prema dogovoru.
+
+DEPLOYMENT.md odjeljak 18 opisuje rollout: storage.js, admin-responsive.css,
+izmijenjeni JS i svi HTML entrypointi zajedno, security-10 cache verzije.
+Nema DB migracije ili promjene backupa. Postojeće stare kartice osvježiti.
+
+PRI NAREDNOM COMMITU SAČUVATI KORISNIKOV REDIZAJN
+admin.css ostaje samo ranija korisnikova izmjena. U admin.html/login.html/
+profile.html izdvojiti storage.js head, uklanjanje starog inline theme koda,
+security-10 script verzije i novi admin-responsive.css link (samo admin).
+U profile.js izdvojiti samo tri pristupa storageu zamijenjena wrapperom.
+Ostatak njihovog HTML/JS redizajna ne stageovati cijelim fajlom.

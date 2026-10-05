@@ -176,8 +176,8 @@ function renderOrders(orders) {
 
 function fillProfileForm(user) {
   try {
-    localStorage.removeItem(customerPreviewKey);
-    sessionStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
+    window.onesStorage.local.removeItem(customerPreviewKey);
+    window.onesStorage.session.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
   } catch {}
   $("#profileName").textContent = user.name;
   $("#profileEmail").textContent = [user.email, user.phone].filter(Boolean).join(" · ");
@@ -195,7 +195,7 @@ function setupMobileNav() {
 }
 
 function updateBottomCartCount(count) {
-  localStorage.setItem(cartCountPreviewKey, String(count || 0));
+  window.onesStorage.local.setItem(cartCountPreviewKey, String(count || 0));
   document.querySelectorAll(".cart-count-sync").forEach((badge) => {
     badge.textContent = String(count || 0);
     badge.hidden = !count;

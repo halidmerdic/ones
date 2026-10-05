@@ -34,3 +34,4 @@ jobs:
           node tests/pricing-clock.cjs
           node tests/public-badges.cjs
           node tests/contact-navigation.cjs
+          node tests/storage.cjs

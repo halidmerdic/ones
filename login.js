@@ -25,11 +25,11 @@ function showProfile(user) {
 
 function rememberCustomerPreview(user) {
   try {
-    localStorage.removeItem(customerPreviewKey);
+    window.onesStorage.local.removeItem(customerPreviewKey);
     if (user) {
-      sessionStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
+      window.onesStorage.session.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
     } else {
-      sessionStorage.removeItem(customerPreviewKey);
+      window.onesStorage.session.removeItem(customerPreviewKey);
     }
   } catch {}
 }

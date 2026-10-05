@@ -97,7 +97,7 @@ function handleCartError(error) {
     cartReady = false;
     currentCustomer = null;
     rememberCustomerPreview(null);
-    try { localStorage.setItem(cartCountPreviewKey, "0"); } catch {}
+    try { window.onesStorage.local.setItem(cartCountPreviewKey, "0"); } catch {}
     updateAccountLink();
     updateCartControls();
     window.location.href = window.onesLoginUrl();
@@ -163,19 +163,19 @@ function updateAccountLink() {
 
 function rememberCustomerPreview(user) {
   try {
-    localStorage.removeItem(customerPreviewKey);
+    window.onesStorage.local.removeItem(customerPreviewKey);
     if (user) {
-      sessionStorage.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
+      window.onesStorage.session.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
     } else {
-      sessionStorage.removeItem(customerPreviewKey);
+      window.onesStorage.session.removeItem(customerPreviewKey);
     }
   } catch {}
 }
 
 function restoreCustomerPreview() {
   try {
-    localStorage.removeItem(customerPreviewKey);
-    const cached = JSON.parse(sessionStorage.getItem(customerPreviewKey) || "null");
+    window.onesStorage.local.removeItem(customerPreviewKey);
+    const cached = JSON.parse(window.onesStorage.session.getItem(customerPreviewKey) || "null");
     if (!cached?.name) return;
     currentCustomer = cached;
     updateAccountLink();
@@ -183,7 +183,7 @@ function restoreCustomerPreview() {
 }
 
 function updateBottomCartCount() {
-  try { localStorage.setItem(cartCountPreviewKey, String(cart.count || 0)); } catch {}
+  try { window.onesStorage.local.setItem(cartCountPreviewKey, String(cart.count || 0)); } catch {}
   document.querySelectorAll(".cart-count-sync").forEach((badge) => {
     badge.textContent = String(cart.count || 0);
     badge.hidden = !cart.count;
@@ -192,7 +192,7 @@ function updateBottomCartCount() {
 
 function restoreCartCountPreview() {
   let count = 0;
-  try { count = Number(localStorage.getItem(cartCountPreviewKey) || 0); } catch {}
+  try { count = Number(window.onesStorage.local.getItem(cartCountPreviewKey) || 0); } catch {}
   if (!count) return;
   document.querySelectorAll(".cart-count-sync").forEach((badge) => {
     badge.textContent = String(count);

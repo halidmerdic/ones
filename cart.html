@@ -3,26 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="storage.js?v=20261005-security-10"></script>
     <title>Korpa | oneS</title>
     <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#111216" />
-    <script>
-      (function () {
-        try {
-          const base = "onesTheme";
-          let theme = localStorage.getItem(base + ":store:last");
-          if (theme !== "dark" && theme !== "light") {
-            for (let i = 0; i < localStorage.length; i += 1) {
-              const key = localStorage.key(i);
-              if (!key || key.indexOf(base + ":customer:") !== 0) continue;
-              theme = localStorage.getItem(key);
-              if (theme === "dark" || theme === "light") break;
-            }
-          }
-          if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
-        } catch (error) {}
-      })();
-    </script>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=20260808-1" />
     <link rel="stylesheet" href="styles.css?v=20260903-ui-1" />
     <link rel="stylesheet" href="admin.css?v=20260903-ui-1" />
@@ -97,7 +81,7 @@
     <script>
       (function () {
         try {
-          const cached = JSON.parse(sessionStorage.getItem("onesCustomerPreview") || "null");
+          const cached = JSON.parse(window.onesStorage.session.getItem("onesCustomerPreview") || "null");
           if (!cached || !cached.name) return;
           const accountLink = document.getElementById("cartAccountLink");
           const bottomLink = document.getElementById("bottomAccountLink");
@@ -110,7 +94,7 @@
           if (bottomLink) {
             bottomLink.href = "profile.html";
           }
-          const count = Number(localStorage.getItem("onesCartCountPreview") || 0);
+          const count = Number(window.onesStorage.local.getItem("onesCartCountPreview") || 0);
           if (count > 0) {
             document.querySelectorAll(".cart-count-sync").forEach(function (badge) {
               badge.textContent = String(count);
@@ -120,9 +104,9 @@
         } catch (error) {}
       })();
     </script>
-    <script src="theme.js?v=20260803-load-1"></script>
+    <script src="theme.js?v=20261005-security-10"></script>
     <script src="assets/vendor/purify-3.4.16.min.js"></script>
-    <script src="api-client.js?v=20261005-security-9"></script>
-    <script src="cart.js?v=20261005-security-9"></script>
+    <script src="api-client.js?v=20261005-security-10"></script>
+    <script src="cart.js?v=20261005-security-10"></script>
   </body>
 </html>
