@@ -58,7 +58,11 @@ async function context(ip) { const c = await request.newContext({ extraHTTPHeade
     assert.equal((await get(admin, 'admin-cms')).revision, current.revision); checks++;
   }
   const first = current.cms.products[0];
-  if (!current.cms.products[1]) current.cms.products.push({ ...structuredClone(first), id: first.id + '-decimal', name: 'Decimal test second product' });
+  if (!current.cms.products[1]) {
+    const added = { ...structuredClone(first), id: first.id + '-decimal', name: 'Decimal test second product' };
+    delete added._identity;
+    current.cms.products.push(added);
+  }
   const second = current.cms.products[1];
   for (const [product, price] of [[first, '0,10'], [second, '0.20']]) Object.assign(product, { enabled: true, mpcPrice: price, discountPrice: '0', salePrice: '0', saleUntil: '', price: '0' });
   await status(await post(admin, 'save-cms', { cms: current.cms, revision: current.revision }), 200);

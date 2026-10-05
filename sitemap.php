@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/cms-integrity.php';
 
 function sitemap_base_url(): string
 {
@@ -76,7 +77,7 @@ function sitemap_cms(?PDO $pdo): array
     $stmt = $pdo->prepare('SELECT value FROM cms_store WHERE ' . $key . ' = "cms" LIMIT 1');
     $stmt->execute();
     $cms = json_decode((string)$stmt->fetchColumn(), true);
-    return is_array($cms) ? $cms : ['products' => [], 'blogs' => []];
+    return is_array($cms) ? cms_canonical_references(cms_read_collections($cms)) : ['products' => [], 'blogs' => []];
 }
 
 function sitemap_url(string $loc, string $priority = '0.7', string $changefreq = 'weekly'): string
@@ -123,6 +124,7 @@ function sitemap_blog_matches_products(array $post, array $products): bool
         }
     }
     foreach (array_keys($keywords) as $keyword) {
+        $keyword = (string)$keyword;
         if (strpos($keyword, 'romobil') !== false || strpos($keyword, 'skuter') !== false) {
             $keywords['romobil'] = true;
             $keywords['skuter'] = true;
@@ -140,12 +142,14 @@ function sitemap_blog_matches_products(array $post, array $products): bool
         . strip_tags((string)($post['text'] ?? ''))
     );
     foreach (array_keys($keywords) as $keyword) {
-        if (strpos($haystack, $keyword) !== false) {
+        if (strpos($haystack, (string)$keyword) !== false) {
             return true;
         }
     }
     return false;
 }
+
+if (defined('ONES_SITEMAP_LIBRARY_ONLY') && ONES_SITEMAP_LIBRARY_ONLY) return;
 
 $base = sitemap_base_url();
 $cms = ['products' => [], 'blogs' => []];

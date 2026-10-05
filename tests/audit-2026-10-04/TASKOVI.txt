@@ -1,13 +1,17 @@
 PLAN POPRAVKI — odobren 05.10.2026.
 Rad u segmentima od 2–4 povezana taska. Jedan task = jedan problem.
-Odobren trenutni segment: T13–T15, završen lokalno 05.10.2026.
+Odobren trenutni segment: T16–T18, završen lokalno 05.10.2026.
+Dodatni zasebni T39 pronađen provjerom ovog segmenta i također riješen lokalno.
 T10/T12 i pripremljeni kod T11 poslani su na GitHub: 8f79f61.
-T11 čeka email servis i aktivaciju, prema korisnikovom izboru.
-Ukupno 14/38 taskova završeno: 11 na GitHubu, 3 lokalno.
+T11 čeka službeni email servis i aktivaciju, prema korisnikovom izboru.
+Privremeni app password ne postavljamo, prema dogovoru.
+Ukupno 18/39 taskova završeno: 14 na GitHubu, 4 lokalno.
 T01–T03 poslani na GitHub main: 2a5eb82, 05.10.2026.
 T04–T06 poslani na GitHub main: aa274da, 05.10.2026.
 T07–T09 poslani na GitHub main: a6370a1, 05.10.2026. PHP/JS CI i statički Pages
 build prošli. Nije izvršen deploy na Hetzner PHP aplikaciju.
+T13–T15 poslani na GitHub main: f4e63b1, 05.10.2026. PHP/JS CI i statički
+Pages build prošli. Nije izvršen deploy na Hetzner PHP aplikaciju.
 
 T01 [GITHUB 2a5eb82] F01 XSS u administraciji
 T02 [GITHUB 2a5eb82] F02 Poništavanje sesija nakon vraćanja backupa
@@ -21,12 +25,12 @@ T09 [GITHUB a6370a1] F27 Zaobilaženje ograničenja prijave
 T10 [GITHUB 8f79f61] F18 Unicode dužina lozinke
 T11 [KOD NA GITHUBU 8f79f61; ČEKA EMAIL SERVIS I AKTIVACIJU] F30 Potvrda email identiteta
 T12 [GITHUB 8f79f61] F09 Tumačenje cijena
-T13 [ZAVRŠENO LOKALNO] F10 Vremenska zona akcijskih cijena
-T14 [ZAVRŠENO LOKALNO] F25 Paralelne izmjene korpe
-T15 [ZAVRŠENO LOKALNO] F26 Dosljedan snimak backupa
-T16 [ČEKA] F12 Tipovi CMS kolekcija pri redovnom spremanju
-T17 [ČEKA] F11 Dosljednost referenci
-T18 [ČEKA] dio F13 Nepromjenjivi ID proizvoda
+T13 [GITHUB f4e63b1] F10 Vremenska zona akcijskih cijena
+T14 [GITHUB f4e63b1] F25 Paralelne izmjene korpe
+T15 [GITHUB f4e63b1] F26 Dosljedan snimak backupa
+T16 [ZAVRŠENO LOKALNO] F12 Tipovi CMS kolekcija pri redovnom spremanju
+T17 [ZAVRŠENO LOKALNO] F11 Dosljednost referenci
+T18 [ZAVRŠENO LOKALNO] dio F13 Nepromjenjivi ID proizvoda
 T19 [ČEKA] dio F13 Brisanje proizvoda i zavisnosti
 T20 [ČEKA] dio F13 Brisanje kategorije i zavisnosti
 T21 [ČEKA] dio F13 Preimenovanje/brisanje oznaka
@@ -47,6 +51,7 @@ T35 [ČEKA] dio F24 Serverska paginacija
 T36 [ČEKA] F31 Verzije CSS resursa
 T37 [ČEKA] dio F32 Razvojni artefakti u javnom direktoriju
 T38 [ČEKA] dio F32 IIS zaštita privatnih datoteka
+T39 [ZAVRŠENO LOKALNO] Novi nalaz: broj u nazivu proizvoda ruši sitemap
 
 Postojeće korisnikove izmjene prije segmenta: admin.css, admin.html,
 login.html, profile.html, profile.js. Sačuvati ih; ne vraćati checkout na HEAD.
@@ -56,4 +61,5 @@ Detalji i rezultati trećeg segmenta: SEGMENT-03.txt.
 Detalji i rezultati četvrtog segmenta: SEGMENT-04.txt.
 
 Detalji i rezultati petog segmenta: SEGMENT-05.txt.
-Sljedeći segment nakon pregleda: T16–T18.
+Detalji i rezultati šestog segmenta: SEGMENT-06.txt.
+Sljedeći segment nakon pregleda: T19–T21 (brisanje proizvoda/kategorija i izmjene oznaka).

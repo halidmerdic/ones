@@ -7,8 +7,14 @@ https://github.com/halidmerdic/ones/commit/8f79f6122ea30ebe19cf4b72d827cae60f173
 PHP/JavaScript CI i statički Pages build uspješni. Posljednji nije deploy PHP-a
 na Hetzner. Produkcijska aplikacija i baza nisu mijenjane.
 
-T13–T15 su završeni lokalno, još nisu commitovani/pushovani. Ukupno je završeno
-14/38 taskova (11 na GitHubu, 3 lokalno). T11 kod jeste na GitHubu, ali zadatak
+T13–T15 su naknadno commitovani i poslani na GitHub 05.10.2026:
+f4e63b1888fac2ab705e5f63da73411533d988f6
+https://github.com/halidmerdic/ones/commit/f4e63b1888fac2ab705e5f63da73411533d988f6
+PHP/JavaScript CI: https://github.com/halidmerdic/ones/actions/runs/37276820995
+Statički Pages build: https://github.com/halidmerdic/ones/actions/runs/37276819149
+Oba su uspješna; nije izvršen deploy na Hetzner PHP aplikaciju.
+Na kraju ovog segmenta završeno je 14/38 taskova (svih 14 na GitHubu).
+T11 kod jeste na GitHubu, ali zadatak
 ostaje otvoren do email servisa i aktivacije koju je korisnik odgodio.
 
 T13 — ROK AKCIJE I POSLOVNA VREMENSKA ZONA
@@ -99,7 +105,7 @@ MariaDB testna instanca je 10.4.22 sa native prepared statements. Browser testov
 koriste Chrome/Playwright i touch emulaciju; fizički iOS/Android i Safari nisu
 testirani. Poznati T31–T33 problemi rasporeda/fokusa ostaju za njihove segmente.
 Ovaj segment ne predstavlja tvrdnju da u cijelom projektu nema drugih grešaka.
-GitHub CI za prethodni commit je prošao; nova lokalna proširenja CI-ja čekaju push.
+GitHub CI je prošao i za commit ovog segmenta f4e63b1.
 Privremeni PHP, SMTP capture i MariaDB serveri su ugašeni, a testne baze i
 privatni fixturei uklonjeni. Podržani lokalni PHP runtime ostaje za naredni segment.
 
@@ -118,5 +124,6 @@ https://www.sqlite.org/isolation.html
 https://www.sqlite.org/lang_transaction.html
 
 SLJEDEĆI SEGMENT
-Nakon pregleda: T16 tipovi CMS kolekcija, T17 dosljednost referenci, T18
-nepromjenjivi ID proizvoda. T11 čeka korisnikov izbor email servisa.
+Korisnik je odobrio i započet je T16–T18: tipovi CMS kolekcija, dosljednost
+referenci i nepromjenjivi ID proizvoda. T11 čeka službeni email servis i
+aktivaciju; privremeni app password nije podešen, prema dogovoru s korisnikom.

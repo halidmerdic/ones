@@ -159,6 +159,7 @@ function normalize_backup_payload($backup): array
         }
     }
     backup_cms_shapes($backup['cms']);
+    $backup['cms'] = cms_canonical_references($backup['cms']);
     $cmsErrors = cms_validate_payload($backup['cms']);
     if ($cmsErrors) {
         backup_invalid('CMS', $cmsErrors[0]);

@@ -1,0 +1,135 @@
+SEGMENT 06 — T16, T17, T18 i dodatni T39 — 05.10.2026.
+
+STATUS I GITHUB
+Na zahtjev korisnika prethodni segment T13–T15 commitovan je i poslan na main:
+f4e63b1888fac2ab705e5f63da73411533d988f6
+https://github.com/halidmerdic/ones/commit/f4e63b1888fac2ab705e5f63da73411533d988f6
+PHP/JavaScript CI i statički Pages build uspješno su završili:
+https://github.com/halidmerdic/ones/actions/runs/37276820995
+https://github.com/halidmerdic/ones/actions/runs/37276819149
+Nije izvršen deploy PHP aplikacije na Hetzner niti izmjena produkcijske baze.
+
+T16–T18 i T39 završeni su lokalno i spremni za pregled; još nisu commitovani
+ni poslani na GitHub. Ukupno 18/39 taskova završeno: 14 na GitHubu, 4 lokalno.
+T39 je zaseban novi nalaz iz završnog smoke testa, a ne proširenje značenja T18.
+T11 ostaje otvoren do službenog email servisa i aktivacije. Prema dogovoru,
+privremeni app password nije podešen. Testni SMTP je isključivo lokalni capture.
+
+T16 — TIPOVI CMS KOLEKCIJA
+Redovni HTTP save čuva razliku JSON objekta i liste prije pretvaranja u PHP
+asocijativne nizove. Svih deset kolekcija, galerije proizvoda, atributi kategorija
+i njihove vrijednosti moraju biti liste sa uzastopnim indeksima. JSON objekat
+sa ključem "0" također je odbijen, čak i kada bi ga PHP dekodirao kao listu.
+Zapisi i mape imaju odvojena pravila; ugniježđeni objekti u skalarnim poljima
+ne dolaze do pretvaranja u string. Greška vraća HTTP 422 i putanju polja, bez
+promjene CMS-a, njegove revizije ili historije.
+
+PHP save_cms također poziva punu validaciju, tako da je ne mogu preskočiti
+interni pozivi. Prazne specs/attributes mape u API odgovoru su {}. Browser ih
+uređuje kao objekte: imenovani atribut više ne nestaje pri JSON.stringify
+praznog PHP niza koji se ranije prenosio kao []. Stare prazne mape [] ostaju
+prihvatljive radi kompatibilnosti. Stare imenovane kolekcije se pri čitanju
+reindeksiraju bez odbacivanja zapisa i bez automatskog upisa u bazu.
+
+T17 — DOSLJEDNOST REFERENCI
+Novi save zahtijeva tačne reference: product.category/badge, category.badge,
+badge.applyCategory i manual.relatedProductId/category. Nepostojeća referenca
+ili drugačija slova/okolni razmaci više ne mogu proći validaciju pa nestati u
+javnom prikazu. Izabran je tačan zapis referenci, bez migracije naziva u nove ID-eve.
+
+Pri čitanju postojećih podataka i uvozu backupa, stara referenca se može razriješiti
+na stvarni zapis samo ako je podudaranje po trim/lowercase jedinstveno. Nepoznate
+ili dvosmislene veze se ne nagađaju. Nazivi entiteta i sami ID-evi se ne mijenjaju.
+Isto pravilo čitanja koristi sitemap. Uspješan sljedeći save trajno zapiše tačne
+reference; samo čitanje ne mijenja bazu. Backup zadržava punu validaciju i rollback.
+
+T18 — NEPROMJENJIVI ID PROIZVODA
+Postojeći ID više nije ulaz za preimenovanje u editoru. Polje je readonly,
+dostupno za čitanje/kopiranje i ima objašnjenje povezano za čitače ekrana.
+Naziv se normalno mijenja. Novi proizvod dobija product-UUID identifikator.
+
+Admin CMS odgovor nosi _identity dokaz izveden iz ID-a i privatnog auth_epoch
+ključa pomoću HMAC-SHA256. Postojeći proizvod mora ga vratiti neizmijenjenog.
+Promijenjen ID sa starim dokazom, neispravan dokaz ili postojeći ID bez dokaza
+odbijaju se i kada se zaobilazi editor. Novi proizvod nema dokaz prije prvog
+spremanja. Polje se uklanja prije upisa i ne ulazi u javni CMS niti backup.
+
+Spremanje zahtijeva reviziju i provjerava identitete pod zaključavanjem CMS reda;
+SQLite uzima write lock prije čitanja, a MySQL koristi SELECT FOR UPDATE.
+Samo jedan konkurentni save iste revizije prolazi. Odbijeni zahtjev otpušta svoju
+transakciju. Restore mijenja auth_epoch; stari dokazi više ne važe.
+
+Admin pamti prethodno spremljene ID-eve i šalje izričitu deletedProductIds listu.
+Nestanak postojećeg ID-a bez takve liste ne tretira se kao legitimno brisanje.
+Ovo je ugovor za uređivanje i zaštita od nenamjernog preimenovanja, uz postojeću
+admin autorizaciju. Namjerno brisanje i stvaranje novog zapisa su odvojene radnje;
+ovaj mehanizam ne tvrdi da ih privilegovani administrator ne smije izvršiti.
+Restore/reset ostaju posebne operacije zamjene cijelog snimka. Potpuno rješavanje
+zavisnosti pri brisanju proizvoda/kategorija/oznaka ostaje za T19–T21.
+
+T39 — BROJ U NAZIVU RUŠI SITEMAP
+Smoke test sa stvarno spremljenim nazivom "Naziv 1440 true" otkrio je PHP
+TypeError u strpos. PHP pretvara numerički ključ riječi u integer, dok strict
+strpos zahtijeva string. Oba mjesta koja čitaju ključ sada eksplicitno koriste
+tekst. Numerički naziv, numerička riječ prije/poslije teksta, nepodudaranje i
+proširenje ključne riječi romobil/skuter imaju poseban regresijski test.
+Ovim nije promijenjena postojeća politika filtera blogova, koja ostaje T26.
+
+PROVJERE
+- PHP 8.5.11, strogi E_ALL: cms-integrity 422 SQLite i 422 MariaDB provjere.
+  Neispravni tipovi i ugniježđene liste/mape, svih šest referenci, čitanje starih
+  zapisa bez gubitka, promjena naziva uz očuvane korpe/favorite, odbijanje ID
+  izmjena, stvaranje/preuređivanje/izričito brisanje i poništavanje starih dokaza.
+- cms-concurrency: 17 SQLite + 17 MariaDB provjera s osam odvojenih PHP procesa.
+  Samo jedan upis iste revizije, osam odbijenih preimenovanja bez promjene
+  historije, validna izmjena naspram preimenovanja i oslobađanje transakcija.
+- segment6-browser: 552 HTTP/browser provjere, širine 320/360/390/768/820/1024/
+  1440 px i obje teme. Neispravni JSON tipovi, reference, ID i deletion lista;
+  read-only ID, trajno spremljeni atribut/specifikacija, promjena naziva bez
+  gubitka korpe/favorita, postojeći link proizvoda i vezano uputstvo.
+- segment6-product-lifecycle: 36 provjera na 320/820/1440 px. Stvaranje i
+  spremanje proizvoda, reload, readonly ID, JSON dokaz novog zapisa, izričito
+  brisanje nakon ponovnog učitavanja i ispravan XML s numeričkim nazivom.
+  Vizuelno pregledane tri snimke editora: segment6-views/identity-*.png.
+- sitemap.php: 22 provjere, uključujući podudaranje javne vidljivosti nakon
+  popravke stare reference i očuvanje izvornog ID-a.
+- cms-save-browser 294; segment4-integration 276; segment1-integration 161.
+  Sve tri regresije na sedam širina i dvije teme: zamrzavanje tokom savea,
+  oporavak mrežne greške, email tokovi, cijene, XSS i višestruki restore.
+- PHP regresije: auth 11, business 20, storage 13, network 13, cms-xss 28,
+  restore 9, admin-bootstrap 22, login-limits 16, input-policy 41,
+  email-security 36, segment5-integrity 34. Backup-atomicity: 114 SQLite i
+  114 MariaDB. Postojeći lokalni CMS prošao je read-only validate-cms provjeru.
+- JS: logout-client 17, PHP/JS input parity 41 vektor, email-concurrency 1/8,
+  login-concurrency 5/20, segment5-concurrency 25, pricing-clock 22.
+- Konačni smoke: 249 provjera, uključujući ZIP sa cms-integrity.php i sitemap.
+  PHP/JS sintaksa i diff whitespace provjere segmentnih izmjena su prošle.
+  Novi PHP/konkurentni testovi uključeni su u GitHub CI za sljedeći push.
+
+Prva browser pokretanja ispravila su označavanje novog ID objašnjenja i testni
+selektor polja Boja. Prvi MySQL concurrency fixture nije postavio UTF-8 charset
+na testnoj konekciji; testni worker je ispravljen i ponovljen na svježoj bazi.
+Produkcijska konekcija je već imala charset=utf8mb4. Prvi smoke je dokazao T39;
+nakon popravke je ponovljen i prošao. Završni HTTP zahtjevi nakon popravke nemaju
+PHP warning/notice/deprecation/fatal poruke. Nije prikriven neuspješan test.
+
+GRANICE I OBJAVA
+MariaDB fixture koristi 10.4.22 i native prepared statements. Chrome/Playwright
+koristi emulirane širine i touch; fizički Android/iOS i Safari nisu testirani.
+Poznati T31–T33 problemi layouta/fokusa ostaju u planu. Ovaj segment nije tvrdnja
+da u projektu nema drugih grešaka. Testni podaci nisu produkcijski podaci.
+
+DEPLOYMENT.md odjeljak 14 opisuje objavu zajedno PHP-a/JS-a, osvježavanje admina,
+_identity i deletedProductIds protokol te kompatibilnost backupa. Novi modul je
+u sigurnom deployment ZIP-u. Nema nove DB migracije ni promjene backup formata.
+SMTP, PHP i MariaDB testni serveri su ugašeni; privremene baze, lozinke/tokeni i
+fixturei su uklonjeni nakon provjere. Podržani lokalni PHP runtime ostaje.
+
+Ranije korisnikove izmjene admin.css, admin.html, login.html, profile.html i
+profile.js ostaju sačuvane. Ovaj segment u admin.html mijenja samo verziju
+admin.js sa security-5 na security-6; pri commitu izdvojiti taj hunk od ranijeg
+UI redizajna. Ostala četiri navedena fajla ovaj segment nije mijenjao.
+
+SLJEDEĆI SEGMENT
+T19 brisanje proizvoda i zavisnosti, T20 brisanje kategorije i zavisnosti,
+T21 preimenovanje/brisanje oznaka. T11 čeka službeni email servis i aktivaciju.

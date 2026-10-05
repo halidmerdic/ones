@@ -424,3 +424,47 @@ private configuration still need their separate backup described above.
 Tests: `php tests/segment5-integrity.php`, `node tests/segment5-concurrency.cjs`,
 `node tests/pricing-clock.cjs`, and the disposable-server browser suite
 `tests/segment5-browser.cjs`. Concurrency uses independent PHP processes/connections.
+
+## 14. CMS collection types, references and product identity
+
+Deploy `cms-integrity.php`, the updated PHP files and `admin.js` together. The
+admin HTML now requests `admin.js?v=20261005-security-6`; refresh open admin tabs
+after updating. No database schema or backup-format change is needed for this
+segment. The pending email activation in section 11 still applies.
+
+Regular CMS saves validate the JSON shape before converting objects to PHP
+arrays. Collections, galleries, category attributes and attribute values must
+be JSON lists. Product specs/attributes are maps; API responses return empty
+maps as `{}` to preserve named entries during browser edits. Bad containers
+return 422 with field paths and change neither the CMS revision nor its history.
+Legacy named/indexed list containers are reindexed on read without dropping
+entries or rewriting the database.
+
+New saves require exact references to category names, badge names and product
+IDs. Unambiguous old references differing only in case or surrounding whitespace
+are resolved to the existing entity on read, sitemap generation and backup import. Unknown or
+ambiguous references are not guessed; invalid imports/saves are rejected.
+Entity IDs themselves are never normalized or renamed.
+
+Product IDs are read-only in the editor; new products receive a random UUID ID.
+An authenticated `admin-cms` response attaches transport-only `_identity`
+evidence to each existing product. Send it back unchanged with the CMS `revision`
+when saving. Existing products without matching evidence, and new IDs carrying
+another record's evidence, are rejected. New records have no `_identity` until
+their first save. Removing a saved product also requires its ID in the explicit
+`deletedProductIds` list. These checks run under the CMS write lock; stale
+revisions return 409 and cannot overwrite a concurrent save.
+
+The evidence is not stored in CMS data or backups and is absent from public
+responses. A restore rotates its signing epoch and requires a fresh login/load.
+Restore and reset remain explicit whole-snapshot operations. Explicit deletion
+plus creation is a separate operation from renaming an existing product; the
+complete dependency handling for deletion remains tracked as T19–T21.
+
+Tests: `php tests/cms-integrity.php`, `node tests/cms-concurrency.cjs`, and
+`tests/segment6-browser.cjs` / `tests/segment6-product-lifecycle.cjs` against a
+disposable loopback server. `php tests/sitemap.php` also verifies that numeric
+words in valid product names cannot cause a sitemap TypeError. The concurrency
+suite uses eight independent PHP connections and supports isolated SQLite and
+MySQL/MariaDB fixtures. Never point mutation tests at production or the real
+project database.

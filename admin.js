@@ -100,6 +100,7 @@ let orders = [];
 let customers = [];
 let activePanel = "settings";
 let editingProductId = null;
+let savedProductIds = new Set();
 let editingCategoryIndex = null;
 let editingCategoryAttributeIndex = null;
 let productFilters = {
@@ -500,6 +501,7 @@ async function loadCms() {
     const data = await api("admin-cms");
     cmsRevision = Number(data.revision) || 1;
     cms = { ...structuredClone(defaultCms), ...data.cms };
+    savedProductIds = new Set(cms.products.map(product => product.id));
     cms.contact = { ...structuredClone(defaultCms.contact), ...(data.cms?.contact || {}) };
     cms.sections = { ...structuredClone(defaultCms.sections), ...(data.cms?.sections || {}) };
     cms.settings = { ...structuredClone(defaultCms.settings), ...(data.cms?.settings || {}) };
@@ -604,9 +606,11 @@ async function saveCms() {
   setCmsSaving(true);
   try {
     const editedProductId = editingProductId;
-    const data = await api("save-cms", { cms, revision: cmsRevision });
+    const deletedProductIds = [...savedProductIds].filter(id => !cms.products.some(product => product.id === id));
+    const data = await api("save-cms", { cms, revision: cmsRevision, deletedProductIds });
     cmsRevision = Number(data.revision) || cmsRevision + 1;
     cms = data.cms;
+    savedProductIds = new Set(cms.products.map(product => product.id));
     captureCmsBaseline();
     renderAll();
     if (editedProductId && (cms.products || []).some((product) => product.id === editedProductId)) {
@@ -1149,8 +1153,8 @@ function categoryByName(name) {
 function syncProductAttributes(product) {
   const category = categoryByName(product.category);
   const attributes = category ? ensureCategoryAttributes(category) : [];
-  product.attributes = product.attributes && typeof product.attributes === "object" ? product.attributes : {};
-  product.specs = product.specs && typeof product.specs === "object" ? product.specs : {};
+  product.attributes = product.attributes && typeof product.attributes === "object" ? { ...product.attributes } : {};
+  product.specs = product.specs && typeof product.specs === "object" ? { ...product.specs } : {};
 
   attributes.forEach((attribute) => {
     const current = product.attributes[attribute.name] || product.specs[attribute.name] || "";
@@ -1168,7 +1172,7 @@ function applyProductSpecsText(product, text) {
   const activeAttributeNames = new Set(categoryAttributes.map((attribute) => attribute.name));
 
   product.specs = textToSpecs(text);
-  product.attributes = product.attributes && typeof product.attributes === "object" ? product.attributes : {};
+  product.attributes = product.attributes && typeof product.attributes === "object" ? { ...product.attributes } : {};
 
   Object.keys(product.attributes).forEach((name) => {
     if (!activeAttributeNames.has(name)) delete product.attributes[name];
@@ -1227,7 +1231,7 @@ function productEditorConfig() {
 
 function createDefaultProduct() {
   return {
-    id: `product-${Date.now()}`,
+    id: `product-${crypto.randomUUID()}`,
     name: "Novi proizvod",
     category: cms.categories[0]?.name || "Bez kategorije",
     status: "Dostupno",
@@ -1325,11 +1329,17 @@ function renderProductEditorModal() {
   const body = $("#productEditBody");
 
   const basic = editorSection("Osnovno");
+  const identityField = field("ID", editorProduct.id, () => {});
+  const identityInput = identityField.querySelector("input");
+  identityInput.readOnly = true;
+  identityInput.setAttribute("aria-label", "ID");
+  identityInput.setAttribute("aria-describedby", "productIdentityHint");
+  const identityHint = document.createElement("small");
+  identityHint.id = "productIdentityHint";
+  identityHint.textContent = "ID je trajan radi linkova, korpi i omiljenih proizvoda. Naziv možete mijenjati.";
+  identityField.append(identityHint);
   basic.content.append(
-    field("ID", editorProduct.id, (value) => {
-      editorProduct.id = value;
-      editingProductId = value;
-    }),
+    identityField,
     field("Naziv", editorProduct.name, (value) => (editorProduct.name = value)),
     selectField("Kategorija", editorProduct.category, categories, (value) => {
       editorProduct.category = value;
@@ -2857,6 +2867,7 @@ async function resetCmsDemo() {
     const data = await api("reset-cms", { revision: cmsRevision });
     cmsRevision = Number(data.revision) || cmsRevision + 1;
     cms = data.cms;
+    savedProductIds = new Set(cms.products.map(product => product.id));
     captureCmsBaseline();
     renderAll();
     captureCmsBaseline();

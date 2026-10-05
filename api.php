@@ -12,6 +12,7 @@ require_once __DIR__ . '/login-security.php';
 require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/email-security.php';
 require_once __DIR__ . '/cart-integrity.php';
+require_once __DIR__ . '/cms-integrity.php';
 
 function request_host(): string
 {
@@ -231,13 +232,14 @@ $action = $_GET['action'] ?? '';
 
 function respond($data, int $status = 200): void
 {
+    if (is_array($data) && is_array($data['cms'] ?? null)) $data['cms'] = cms_json_view($data['cms']);
     if (is_array($data)) $data['pricingClock'] = pricing_clock();
     http_response_code($status);
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
 }
 
-function body_json(): array
+function body_json(bool $checkCmsShapes = false): array
 {
     $maxBytes = 2 * 1024 * 1024;
     $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
@@ -256,6 +258,14 @@ function body_json(): array
     $data = json_decode($raw, true);
     if (!is_array($data) || json_last_error() !== JSON_ERROR_NONE) {
         respond(['ok' => false, 'message' => 'Neispravan JSON.'], 400);
+    }
+    if ($checkCmsShapes) {
+        $wire = json_decode($raw);
+        $errors = cms_shape_errors($wire instanceof stdClass ? ($wire->cms ?? null) : null, true);
+        if ($wire instanceof stdClass && property_exists($wire, 'deletedProductIds') && !is_array($wire->deletedProductIds)) {
+            cms_add_error($errors, 'deletedProductIds', 'mora biti JSON lista.');
+        }
+        if ($errors) throw new CmsValidationError($errors);
     }
 
     return $data;
@@ -803,7 +813,7 @@ function get_cms(PDO $pdo): array
         }
     }
 
-    return cms_sanitize_content($cms);
+    return cms_canonical_references(cms_sanitize_content(cms_read_collections($cms)));
 }
 
 function get_cms_revision(PDO $pdo): int
@@ -826,6 +836,7 @@ function cms_pick(array $item, array $keys): array
 
 function public_cms(array $cms): array
 {
+    $cms = cms_canonical_references($cms);
     $publicSectionKeys = [
         'hero', 'trust', 'categories', 'categoryShowcase', 'products', 'comingSoon',
         'comingSoonShowcase', 'comparison', 'service', 'parts', 'manuals', 'delivery',
@@ -923,12 +934,6 @@ function public_cms(array $cms): array
 function cms_text_length(string $value): int
 {
     return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
-}
-
-function cms_normalized_key(string $value): string
-{
-    $value = trim($value);
-    return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
 }
 
 function cms_add_error(array &$errors, string $path, string $message): void
@@ -1084,7 +1089,7 @@ function cms_validate_value_map(array &$errors, array $item, string $key, string
 
 function cms_collection(array $cms, string $key, int $maxItems, array &$errors): array
 {
-    if (!array_key_exists($key, $cms) || !is_array($cms[$key])) {
+    if (!array_key_exists($key, $cms) || !is_array($cms[$key]) || !array_is_list($cms[$key])) {
         cms_add_error($errors, $key, 'mora biti lista.');
         return [];
     }
@@ -1096,7 +1101,9 @@ function cms_collection(array $cms, string $key, int $maxItems, array &$errors):
 
 function cms_validate_payload(array $cms): array
 {
-    $errors = [];
+    $errors = cms_shape_errors($cms);
+    if ($errors) return $errors;
+    $errors = cms_reference_errors($cms);
     $topLevelKeys = ['contact', 'sections', 'settings', 'launchChecklist', 'categories', 'badges', 'products', 'comingSoon', 'parts', 'manuals', 'locations', 'blogs', 'faq'];
     foreach (array_keys($cms) as $key) {
         if (!in_array($key, $topLevelKeys, true)) {
@@ -1266,7 +1273,7 @@ function cms_validate_payload(array $cms): array
         cms_validate_value_map($errors, $product, 'specs', $path);
         cms_validate_value_map($errors, $product, 'attributes', $path);
 
-        $id = trim((string)($product['id'] ?? ''));
+        $id = is_string($product['id'] ?? null) ? $product['id'] : '';
         if ($id !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]*$/', $id)) {
             cms_add_error($errors, $path . '.id', 'smije sadržavati samo slova, brojeve, crtice i donje crtice.');
         }
@@ -1448,15 +1455,18 @@ function prune_cms_revisions(PDO $pdo, int $keep = 25): void
     }
 }
 
-function save_cms(PDO $pdo, array $cms, ?int $expectedRevision = null): int
+function save_cms(PDO $pdo, array $cms, ?int $expectedRevision = null, ?array $deletedProductIds = null): int
 {
     $cms = cms_sanitize_content($cms);
+    $errors = cms_validate_payload($cms);
+    if ($errors) throw new CmsValidationError($errors);
     $ownsTransaction = !$pdo->inTransaction();
     if ($ownsTransaction) {
         $pdo->beginTransaction();
     }
 
     try {
+        if (database_driver($pdo) === 'sqlite') $pdo->exec('UPDATE cms_store SET revision = revision WHERE 0');
         $keyColumn = quote_identifier($pdo, 'key');
         $selectSql = 'SELECT value, revision FROM cms_store WHERE ' . $keyColumn . ' = "cms"';
         if (database_driver($pdo) === 'mysql') {
@@ -1470,6 +1480,14 @@ function save_cms(PDO $pdo, array $cms, ?int $expectedRevision = null): int
         $currentRevision = max(1, (int)($current['revision'] ?? 1));
         if ($expectedRevision !== null && $expectedRevision !== $currentRevision) {
             throw new CmsRevisionConflict('CMS je u međuvremenu promijenjen u drugoj kartici. Osvježite CMS prije ponovnog spremanja.');
+        }
+
+        if ($deletedProductIds !== null) {
+            $cms = cms_check_product_identities($pdo, json_decode((string)$current['value'], true, 512, JSON_THROW_ON_ERROR), $cms, $deletedProductIds);
+        } else {
+            // Internal restore/reset paths replace a complete, validated snapshot.
+            foreach ($cms['products'] as &$product) unset($product['_identity']);
+            unset($product);
         }
 
         $history = $pdo->prepare('INSERT INTO cms_revisions (revision, value, created_at) VALUES (:revision, :value, :created_at)');
@@ -2411,7 +2429,7 @@ try {
 
     if ($action === 'admin-cms') {
         require_admin();
-        respond(['ok' => true, 'cms' => get_cms($pdo), 'revision' => get_cms_revision($pdo)]);
+        respond(['ok' => true, 'cms' => admin_cms_view($pdo), 'revision' => get_cms_revision($pdo)]);
     }
 
     if ($action === 'admin-status') {
@@ -2923,7 +2941,7 @@ try {
 
     if ($action === 'save-cms') {
         require_admin();
-        $body = body_json();
+        $body = body_json(true);
         if (!isset($body['cms']) || !is_array($body['cms'])) {
             respond(['ok' => false, 'message' => 'CMS podaci nedostaju.'], 400);
         }
@@ -2942,12 +2960,15 @@ try {
             }
             $expectedRevision = $body['revision'];
         }
+        $deletedProductIds = $body['deletedProductIds'] ?? [];
+        if (!is_array($deletedProductIds)) throw new CmsValidationError(['deletedProductIds: mora biti lista.']);
+        if ($expectedRevision === null) throw new CmsValidationError(['revision: osvježite CMS prije spremanja.']);
         try {
-            $revision = save_cms($pdo, $body['cms'], $expectedRevision);
+            $revision = save_cms($pdo, $body['cms'], $expectedRevision, $deletedProductIds);
         } catch (CmsRevisionConflict $error) {
             respond(['ok' => false, 'message' => $error->getMessage(), 'revision' => get_cms_revision($pdo)], 409);
         }
-        respond(['ok' => true, 'cms' => get_cms($pdo), 'revision' => $revision]);
+        respond(['ok' => true, 'cms' => admin_cms_view($pdo), 'revision' => $revision]);
     }
 
     if ($action === 'reset-cms') {
@@ -2959,10 +2980,12 @@ try {
         } catch (CmsRevisionConflict $error) {
             respond(['ok' => false, 'message' => $error->getMessage(), 'revision' => get_cms_revision($pdo)], 409);
         }
-        respond(['ok' => true, 'cms' => get_cms($pdo), 'revision' => $revision]);
+        respond(['ok' => true, 'cms' => admin_cms_view($pdo), 'revision' => $revision]);
     }
 
     respond(['ok' => false, 'message' => 'Nepoznata akcija.'], 404);
+} catch (CmsValidationError $error) {
+    respond(['ok' => false, 'message' => $error->getMessage(), 'errors' => $error->errors], 422);
 } catch (CartConflict $error) {
     respond(['ok' => false, 'message' => $error->getMessage(), 'code' => 'CART_CONFLICT'], 409);
 } catch (EmailFlowError $error) {
