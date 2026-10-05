@@ -24,6 +24,7 @@ if (Test-Path -LiteralPath $OutputPath) {
 $runtimeFiles = @(
   ".htaccess",
   "admin.css",
+  "admin-feedback.css",
   "admin.html",
   "admin.js",
   "api-client.js",

@@ -8,8 +8,9 @@ PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37280793717
 Statički Pages build: https://github.com/halidmerdic/ones/actions/runs/37280793014
 Obje provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
 
-T19–T22 su završeni lokalno i prošli završne regresije; ovaj segment još nije
-commitovan niti pushovan. Ukupno 22/39 taskova završeno: 18 na GitHubu, 4 lokalno.
+T19–T22 poslani su na main 05.10.2026: fbf5e4cfb9ac2c2649034bf31b67b087b9b7f029.
+PHP/JS CI 37286356088 i statički Pages 37286355402 prošli su.
+Ukupno 22/39 taskova završeno i na GitHubu u trenutku slanja segmenta 07.
 T22 je uključen jer automatsko brisanje praznih kategorija zaobilazi eksplicitni
 postupak brisanja iz T20. Svaki task i dalje rješava svoj zaseban problem.
 T11 ostaje otvoren do službenog email servisa i aktivacije, bez privremenog

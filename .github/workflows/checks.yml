@@ -32,3 +32,4 @@ jobs:
           node tests/cms-concurrency.cjs
           node tests/cms-relations-concurrency.cjs
           node tests/pricing-clock.cjs
+          node tests/public-badges.cjs

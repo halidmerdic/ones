@@ -217,7 +217,7 @@ function visibleBadge(product) {
   if (!badgeName) return "";
 
   const badge = (cms.badges || []).find((item) => item.name === badgeName);
-  if (badge && badge.enabled === false) return "";
+  if (!badge || badge.enabled === false) return "";
   return badgeName;
 }
 

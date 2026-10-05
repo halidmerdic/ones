@@ -1,0 +1,128 @@
+SEGMENT 08 — T23, T24, T25 — 05.10.2026.
+
+GITHUB I STATUS
+Prethodni segment T19–T22 commitovan je i poslan na main po zahtjevu korisnika:
+fbf5e4cfb9ac2c2649034bf31b67b087b9b7f029
+https://github.com/halidmerdic/ones/commit/fbf5e4cfb9ac2c2649034bf31b67b087b9b7f029
+PHP/JS CI: https://github.com/halidmerdic/ones/actions/runs/37286356088
+Statički Pages: https://github.com/halidmerdic/ones/actions/runs/37286355402
+Obje GitHub provjere su prošle. Nije izvršen deploy na Hetzner PHP aplikaciju.
+
+T23–T25 su završeni lokalno i prošli završne regresije.
+Ukupno 25/39 taskova završeno: 22 na GitHubu, 3 lokalno.
+Novi segment nije commitovan niti pushovan.
+T11 i dalje čeka službeni email servis i aktivaciju, bez app passworda.
+
+T23 — PRIKAZ ISKLJUČENIH OZNAKA
+Katalog i detalj proizvoda zahtijevaju da oznaka postoji u javnoj listi oznaka.
+API već uklanja isključene oznake; njihovo odsustvo sada znači da se ne prikazuju.
+Isto vrijedi za nepoznatu oznaku i oznaku naslijeđenu iz kategorije. Sačuvana
+CMS dodjela ostaje dostupna administratoru, pa ponovno uključivanje oznake
+vraća prikaz nakon osvježavanja stranice.
+
+Sačuvano je postojeće pravilo prioriteta: dodijeljena proizvodna oznaka koja
+nije istekla ima prednost nad kategorijskom. Ako je ta oznaka isključena ili
+nepoznata, ništa se ne prikazuje. Ako proizvod nema oznaku ili je njen datum
+istekao, koristi se važeća kategorijska oznaka. Datumi koriste postojeći
+serverski kalendar Europe/Sarajevo, uključujući cijeli završni dan.
+
+T24 — NESPREMLJENA INTERNA NAPOMENA
+Nacrt napomene čuva se u memoriji zasebno za svaki ID upita. Promjena statusa,
+osvježavanje liste ili odgovor sa servera ne brišu noviji tekst. Tokom upisa
+status i dugme za spremanje su zaključani protiv duplih zahtjeva; napomena
+ostaje dostupna za pisanje. Odgovor potvrđuje samo poslani tekst. Ako korisnik
+u međuvremenu napiše drugi tekst, taj noviji nacrt ostaje označen kao nespremljen.
+
+Greška ili neispravan odgovor ne brišu nacrt i ne tvrde da je upis uspio.
+Kod greške promjene statusa prikaz se vraća na posljednji potvrđeni status.
+Odgovor za ranije zatvoren upit ne otvara ga preko drugog upita. Izričito
+brisanje sadržaja napomene i spremanje praznog teksta rade; odbijanje teksta
+dužeg od serverskog limita od 1000 znakova čuva uneseni tekst.
+
+Zatvaranje dugmetom, Escapeom ili klikom na pozadinu upozorava na nacrt.
+Prihvaćeno zatvaranje zadržava nacrt u istoj kartici i pri ponovnom otvaranju
+istog upita. Odustajanje ostavlja otvoren modal. Odlazak/reload stranice koristi
+browserovo upozorenje na nesačuvane izmjene. Odjava upozorava na gubitak nacrta,
+a uspješna odjava/restore brišu privatne lokalne podatke. Nacrti se ne zapisuju
+u localStorage ili na disk; za trajno čuvanje treba Sačuvaj napomenu.
+
+T25 — GREŠKE UČITAVANJA U ADMINISTRACIJI
+CMS, narudžbe i kupci imaju odvojena stanja učitavanja, uspjeha, greške i
+zastarjelih podataka. Prvi neuspjeli zahtjev ne prikazuje praznu evidenciju.
+Uspješan prazan niz prikazuje stvarno praznu evidenciju. Neispravan JSON,
+nepotpun odgovor, HTTP greška ili prekid mreže vode u stanje greške s retryjem.
+
+Neuspjelo osvježavanje čuva posljednje uspješne podatke i jasno označava da
+mogu biti zastarjeli. Filteri ostaju sačuvani. Tokom osvježavanja postojeći
+podaci ostaju vidljivi s oznakom učitavanja. Ponovljeni zahtjevi za istu
+evidenciju dijele tekući zahtjev. Stariji odgovor ne smije prepisati noviju
+izmjenu niti ponovo napuniti privatne podatke nakon odjave ili restorea.
+
+Neuspjelo učitavanje CMS-a ne otvara demo sadržaj za uređivanje i zaključava
+Sačuvaj CMS. Raniji sadržaj i revizija ostaju u memoriji; retry nakon uspjeha
+ponovo omogućava rad. Vanjsko osvježavanje ne prepisuje postojeći CMS nacrt.
+Otvoren čist editor se zatvara prije vanjskog učitavanja, kako ne bi ostao
+aktivan zastarjeli obrazac. Odgovor 401/403 nudi i novu prijavu; server i dalje
+sam provjerava sva prava pristupa.
+
+PROVJERE
+1. tests/public-badges.cjs: 28 provjera oba javna potrošača, eksplicitnih i
+   naslijeđenih oznaka, allowliste, nepoznatih oznaka i datuma isteka. Dodan u CI.
+2. tests/segment8-browser.cjs: završnih 645 provjera, širine 320/360/390/768/
+   820/1024/1440, svijetla i tamna tema, touch do 1024. Stvarni HTTP CMS i upiti,
+   oba javna prikaza, inicijalni kvar, retry, zadržavanje prethodnih podataka,
+   spor odgovor, stvarno prazna evidencija, neispravan odgovor, pisanje tokom
+   savea, odustajanje/zatvaranje, drugi upit, status, napomena i izgubljena sesija.
+3. tests/segment8-races.cjs: završne 22 provjere spajanja paralelnih GET zahtjeva,
+   ignorisanja starijeg GET-a nakon novijeg upisa, odbijenog statusa, lažno
+   uspješnog odgovora bez promijenjenog upita, duplog upisa, drugog otvorenog
+   modala, limita/prazne napomene, neispravnog CMS-a i odgovora poslije odjave.
+4. tests/cms-save-browser.cjs: 294 regresije spremanja, 7 širina × 2 teme.
+5. tests/segment7-browser.cjs: 496 regresija odnosa i brisanja u CMS-u,
+   7 širina × 2 teme.
+6. tests/smoke.ps1: 251 provjera, uključujući novi CSS u deployment ZIP-u,
+   postojeći lokalni CMS u read-only validaciji, sigurnosne regresije i sitemap.
+   Broj ovisi o broju javnih proizvoda u lokalnom testnom fixtureu.
+7. PHP 8.5.11 uz strict-errors/E_ALL: auth-security 11, business-logic 20,
+   cms-xss 28, cms-integrity 422 SQLite, cms-relations 65 SQLite. JS clock 22
+   i logout 17. MySQL nije ponavljan jer ovaj segment ne mijenja PHP/SQL.
+8. Sintaksa svih 39 JS/CJS datoteka i dva izmijenjena PowerShell skripta prošla.
+   git diff --check prošao za segment (isključen raniji korisnikov admin.css).
+
+Zabilješke testnog harnessa: prvi pokušaj je čekao product.cms prije nego što
+je izašao iz null stanja; dodat je null guard u testu. Kopiranje API sesije u
+Chrome nije prošlo postojeću provjeru User-Agent identiteta; test sada koristi
+stvarnu prijavu svakog browser konteksta. Test vanjskog refresha najprije je
+otvorio editor koji dodaje defaultna polja, pa je zaštita ispravno sačuvala taj
+nacrt; test sada prvo sprema obrazac da zaista provjeri čist otvoreni editor.
+Nijedna od ovih pripremnih poteškoća nije prikazana kao uspješan rezultat.
+
+9. tests/segment1-integration.cjs: 161 regresija sigurnosti restorea, čišćenja
+   privatnog prikaza i ponovne prijave, 7 širina × 2 teme.
+10. Dodatna vizuelna provjera modala: 12 provjera na 320/820/1440 u obje teme,
+    zadržan tekst i bez horizontalnog prelijevanja nove poruke. Pregledano je
+    svih šest snimki modala i reprezentativne snimke evidencije. Sačuvano je
+    ukupno 12 PNG snimki u segment8-views (greška evidencije i nacrt napomene).
+    Dugačak modal na telefonu/tabletu koristi postojeće vertikalno skrolanje.
+11. Završni HTTP log nije sadržavao PHP warning/notice/deprecation/fatal greške.
+
+Privremeni PHP i lokalni SMTP capture su ugašeni. Testne baze, privatna testna
+konfiguracija, aktivacijske poruke/tokeni, privremeni paketi i pomoćni skriptovi
+su uklonjeni. Podržani PHP runtime i PNG dokazi ostaju za naredni rad.
+
+OPSEG I GRANICE
+Browser provjere koriste Chrome/Playwright, emulirane širine i touch. Fizički
+Android/iOS uređaji i Safari nisu testirani. Širi raniji problemi prelijevanja
+i fokusa T31–T33 ostaju odvojeni taskovi; ovaj segment provjerava svoje nove
+poruke, napomene i retry kontrole na desktopu, tabletu i telefonu.
+
+Nema DB migracije ni promjene backup formata. DEPLOYMENT.md odjeljak 16 opisuje
+novi tok. HTML entrypointi koriste security-8 verzije izmijenjenih skripti.
+admin-feedback.css je zasebna datoteka i dio provjerenog deployment paketa.
+Raniji korisnikov redizajn admin.css, admin.html, login.html, profile.html i
+profile.js ostaje sačuvan. Pri narednom commitu u admin.html izdvojiti samo
+novi admin-feedback.css link i admin.js verziju 7 na 8.
+
+SLJEDEĆI SEGMENT
+T26 skriveni filter po ključnim riječima, T27 telefonski linkovi, T28 povratak
+iz prijave u korpu. T11 čeka dogovoreni službeni email servis.

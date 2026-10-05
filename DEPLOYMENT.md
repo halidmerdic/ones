@@ -536,3 +536,36 @@ loopback server. Tests include
 rollback after cleanup, deletion racing cart/favorite/order writes and cancelled
 dialogs, replacement selection, empty-category retention and both themes on
 mobile/tablet/desktop viewport sizes.
+
+## 16. Public badges and administrator recovery (T23–T25)
+
+The catalogue and product detail now require a badge to exist in the public
+badge list before displaying it. Disabled or absent badges are hidden; product
+precedence, category inheritance and the Sarajevo expiry clock are preserved.
+
+Order notes have an in-memory draft for each order. Changing status or receiving
+a delayed response preserves newer text. The save response acknowledges only
+the submitted note. Closing details keeps the draft in the same tab after a
+warning; leaving/reloading the page warns about unsaved drafts. Save the note
+to persist it across reloads. Logout and restore clear the drafts and cached
+administrator data. No notes are added to browser storage.
+
+Administrator loads distinguish loading, failure, successful empty results and
+previously loaded data. Failed refreshes retain the last successful records with
+a stale-data notice and Retry. Failed CMS loads lock content editing and Save
+until recovery. Invalid or late responses cannot masquerade as successful loads
+or repopulate data after logout. An expired-session response also offers a
+sign-in action. All API authorization checks remain on the server.
+
+Ship `admin.js`, `app.js`, `product.js`, their HTML entry points and the new
+`admin-feedback.css` together; HTML uses the security-8 script/style versions.
+The deployment builder includes the new stylesheet. No database migration or
+backup format change is needed. The email service in section 11 still awaits
+official provider configuration and activation.
+
+Tests: `node tests/public-badges.cjs` runs in CI. On a disposable loopback PHP
+server with local SMTP capture, run `tests/segment8-browser.cjs`, followed by
+`tests/segment8-races.cjs` (it uses the orders created by the first suite).
+Browser checks require Chrome/Playwright and the existing `ONES_TEST_URL`,
+`ONES_DISPOSABLE_TEST=1`, `ONES_TEST_MAIL` settings. Optional
+`ONES_TEST_SCREENSHOTS` stores viewport screenshots; never target production.

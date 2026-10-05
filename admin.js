@@ -134,6 +134,12 @@ let customerSearchTimer = null;
 const contentSearchTimers = {};
 let ordersLoaded = false;
 let customersLoaded = false;
+const adminLoads = Object.fromEntries(["cms", "orders", "customers"].map(key => [key, {
+  loaded: false, loading: false, error: "", stale: false, authRequired: false, version: 0, promise: null,
+}]));
+const orderNoteDrafts = new Map();
+let orderMutationPending = false;
+let adminSessionVersion = 0;
 let passwordNeedsChange = false;
 let cmsBaseline = "";
 let cmsRevision = 0;
@@ -160,7 +166,7 @@ const panels = [
 ];
 
 const panelCountSources = {
-  products: () => cms.products?.length || 0,
+  products: () => (adminLoads.cms.loaded ? cms.products?.length || 0 : null),
   orders: () => (ordersLoaded ? orders.length : null),
   customers: () => (customersLoaded ? customers.length : null),
   manuals: () => cms.manuals?.length || 0,
@@ -275,7 +281,7 @@ function updateSaveState() {
   saveButton.hidden = passwordNeedsChange;
   const dirty = Boolean(cmsBaseline) && (cmsSnapshot() !== cmsBaseline || hasPendingEntityNames());
   saveButton.classList.toggle("has-unsaved", dirty);
-  saveButton.disabled = cmsSaving || cmsPendingUploads > 0 || passwordNeedsChange || $("#adminEditor").hidden;
+  saveButton.disabled = !cmsReady() || cmsSaving || cmsPendingUploads > 0 || passwordNeedsChange || $("#adminEditor").hidden;
   saveButton.textContent = cmsSaving ? "Spremanje..." : cmsPendingUploads ? "Upload u toku..." : dirty ? "Sačuvaj izmjene" : "Sačuvaj CMS";
   saveButton.title = dirty ? "Postoje nesačuvane izmjene" : "Sve izmjene su sačuvane";
   const modalSave = $("#saveProductCmsBtn");
@@ -507,49 +513,120 @@ function mergeLaunchChecklist(savedItems) {
   }));
 }
 
-async function loadCms() {
-  try {
-    const data = await api("admin-cms");
-    cmsRevision = Number(data.revision) || 1;
-    cms = { ...structuredClone(defaultCms), ...data.cms };
+function cmsReady() {
+  const state = adminLoads.cms;
+  return state.loaded && !state.loading && !state.error && !state.stale;
+}
+
+function loadStateHtml(key) {
+  const state = adminLoads[key];
+  const name = { cms: "CMS sadržaja", orders: "narudžbi i upita", customers: "kupaca" }[key];
+  if (!state.loading && !state.error && !state.stale) return "";
+  const message = state.loading ? `Učitavanje ${name}...` : state.error || `Podatke ${name} treba osvježiti.`;
+  const previous = state.loaded ? "Prikazani su posljednji uspješno učitani podaci; mogu biti zastarjeli." : "Podaci još nisu učitani.";
+  return `<div class="admin-data-state" data-load-state="${key}" role="${state.error ? "alert" : "status"}" aria-busy="${state.loading}">
+    <strong>${escapeHtml(message)}</strong><p>${key === "cms" && state.loaded ? "Sačuvan je posljednji učitani sadržaj. Uređivanje je zaključano do uspješnog učitavanja." : previous}</p>
+    ${state.loading ? "" : `<button class="btn btn-secondary" type="button" data-retry-load="${key}">Pokušaj ponovo</button>`}
+    ${state.authRequired ? `<button class="btn btn-secondary" type="button" data-relogin>Ponovo se prijavi</button>` : ""}
+  </div>`;
+}
+
+function bindLoadRetry(panel) {
+  panel.querySelectorAll("[data-relogin]").forEach(button => button.addEventListener("click", () => window.location.reload()));
+  panel.querySelectorAll("[data-retry-load]").forEach(button => button.addEventListener("click", () => {
+    const key = button.dataset.retryLoad;
+    if (key === "cms") loadCms();
+    if (key === "orders") loadOrders(true);
+    if (key === "customers") loadCustomers(true);
+  }));
+}
+
+function validAdminRecords(value, key) {
+  return Array.isArray(value) && value.every(item => item && typeof item === "object" && !Array.isArray(item)
+    && Number.isSafeInteger(Number(item.id)) && Number(item.id) > 0
+    && (key === "orders" ? Array.isArray(item.items) && item.items.every(child => child && typeof child === "object")
+      : Array.isArray(item.orders) && validAdminRecords(item.orders, "orders")));
+}
+
+function loadAdminResource(key, apply, force = false) {
+  const state = adminLoads[key];
+  if (state.promise) return state.promise;
+  if (state.loaded && !state.error && !state.stale && !force) return Promise.resolve(true);
+  const version = ++state.version;
+  state.loading = true;
+  state.error = "";
+  state.authRequired = false;
+  if (!$("#adminEditor").hidden) renderAll();
+  state.promise = (async () => {
+    try {
+      const data = await api(`admin-${key}`);
+      if (version !== state.version) return false;
+      apply(data);
+      state.loaded = true;
+      state.stale = false;
+      return true;
+    } catch (error) {
+      if (version !== state.version) return false;
+      state.authRequired = error.status === 401 || error.status === 403;
+      state.error = state.authRequired
+        ? "Sesija je istekla ili nemate pristup. Ponovo se prijavite pa pokušajte učitati podatke."
+        : "Učitavanje nije uspjelo. Provjerite vezu i pokušajte ponovo.";
+      state.stale = state.loaded;
+      return false;
+    } finally {
+      if (version === state.version) {
+        state.loading = false;
+        state.promise = null;
+        if (!$("#adminEditor").hidden) renderAll();
+        updateSaveState();
+      }
+    }
+  })();
+  return state.promise;
+}
+
+function loadCms() {
+  return loadAdminResource("cms", data => {
+    const isRecord = value => value && typeof value === "object" && !Array.isArray(value);
+    if (!isRecord(data.cms)
+      || !Number.isSafeInteger(data.revision) || data.revision < 1
+      || Object.keys(defaultCms).some(key => Array.isArray(defaultCms[key])
+        ? !Array.isArray(data.cms[key]) || data.cms[key].some(item => !isRecord(item))
+        : !isRecord(data.cms[key]))) {
+      throw new Error("Neispravan CMS odgovor.");
+    }
+    const nextCms = { ...structuredClone(defaultCms), ...data.cms };
+    nextCms.contact = { ...structuredClone(defaultCms.contact), ...data.cms.contact };
+    nextCms.sections = { ...structuredClone(defaultCms.sections), ...data.cms.sections };
+    nextCms.settings = { ...structuredClone(defaultCms.settings), ...data.cms.settings };
+    delete nextCms.sections.productFilters;
+    nextCms.launchChecklist = mergeLaunchChecklist(data.cms.launchChecklist);
+    cmsRevision = data.revision;
+    cms = nextCms;
     savedProductIds = new Set(cms.products.map(product => product.id));
     resetCmsRelations();
-    cms.contact = { ...structuredClone(defaultCms.contact), ...(data.cms?.contact || {}) };
-    cms.sections = { ...structuredClone(defaultCms.sections), ...(data.cms?.sections || {}) };
-    cms.settings = { ...structuredClone(defaultCms.settings), ...(data.cms?.settings || {}) };
-    delete cms.sections.productFilters;
-    cms.launchChecklist = mergeLaunchChecklist(data.cms?.launchChecklist);
     captureCmsBaseline();
-  } catch (error) {
-    flash("Baza nije dostupna. Pokrenite lokalni server.");
-    console.error(error);
-  }
+  }, true);
 }
 
-async function loadOrders(force = false) {
-  if (ordersLoaded && !force) return;
-  try {
-    const data = await api("admin-orders");
-    orders = data.orders || [];
+function loadOrders(force = false) {
+  if (orderMutationPending) return Promise.resolve(false);
+  return loadAdminResource("orders", data => {
+    if (!validAdminRecords(data.orders, "orders")) throw new Error("Neispravan odgovor narudžbi.");
+    orders = data.orders;
     ordersLoaded = true;
-  } catch (error) {
-    orders = [];
-    ordersLoaded = true;
-    console.warn("Narudžbe nisu učitane.", error);
-  }
+    const openId = Number($("#orderDetailModal")?.dataset.orderId);
+    if (openId) renderOrderDetailModal(openId);
+  }, force);
 }
 
-async function loadCustomers(force = false) {
-  if (customersLoaded && !force) return;
-  try {
-    const data = await api("admin-customers");
-    customers = data.customers || [];
+function loadCustomers(force = false) {
+  if (orderMutationPending) return Promise.resolve(false);
+  return loadAdminResource("customers", data => {
+    if (!validAdminRecords(data.customers, "customers")) throw new Error("Neispravan odgovor kupaca.");
+    customers = data.customers;
     customersLoaded = true;
-  } catch (error) {
-    customers = [];
-    customersLoaded = true;
-    console.warn("Kupci nisu učitani.", error);
-  }
+  }, force);
 }
 
 async function loadActivePanelData(force = false) {
@@ -560,17 +637,19 @@ async function loadActivePanelData(force = false) {
 async function activatePanel(panelId) {
   if (cmsSaving) return;
   if (!syncCmsEntityNames()) return;
+  const sessionVersion = adminSessionVersion;
   activePanel = passwordNeedsChange ? "security" : panelId;
   rememberActivePanel();
   closeAdminMenu();
   renderAll();
   await loadActivePanelData();
+  if (sessionVersion !== adminSessionVersion || $("#adminEditor").hidden) return;
   renderAll();
 }
 
 async function saveCms() {
   if (document.querySelector('#cmsRelationDialog')) return;
-  if (cmsSaving || passwordNeedsChange || $("#adminEditor").hidden) return;
+  if (!cmsReady() || cmsSaving || passwordNeedsChange || $("#adminEditor").hidden) return;
   if (cmsPendingUploads) {
     flash("Sačekajte završetak uploada prije spremanja CMS-a.");
     return;
@@ -662,7 +741,7 @@ function renderCmsValidationBanner() {
   if (!banner) return;
 
   const missingProducts = productsMissingSaleEndDate();
-  if (!missingProducts.length || $("#adminEditor")?.hidden) {
+  if (!cmsReady() || !missingProducts.length || $("#adminEditor")?.hidden) {
     banner.hidden = true;
     banner.innerHTML = "";
     return;
@@ -1295,6 +1374,7 @@ function closeProductEditor() {
 }
 
 function openProductEditor(productId) {
+  if (!cmsReady()) return;
   editingProductId = productId;
   renderProductEditorModal();
 }
@@ -1746,6 +1826,7 @@ function closeCategoryEditor(skipNames = false) {
 }
 
 function openCategoryEditor(index) {
+  if (!cmsReady()) return;
   editingCategoryIndex = index;
   editingCategoryAttributeIndex = null;
   renderCategoryEditorModal();
@@ -2224,32 +2305,71 @@ function mailtoUrl(email, subject, body) {
   return `mailto:${encodeURIComponent(email || "")}?subject=${encodeURIComponent(subject || "")}&body=${encodeURIComponent(body || "")}`;
 }
 
-async function updateOrderStatus(orderId, status) {
+function hasOrderNoteDrafts() {
+  return orderNoteDrafts.size > 0;
+}
+
+function syncOrderControls() {
+  const modal = $("#orderDetailModal");
+  if (!modal) return;
+  const dirty = orderNoteDrafts.has(Number(modal.dataset.orderId));
+  $("#orderDetailStatus").disabled = orderMutationPending;
+  $("#saveOrderDetailNoteBtn").disabled = orderMutationPending;
+  $("#orderDetailNoteState").textContent = orderMutationPending ? "Spremanje... Možete nastaviti pisati napomenu."
+    : dirty ? "Napomena ima nesačuvane izmjene." : "Napomena je sačuvana.";
+}
+
+function invalidateAdminLoad(key) {
+  const state = adminLoads[key];
+  state.version++;
+  state.loading = false;
+  state.promise = null;
+  state.stale = state.loaded;
+}
+
+async function updateOrder(orderId, action, changes) {
+  if (orderMutationPending) return;
+  const sessionVersion = adminSessionVersion;
+  orderMutationPending = true;
+  invalidateAdminLoad("orders");
+  invalidateAdminLoad("customers");
+  syncOrderControls();
   try {
-    const data = await api("admin-order-status", { orderId: Number(orderId), status });
-    orders = data.orders || [];
+    const data = await api(action, { orderId: Number(orderId), ...changes });
+    if (sessionVersion !== adminSessionVersion) return;
+    if (!validAdminRecords(data.orders, "orders") || !data.orders.some(order => Number(order.id) === Number(orderId))) {
+      throw new Error("Server nije vratio ispravne podatke. Osvježite evidenciju za provjeru spremanja.");
+    }
+    orders = data.orders;
     ordersLoaded = true;
-    customersLoaded = false;
-    renderOrders();
-    if ($("#orderDetailModal")) renderOrderDetailModal(Number(orderId));
-    flash("Status narudžbe je ažuriran.");
+    Object.assign(adminLoads.orders, { loaded: true, error: "", stale: false, authRequired: false });
+    // A response acknowledges only the submitted note, never text typed while it was in flight.
+    if (action === "admin-order-note" && orderNoteDrafts.get(Number(orderId)) === changes.note) {
+      orderNoteDrafts.delete(Number(orderId));
+    }
+    flash(action === "admin-order-note" ? "Interna napomena je sačuvana." : "Status narudžbe je ažuriran.");
   } catch (error) {
-    flash(error.message);
+    if (sessionVersion !== adminSessionVersion) return;
+    adminLoads.orders.error = "Spremanje nije potvrđeno. Osvježite evidenciju za provjeru; nacrt napomene je sačuvan u ovoj kartici.";
+    flash(error.message || "Spremanje nije potvrđeno.", 9000);
+  } finally {
+    if (sessionVersion === adminSessionVersion) {
+      orderMutationPending = false;
+      invalidateAdminLoad("customers");
+      if (!$("#adminEditor").hidden) renderAll();
+      const openOrderId = Number($("#orderDetailModal")?.dataset.orderId);
+      if (openOrderId) renderOrderDetailModal(openOrderId);
+      if (activePanel === "customers" && !$("#adminEditor").hidden) loadCustomers(true);
+    }
   }
 }
 
-async function updateOrderNote(orderId, note) {
-  try {
-    const data = await api("admin-order-note", { orderId: Number(orderId), note });
-    orders = data.orders || [];
-    ordersLoaded = true;
-    customersLoaded = false;
-    renderOrders();
-    if ($("#orderDetailModal")) renderOrderDetailModal(Number(orderId));
-    flash("Interna napomena je sačuvana.");
-  } catch (error) {
-    flash(error.message);
-  }
+function updateOrderStatus(orderId, status) {
+  return updateOrder(orderId, "admin-order-status", { status });
+}
+
+function updateOrderNote(orderId, note) {
+  return updateOrder(orderId, "admin-order-note", { note });
 }
 
 function filteredOrders() {
@@ -2277,14 +2397,22 @@ function orderStatusClass(status) {
 }
 
 function closeOrderDetail() {
+  const orderId = Number($("#orderDetailModal")?.dataset.orderId);
+  if (orderNoteDrafts.has(orderId) && !confirm("Napomena nije sačuvana u bazi. Zatvoriti detalje i zadržati nacrt u ovoj kartici?")) return false;
   $("#orderDetailModal")?.remove();
   document.body.classList.remove("modal-open");
+  return true;
 }
 
 function renderOrderDetailModal(orderId) {
   const order = orders.find((item) => Number(item.id) === Number(orderId));
   if (!order) return;
 
+  const previousId = Number($("#orderDetailModal")?.dataset.orderId);
+  if (previousId && previousId !== Number(orderId) && !closeOrderDetail()) return;
+  const focused = document.activeElement;
+  const restoreNoteFocus = previousId === Number(orderId) && focused?.id === "orderDetailNote";
+  const selection = restoreNoteFocus ? [focused.selectionStart, focused.selectionEnd] : null;
   $("#orderDetailModal")?.remove();
   const statuses = ["Novo", "U obradi", "Kontaktiran", "Završeno", "Otkazano"];
   const phone = normalizePhone(order.phone);
@@ -2298,6 +2426,7 @@ function renderOrderDetailModal(orderId) {
   const modal = document.createElement("div");
   modal.className = "product-edit-modal";
   modal.id = "orderDetailModal";
+  modal.dataset.orderId = String(order.id);
   modal.innerHTML = `
     <div class="product-edit-dialog order-detail-dialog" role="dialog" aria-modal="true" aria-label="Detalji narudžbe">
       <div class="product-edit-header">
@@ -2314,9 +2443,10 @@ function renderOrderDetailModal(orderId) {
         </div>
       </div>
       <div class="order-detail-body">
+        ${adminLoads.orders.error ? `<p class="admin-data-state" role="alert">${escapeHtml(adminLoads.orders.error)}</p>` : ""}
         <section class="order-detail-section">
           <h3>Status</h3>
-          <select id="orderDetailStatus">
+          <select id="orderDetailStatus" aria-label="Status narudžbe">
             ${statuses.map((status) => `<option value="${status}" ${status === order.status ? "selected" : ""}>${status}</option>`).join("")}
           </select>
           <p>${escapeHtml(formatDateTime(order.createdAt))}</p>
@@ -2330,8 +2460,9 @@ function renderOrderDetailModal(orderId) {
           ${order.note ? `<p class="order-note">${escapeHtml(order.note)}</p>` : `<p class="order-note">Nema napomene kupca.</p>`}
         </section>
         <section class="order-detail-section">
-          <h3>Interna napomena</h3>
-          <textarea id="orderDetailNote" placeholder="Npr. kupac čeka poziv, provjeriti dostupnost...">${escapeHtml(order.adminNote || "")}</textarea>
+          <h3><label for="orderDetailNote">Interna napomena</label></h3>
+          <textarea id="orderDetailNote" aria-describedby="orderDetailNoteState" placeholder="Npr. kupac čeka poziv, provjeriti dostupnost...">${escapeHtml(orderNoteDrafts.get(Number(order.id)) ?? order.adminNote ?? "")}</textarea>
+          <p id="orderDetailNoteState" role="status" aria-live="polite"></p>
           <button class="btn btn-secondary" type="button" id="saveOrderDetailNoteBtn">Sačuvaj napomenu</button>
         </section>
       </div>
@@ -2346,13 +2477,25 @@ function renderOrderDetailModal(orderId) {
 
   $("#closeOrderDetailBtn").addEventListener("click", closeOrderDetail);
   $("#orderDetailStatus").addEventListener("change", (event) => updateOrderStatus(order.id, event.target.value));
+  $("#orderDetailNote").addEventListener("input", event => {
+    const value = event.target.value;
+    if (!orderMutationPending && value === (order.adminNote || "")) orderNoteDrafts.delete(Number(order.id));
+    else orderNoteDrafts.set(Number(order.id), value);
+    syncOrderControls();
+  });
   $("#saveOrderDetailNoteBtn").addEventListener("click", () => updateOrderNote(order.id, $("#orderDetailNote").value));
+  syncOrderControls();
+  if (restoreNoteFocus) {
+    $("#orderDetailNote").focus();
+    $("#orderDetailNote").setSelectionRange(...selection);
+  }
 }
 
 function renderOrders() {
   const panel = $('[data-panel="orders"]');
   if (!ordersLoaded) {
-    panel.innerHTML = `<div class="admin-loading" role="status">Učitavanje narudžbi i upita...</div>`;
+    panel.innerHTML = loadStateHtml("orders") || `<div class="admin-loading" role="status">Učitavanje narudžbi i upita...</div>`;
+    bindLoadRetry(panel);
     return;
   }
   const statuses = ["Novo", "U obradi", "Kontaktiran", "Završeno", "Otkazano"];
@@ -2363,13 +2506,13 @@ function renderOrders() {
   const visibleOrders = filteredOrders();
   const pageData = paginated(visibleOrders, "orders", 25);
 
-  panel.innerHTML = `
+  panel.innerHTML = `${loadStateHtml("orders")}
     <div class="admin-panel-heading">
       <div>
         <h2>Narudžbe i upiti</h2>
         <p class="admin-note-text">Filtrirajte po kupcu, telefonu, artiklu, statusu ili datumu. Detalji otvaraju poruku za WhatsApp, Viber i email.</p>
       </div>
-      <button class="btn btn-secondary" type="button" id="refreshOrdersBtn">Osvježi</button>
+      <button class="btn btn-secondary" type="button" id="refreshOrdersBtn" ${adminLoads.orders.loading || orderMutationPending ? "disabled" : ""}>Osvježi</button>
     </div>
     <div class="order-filters">
       <input id="orderSearch" type="search" placeholder="Ime, email, telefon, broj upita ili artikal..." value="${escapeHtml(orderFilters.search)}" />
@@ -2415,7 +2558,7 @@ function renderOrders() {
                 `;
               })
               .join("")
-          : `<div class="product-admin-empty">Nema upita za odabrane filtere.</div>`
+          : `<div class="product-admin-empty">${orders.length ? "Nema upita za odabrane filtere." : "Još nema poslanih upita."}</div>`
       }
     </div>
     ${paginationHtml("orders", pageData)}
@@ -2462,6 +2605,7 @@ function renderOrders() {
     button.addEventListener("click", () => renderOrderDetailModal(Number(button.dataset.orderDetail)));
   });
   bindPagination("orders", renderOrders);
+  bindLoadRetry(panel);
 }
 function filteredCustomers() {
   const search = customerFilters.search.toLowerCase().trim();
@@ -2560,16 +2704,17 @@ function renderCustomerDetailModal(customerId) {
 function renderCustomers() {
   const panel = $('[data-panel="customers"]');
   if (!customersLoaded) {
-    panel.innerHTML = `<div class="admin-loading" role="status">Učitavanje kupaca...</div>`;
+    panel.innerHTML = loadStateHtml("customers") || `<div class="admin-loading" role="status">Učitavanje kupaca...</div>`;
+    bindLoadRetry(panel);
     return;
   }
   const visibleCustomers = filteredCustomers();
   const pageData = paginated(visibleCustomers, "customers", 25);
 
-  panel.innerHTML = `
+  panel.innerHTML = `${loadStateHtml("customers")}
     <div class="admin-panel-heading">
       <h2>Kupci</h2>
-      <button class="btn btn-secondary" type="button" id="refreshCustomersBtn">Osvježi</button>
+      <button class="btn btn-secondary" type="button" id="refreshCustomersBtn" ${adminLoads.customers.loading ? "disabled" : ""}>Osvježi</button>
     </div>
     <div class="customer-filters">
       <input id="customerSearch" type="search" placeholder="Pretraži ime, email ili telefon..." value="${escapeHtml(customerFilters.search)}" />
@@ -2599,7 +2744,7 @@ function renderCustomers() {
                 `
               )
               .join("")
-          : `<div class="product-admin-empty">Nema kupaca za odabranu pretragu.</div>`
+          : `<div class="product-admin-empty">${customers.length ? "Nema kupaca za odabranu pretragu." : "Još nema registrovanih kupaca."}</div>`
       }
     </div>
     ${paginationHtml("customers", pageData)}
@@ -2624,6 +2769,7 @@ function renderCustomers() {
     button.addEventListener("click", () => renderCustomerDetailModal(Number(button.dataset.customerDetail)));
   });
   bindPagination("customers", renderCustomers);
+  bindLoadRetry(panel);
 }
 
 function renderComingSoon() {
@@ -2892,6 +3038,15 @@ function renderAll() {
   if (passwordNeedsChange) activePanel = "security";
   rememberActivePanel();
   renderNav();
+  let cmsLoadBanner = $("#cmsLoadState");
+  if (!cmsLoadBanner) {
+    cmsLoadBanner = document.createElement("div");
+    cmsLoadBanner.id = "cmsLoadState";
+    $("#adminEditor").prepend(cmsLoadBanner);
+  }
+  cmsLoadBanner.innerHTML = passwordNeedsChange ? "" : loadStateHtml("cms");
+  bindLoadRetry(cmsLoadBanner);
+  const contentBlocked = !cmsReady() && !["security", "orders", "customers"].includes(activePanel);
   const renderer = {
     settings: renderSettings,
     sections: renderSections,
@@ -2909,9 +3064,12 @@ function renderAll() {
     security: renderSecurity,
     launch: renderLaunchChecklist,
   }[activePanel];
-  renderer?.();
+  if (contentBlocked) {
+    $(`[data-panel="${activePanel}"]`).innerHTML = `<p class="admin-note-text">Uređivanje sadržaja bit će dostupno nakon uspješnog učitavanja CMS-a.</p>`;
+  } else renderer?.();
   showPanel();
   renderCmsValidationBanner();
+  updateSaveState();
 }
 
 function applyAdminUrlContext() {
@@ -2935,6 +3093,7 @@ function applyAdminUrlContext() {
 }
 
 async function showEditor() {
+  const sessionVersion = adminSessionVersion;
   $("#loginPanel").hidden = true;
   $("#adminEditor").hidden = false;
   if (passwordNeedsChange) {
@@ -2948,21 +3107,21 @@ async function showEditor() {
   const requestedProduct = applyAdminUrlContext();
   renderAll();
   await loadActivePanelData();
+  if (sessionVersion !== adminSessionVersion || $("#adminEditor").hidden) return;
   renderAll();
-  captureCmsBaseline();
-  if (requestedProduct && cms.products.some((product) => product.id === requestedProduct)) {
+  if (cmsReady() && requestedProduct && cms.products.some((product) => product.id === requestedProduct)) {
     openProductEditor(requestedProduct);
   }
 }
 
 async function adminLogout() {
+  if ((hasOrderNoteDrafts() || orderMutationPending) && !confirm("Postoje nesačuvane napomene ili spremanje u toku. Odjavom se brišu lokalni nacrti. Nastaviti?")) return;
   try {
     await api("admin-logout", {});
     $("#adminEditor").hidden = true;
     $("#loginPanel").hidden = false;
     $("#passwordInput").value = "";
-    ordersLoaded = false;
-    customersLoaded = false;
+    clearAdminData();
     flash("Admin je odjavljen.");
   } catch (error) {
     flash(error.message);
@@ -2970,7 +3129,7 @@ async function adminLogout() {
 }
 
 async function resetCmsDemo() {
-  if (cmsSaving || cmsPendingUploads) return;
+  if (!cmsReady() || cmsSaving || cmsPendingUploads) return;
   if (!confirm("Vratiti demo sadržaj?")) return;
   setCmsSaving(true);
   try {
@@ -3053,7 +3212,8 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("beforeunload", (event) => {
-  if (!cmsBaseline || (cmsSnapshot() === cmsBaseline && !hasPendingEntityNames()) || $("#adminEditor").hidden) return;
+  if ($("#adminEditor").hidden) return;
+  if (!hasOrderNoteDrafts() && !orderMutationPending && (!cmsBaseline || (cmsSnapshot() === cmsBaseline && !hasPendingEntityNames()))) return;
   event.preventDefault();
   event.returnValue = "";
 });
@@ -3073,20 +3233,7 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
   setCmsSaving(true);
   try {
     await restoreBackupFile(file);
-    cms = structuredClone(defaultCms);
-    cmsRevision = 0;
-    cmsBaseline = "";
-    editingProductId = null;
-    editingCategoryIndex = null;
-    editingCategoryAttributeIndex = null;
-    orders = [];
-    customers = [];
-    ordersLoaded = false;
-    customersLoaded = false;
-    document.querySelectorAll(".product-edit-modal").forEach((modal) => modal.remove());
-    document.body.classList.remove("modal-open");
-    $("#adminNav").replaceChildren();
-    document.querySelectorAll("#adminEditor .admin-panel").forEach((panel) => panel.replaceChildren());
+    clearAdminData();
     $("#saveBtn").disabled = true;
     $("#cmsValidationBanner").hidden = true;
     closeAdminMenu();
@@ -3104,19 +3251,47 @@ $("#restoreBackupInput")?.addEventListener("change", async (event) => {
 
 window.addEventListener("storage", async (event) => {
   if (event.key !== "onesCmsUpdatedAt" || $("#adminEditor").hidden) return;
-  if (cmsSaving || cmsPendingUploads || document.querySelector("#cmsRelationDialog")) return;
+  if (cmsSaving || cmsPendingUploads || orderMutationPending || document.querySelector("#cmsRelationDialog")) return;
   if (cmsBaseline && (cmsSnapshot() !== cmsBaseline || hasPendingEntityNames())) {
     flash("CMS je promijenjen u drugoj kartici. Vaše nesačuvane izmjene nisu prepisane; osvježite stranicu tek kada ih više ne trebate.", 9000);
     return;
   }
 
+  if ($("#productEditModal")) closeProductEditor();
+  if ($("#categoryEditModal")) closeCategoryEditor();
+  const sessionVersion = adminSessionVersion;
   await loadCms();
+  if (sessionVersion !== adminSessionVersion || $("#adminEditor").hidden) return;
+  invalidateAdminLoad("orders");
+  invalidateAdminLoad("customers");
+  await loadActivePanelData();
+  if (sessionVersion !== adminSessionVersion || $("#adminEditor").hidden) return;
+  renderAll();
+});
+
+function clearAdminData() {
+  adminSessionVersion++;
+  for (const state of Object.values(adminLoads)) {
+    Object.assign(state, { loaded: false, loading: false, error: "", stale: false, authRequired: false, version: state.version + 1, promise: null });
+  }
+  cms = structuredClone(defaultCms);
+  cmsRevision = 0;
+  cmsBaseline = "";
+  editingProductId = null;
+  editingCategoryIndex = null;
+  editingCategoryAttributeIndex = null;
+  orders = [];
+  customers = [];
   ordersLoaded = false;
   customersLoaded = false;
-  await loadActivePanelData();
-  renderAll();
-  captureCmsBaseline();
-});
+  orderNoteDrafts.clear();
+  orderMutationPending = false;
+  document.querySelectorAll(".product-edit-modal").forEach(modal => modal.remove());
+  document.body.classList.remove("modal-open");
+  $("#adminNav").replaceChildren();
+  document.querySelectorAll("#adminEditor .admin-panel").forEach(panel => panel.replaceChildren());
+  updateSaveState();
+}
 
 async function initAdmin() {
   try {
