@@ -99,11 +99,20 @@
             <input id="currentPasswordInput" type="password" autocomplete="current-password" maxlength="72" required />
           </label>
           <label>
-            Nova lozinka (najmanje 15 znakova)
-            <input id="newPasswordInput" type="password" autocomplete="new-password" minlength="15" maxlength="72" required />
+            Nova lozinka (najmanje 15 znakova, najviše 72 UTF-8 bajta; naša slova i emoji zauzimaju više bajtova)
+            <input id="newPasswordInput" type="password" autocomplete="new-password" required />
           </label>
           <button class="btn btn-secondary" type="button" id="savePasswordBtn">Promijeni lozinku</button>
         </article>
+
+          <article class="profile-card">
+            <h2>Potvrda email adrese</h2>
+            <p id="emailVerificationState"></p>
+            <button class="btn btn-secondary" id="sendEmailVerificationBtn" type="button">Pošalji potvrdu emaila</button>
+            <p id="pendingEmailState"></p>
+            <button class="btn btn-secondary" id="cancelEmailChangeBtn" type="button" hidden>Poništi promjenu emaila</button>
+            <p id="emailVerificationStatus" role="status" aria-live="polite"></p>
+          </article>
 
         <article class="profile-card">
           <h2>Omiljeni proizvodi</h2>
@@ -136,7 +145,7 @@
 
     <script src="theme.js?v=20260803-load-1"></script>
     <script src="assets/vendor/purify-3.4.16.min.js"></script>
-    <script src="api-client.js?v=20261005-security-2"></script>
-    <script src="profile.js?v=20261005-security-2"></script>
+    <script src="api-client.js?v=20261005-security-4"></script>
+    <script src="profile.js?v=20261005-security-4"></script>
   </body>
 </html>

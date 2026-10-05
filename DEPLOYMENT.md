@@ -268,7 +268,9 @@ or bypassed response instead of `HIT`.
 ## 9. Authentication checks
 
 - [ ] Confirm the default local admin password is not used in production.
-- [ ] New and changed passwords must contain 15 to 72 characters. Existing
+- [ ] New and changed passwords must contain at least 15 Unicode code points
+      and at most 72 UTF-8 bytes (bcrypt limit). Emoji and accented letters use
+      multiple bytes. Existing
       customer passwords remain valid until the customer changes them.
 - [ ] Confirm a customer can still sign in after deployment.
 - [ ] Confirm changing a password keeps the current session active and rejects
@@ -277,7 +279,7 @@ or bypassed response instead of `HIT`.
 - [ ] The first API request adds the non-destructive `users.auth_version`
       column when it is missing; it does not delete or replace users.
 - [ ] Do not add an insecure manual "forgot password" flow. Password recovery
-      remains deferred together with SMTP and verified email delivery.
+      remains deferred; email verification is not a password recovery mechanism.
 
 ## 10. Final QA
 
@@ -313,5 +315,66 @@ node --use-system-ca .\deploy\verify-production.mjs --origin-ip "YOUR_HETZNER_IP
 Do not consider the Cloudflare setup complete while the direct-origin check
 fails. Fix the Hetzner Cloud Firewall first, then rerun the same command.
 
-SMTP/email verification is intentionally deferred. Do not mark email delivery
-as production-ready until an official sender address and provider are chosen.
+## 11. Email verification — local implementation, activation pending
+
+The owner confirmed on 2026-10-05 that no email provider exists yet. The T11
+implementation has been tested against a disposable loopback SMTP capture only.
+Production sending is NOT activated. Do not deploy this segment to the live PHP
+site until a sender/provider is configured and delivery has been verified: without
+mail configuration, registration and email changes return 503; unverified
+customers cannot submit new inquiries. Existing logins, profile data, favorites,
+carts and past inquiries remain accessible.
+
+Copy the `mail` section from `config.example.php` into the private server config.
+Set an authorized sender, SMTP host, port, username and password there; never
+put the password in chat, Git, client JavaScript or public files. Use `tls` for
+STARTTLS (usually 587), or `ssl` for implicit TLS (usually 465). Certificate and
+hostname verification stay enabled. `none` is accepted only for a local request
+using a loopback SMTP host; it is rejected in production. `public_url` must be the
+canonical HTTPS origin/base path, not a value taken from a browser request.
+PHPMailer 7.1.1 is vendored with upstream commit and per-file SHA-256 checksums in
+`vendor/phpmailer/UPSTREAM.json`; no runtime download is needed.
+
+Before activating, verify provider authorization/SPF/DKIM/DMARC and send to an
+owner-approved test mailbox. Test both a new signup and an address change,
+including receipt of the notification at the old address. Reload PHP/clear its
+configuration opcode cache when changing private configuration. SMTP acceptance
+alone is not proof that a message reached an inbox. Do not disable certificate
+verification to work around a delivery failure.
+
+Registration sends a 30-minute link and creates no user or session until the
+recipient confirms and chooses a password. The initial sender cannot set that
+password. GET/page loads never consume links; confirmation requires POST and
+CSRF. Tokens have 256 random bits; only SHA-256 hashes are stored. The link uses
+a fragment, removed from history before interaction. Existing-account confirmation
+requires the matching logged-in account. Changing an email requires the current
+password, notifies the old address, and keeps that address active until the new
+one is confirmed. Confirmation revokes other sessions; password changes invalidate
+pending links. The profile can cancel a pending change.
+
+Atomic budgets: 3 messages per destination/hour, at least 60 seconds between
+sends, 6 per IP/hour and 60 site-wide/hour. Failed SMTP attempts consume budget
+and remove their unusable challenge. Existing accounts are not overwritten by
+registration. Signup responses do not disclose whether an address has an account.
+
+Existing customer addresses start unverified; do not label them verified without
+mailbox proof. Verification uses separate tables; user records are preserved.
+Backups intentionally exclude pending tokens and email verification state. A
+successful restore clears them transactionally and requires fresh confirmation,
+so restored emails cannot inherit a previous identity's verification.
+
+Local verification tests: `php tests/email-security.php`,
+`node tests/email-concurrency.cjs`, and the HTTP/browser tests using
+`tests/capture-mail.cjs`. These require disposable databases/configs; the SMTP
+capture listens only on loopback and never forwards mail. Never point mutation
+tests at the live site or the project's real SQLite database.
+
+## 12. Price representation
+
+Prices accept decimal units with a dot or comma and at most two decimal places,
+from 0 through 1,000,000,000. Missing/empty values mean no price. Exponents,
+negative signs, currency suffixes and thousands separators are rejected. PHP and
+JavaScript parse identical integer-fening values; cart sums use integer arithmetic
+including large totals. Invalid old values are never stripped into a different
+number: they must be corrected before saving. Existing order snapshots are not
+rewritten. Date/timezone handling of sale expiry is tracked separately as T13.

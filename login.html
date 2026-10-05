@@ -48,13 +48,7 @@
             Email
             <input id="registerEmail" type="email" autocomplete="email" maxlength="190" required />
           </label>
-          <label>
-            Lozinka (najmanje 15 znakova)
-            <span class="password-field">
-              <input id="registerPassword" type="password" autocomplete="new-password" minlength="15" maxlength="72" required />
-              <button type="button" class="password-toggle" data-password-toggle="registerPassword" aria-label="Prikazi lozinku">Vidi</button>
-            </span>
-          </label>
+          <p>Poslat ćemo link za potvrdu adrese. Lozinku birate tek nakon otvaranja linka.</p>
           <label class="consent-field">
             <input id="registerConsent" type="checkbox" required />
             <span>Pročitao/la sam <a href="privacy.html" target="_blank" rel="noreferrer">obavijest o privatnosti</a> i prihvatam <a href="terms.html" target="_blank" rel="noreferrer">uslove korištenja</a>.</span>
@@ -63,7 +57,8 @@
             Website
             <input id="registerWebsite" type="text" name="website" tabindex="-1" autocomplete="off" />
           </label>
-          <button class="btn btn-secondary" type="submit" id="customerRegisterBtn">Registruj se</button>
+          <button class="btn btn-secondary" type="submit" id="customerRegisterBtn">Pošalji link za potvrdu</button>
+          <p id="registerStatus" role="status" aria-live="polite"></p>
         </form>
       </section>
 
@@ -81,7 +76,7 @@
 
     <script src="theme.js?v=20260803-load-1"></script>
     <script src="assets/vendor/purify-3.4.16.min.js"></script>
-    <script src="api-client.js?v=20261005-security-2"></script>
-    <script src="login.js?v=20260903-ui-1"></script>
+    <script src="api-client.js?v=20261005-security-4"></script>
+    <script src="login.js?v=20261005-security-4"></script>
   </body>
 </html>

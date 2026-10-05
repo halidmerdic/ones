@@ -1,7 +1,11 @@
 SEGMENT 03 — T07, T08, T09 — 05.10.2026.
 
 STATUS
-Završen i provjeren lokalno; nije commitovan/pushovan niti deployovan.
+Završen i provjeren; po nalogu korisnika poslan na GitHub main, a6370a1,
+05.10.2026. GitHub PHP/JavaScript CI prošao:
+https://github.com/halidmerdic/ones/actions/runs/37257197005
+Prošao i automatski statički GitHub Pages build; to nije deploy PHP aplikacije
+na Hetzner. Nije izvršen ručni produkcijski deploy.
 T04–T06 su po nalogu korisnika poslani na main, commit aa274da.
 Postojeće ranije UI izmjene ostaju sačuvane odvojeno od tih commitova.
 Ukupno završeno 9 od 38 planiranih taskova. T10–T38 ostaju otvoreni.
@@ -48,8 +52,8 @@ pristupa bazi. .php-version, README i DEPLOYMENT usklađeni su na PHP 8.5.
 Lokalni router blokira privatne podatke, konfiguraciju i runtime jer ugrađeni
 PHP server ne primjenjuje .htaccess. .runtime nije dio Git-a/deployment paketa.
 GitHub Actions workflow s fiksiranim revizijama actions/checkout i setup-php
-pripremljen je za PHP 8.5, stroge PHP regresije i paralelne prijave. Još nije
-izvršen na GitHubu jer ovaj segment nije pushovan; lokalni ekvivalent je prošao.
+pripremljen je za PHP 8.5, stroge PHP regresije i paralelne prijave. Nakon pusha
+potvrđen je uspješan GitHub run naveden iznad; prošao je i lokalni ekvivalent.
 Podrška grane provjerena na https://www.php.net/supported-versions.php.
 Windows izvor/hash: https://www.php.net/downloads.php?os=windows.
 
@@ -88,7 +92,7 @@ Pokretanje preko start-local.ps1 potvrđeno (statika 200, privatni runtime 403),
 bez pozivanja API-ja nad stvarnom lokalnom bazom. Router odbija i config/data/
 tests/deploy. PHP 7.4 kontrolisano odbijen prije pristupa bazi.
 PHP/JS/PowerShell sintaksa i git diff --check prošli. Testni server log bez
-PHP warnings/notices/deprecations. GitHub CI run nije još provjeren.
+PHP warnings/notices/deprecations. GitHub CI run također je prošao.
 
 UREĐAJI I PREOSTALE GRANICE
 Chrome/Playwright: 320, 360, 390, 768, 820, 1024, 1440 px, obje teme; touch za

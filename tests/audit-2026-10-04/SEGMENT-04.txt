@@ -1,0 +1,128 @@
+SEGMENT 04 — T10, T11, T12 — 05.10.2026.
+
+STATUS I GITHUB
+Prethodni segment T07–T09 poslan je na main, commit a6370a1.
+https://github.com/halidmerdic/ones/commit/a6370a116d097849d7c0357f1f2a3282dbdcaa39
+GitHub PHP/JavaScript CI i automatski statički Pages build su prošli. Pages build
+nije objava PHP aplikacije na Hetzneru. Produkcijski PHP kod nije uploadovan.
+
+Ovaj segment je lokalni i nije commitovan/pushovan. T10 i T12 su završeni.
+T11 je implementiran i testiran lokalno; nije potpuno zatvoren. Korisnik je
+potvrdio da još nema email servis i odobrio lokalnu pripremu, uz aktivaciju kasnije.
+Ukupno 11 od 38 taskova završeno (9 na GitHubu, 2 lokalno); T11 čeka infrastrukturu.
+Ranije postojeće UI izmjene su sačuvane. Pri sljedećem commitu treba pažljivo
+izdvojiti naše izmjene u zajedničkim admin.html/login.html/profile.html/profile.js;
+admin.css sadrži samo ranije korisnikove izmjene, nije mijenjan ovim segmentom.
+
+T10 — UNICODE LOZINKE
+Minimum se sada broji kao 15 Unicode code point znakova: mb_strlen na serveru,
+Array.from u pregledniku. Ne koristi se broj bajtova ni UTF-16 code units za
+minimum. Bcrypt ograničenje ostaje 72 UTF-8 bajta i tako je objašnjeno u formama.
+Neispravan UTF-8, izolirani JS surrogate i NUL se odbijaju; ponovljene i blokirane
+lozinke koriste ista pravila u oba okruženja. Lozinka se prije hashiranja ne
+skraćuje, ne trimuje i ne normalizira. Ranije kraće lozinke ostaju važeće za
+prijavu; strožiji minimum važi za nove/promijenjene lozinke.
+Provjereni novi profil kroz potvrdu emaila, promjena korisničke i admin lozinke,
+osam slova č, osam emoji, miješani Unicode, granica 72/73 bajta i stari hash.
+
+T11 — POTVRDA EMAIL IDENTITETA, LOKALNO SPREMNO
+Read-only provjera utvrdila je da ni lokalna ni produkcijska konfiguracija nemaju
+mail/SMTP sekciju. Lozinke konfiguracije nisu ispisivane. Produkcija nije mijenjana.
+
+Registracija više ne aktivira profil odmah. Pošalje se poruka s linkom, a vlasnik
+sandučeta bira lozinku tek nakon otvaranja linka. Time pošiljalac tuđe email adrese
+ne može unaprijed odabrati lozinku za profil koji bi primalac slučajno aktivirao.
+Prije potvrde nema korisničkog reda ni prijavljene sesije. Za postojeći račun
+generičan registracijski odgovor ne otkriva postoji li profil.
+
+Token ima 256 nasumičnih bitova, rok 30 minuta i jednu uspješnu upotrebu. Baza
+čuva samo SHA-256 hash. URL fragment se odmah uklanja iz historije; nema tokena
+u query stringu, browser storageu ili API odgovorima. Sam GET/otvaranje linka
+ne mijenja stanje: potvrda zahtijeva POST i CSRF. Promjena/potvrda postojećeg
+profila zahtijeva sesiju istog korisnika i važeći auth_version/auth_epoch.
+
+Promjena adrese traži trenutnu lozinku, šalje obavijest staroj adresi i potvrdu
+novoj. Stara adresa ostaje aktivna dok se nova ne potvrdi. Profil prikazuje
+pending adresu i omogućuje poništavanje. Potvrda ukida druge sesije; promjena
+lozinke poništava ranije linkove. Potvrda, poništavanje i restore koriste isto
+transakcijsko zaključavanje. Paralelni zahtjevi ne mogu dvaput potrošiti token.
+
+Postojeći profili počinju kao nepotvrđeni. Prijava, historija, favoriti i korpa
+ostaju dostupni; slanje novih upita zahtijeva potvrđen trenutni email. Greška
+ne briše korpu. Backup namjerno ne prenosi linkove ni tvrdnju da je adresa
+potvrđena: restore ih transakcijski briše, pa treba nova potvrda adrese.
+Postojeći backup formati 1/2 i korisnički podaci ostaju podržani.
+
+Limiti su atomski: 3 slanja po adresi/sat, minimalno 60 sekundi razmaka, 6 po
+IP-u/sat i 60 globalno/sat. Neuspješan SMTP pokušaj troši limit, ali briše svoj
+neupotrebljivi token. Greška slanja ne mijenja važeću adresu niti aktivira profil.
+PHPMailer 7.1.1 je uključen u deployment paket, s fiksiranim upstream commitom,
+checksumovima i licencom. Produkcija zahtijeva TLS i provjeru certifikata; obični
+SMTP dozvoljen je samo u lokalnom loopback testu. Nije dodan oporavak lozinke.
+
+VAŽNA GRANICA AKTIVACIJE
+Prije objave ovog segmenta na živi PHP server treba odabrati servis, autorizirati
+pošiljaoca, postaviti privatne SMTP podatke i provjeriti isporuku na odobreno
+testno sanduče. Bez servisa registracija/promjena emaila vraćaju 503, a nepotvrđen
+profil ne može poslati upit. Stvarne poruke ljudima nisu slane. U testovima je
+korišten isključivo loopback SMTP capture s adresama example.invalid.
+Upute su u DEPLOYMENT.md, odjeljak 11. T11 ostaje otvoren do aktivacije.
+Sigurnosni tok provjeren prema:
+https://cheatsheetseries.owasp.org/cheatsheets/Email_Validation_and_Verification_Cheat_Sheet.html
+Biblioteka/izdanje:
+https://github.com/PHPMailer/PHPMailer/releases/tag/v7.1.1
+
+T12 — TUMAČENJE CIJENA
+PHP i JavaScript prihvataju isti decimalni format: tačka ili zarez, najviše dvije
+decimale, raspon 0–1.000.000.000; prazno/nedostajuće znači da nema cijene. Zapisi
+1e3, -100, +100, 1.234,56, 0.001 i 100 KM se odbijaju. JSON broj 1000 ostaje
+1000; tekstualni eksponent se ne pretvara ni u 1000 ni u 13. Neispravan stari
+tekst se ne pretvara uklanjanjem znakova u drugu cijenu.
+
+Interna obrada koristi cijele feninge. Zbroj korpe koristi BigInt, pa nema grešaka
+0.1+0.2 niti gubitka preciznosti velikih ukupnih iznosa. Postojeća CMS polja i
+historijski snapshotovi cijena ostaju kompatibilni; nije izvršena destruktivna
+migracija baze. Admin polja koriste decimalnu tastaturu, čuvaju originalni
+neispravan unos i blokiraju Save dok se on ne ispravi. Server nezavisno odbija
+neispravnu cijenu sa 422, bez nove CMS revizije. Katalog, proizvod, korpa, profil,
+favoriti i snapshot poslanog upita koriste usklađeno tumačenje. T13, vremenska
+zona akcijskih cijena, ostaje zaseban otvoreni problem.
+
+PROVJERE
+PHP 8.5.11 uz E_ALL i pretvaranje upozorenja/deprecations u greške:
+- input-policy.php: 41 provjera; input-policy.cjs: 41 PHP/JS parity primjera,
+  dodatno sva četiri parsera cijene na stranicama i veliki zbir u feningima.
+- email-security.php: 36 SQLite + 36 MariaDB provjera; istek, jednokratnost,
+  pogrešan korisnik, promjena lozinke, kolizija emaila, legacy korisnik, zabrana
+  nepotvrđenog upita, limiti, TLS konfiguracija i poništavanje stanja pri restoreu.
+- email-concurrency.cjs: 8 odvojenih PHP procesa, tačno jedna uspješna potvrda,
+  na SQLite i MariaDB s native prepared statements.
+- segment4-integration.cjs: 273 HTTP/browser provjere, plus tri naknadno dodane
+  i zasebno potvrđene provjere pogrešnih tipova i obavezne boolean saglasnosti.
+- email-delivery-http.cjs: 15 provjera stvarne lokalne SMTP razmjene, prikaz i
+  potvrda legacy profila, očuvanje korpe, prekid SMTP dostave i poništavanje linka.
+- Ranije regresije: auth-security 11, business-logic 20, storage-reliability 13,
+  network-security 13, cms-xss 28, restore-security 9, backup-atomicity 114 na
+  SQLite i 114 na MariaDB (uključuje rollback email stanja i tokena), admin-bootstrap 22, login-limits 16, logout-client 17.
+- login-concurrency: 20 procesa, tačno pet prihvaćenih na SQLite.
+- segment1-integration: 161; cms-save-browser: 294; cart-recovery-browser: 14.
+- smoke.ps1: 249 provjera na disposable SQLite serveru s dva testna proizvoda.
+- PHP/JS/PowerShell sintaksa i git diff --check prošli. Završni HTTP server log
+  nema PHP upozorenja, notices ili deprecations. Popravljena je početno nađena
+  pogrešna lokacija SMTP Timelimit postavke; konačni transport test je prošao.
+
+UREĐAJI I PREOSTALA OGRANIČENJA
+Chrome/Playwright: 320, 360, 390, 768, 820, 1024 i 1440 px, obje teme, touch na
+manjim širinama. Testirani su novi tokovi, validacija i postojeće regresije.
+Nova stranica potvrde nema horizontalno prelijevanje; pregledane su slike za
+mobile/tablet/desktop u segment4-views. Poboljšan je kontrast njenog tamnog dugmeta.
+Fizički iOS/Android uređaji i Safari nisu testirani. T31–T33 se ne zatvaraju.
+MariaDB je izolirana testna instanca 10.4.22; produkcijska baza nije mijenjana.
+Novi GitHub CI testovi su pripremljeni lokalno; nisu pokrenuti u oblaku jer ovaj
+segment nije pushovan. Testni serveri, email capture i privremene baze uklanjaju
+se na kraju rada; izolirani PHP runtime ostaje za dalji razvoj.
+
+SLJEDEĆI SEGMENT
+Nakon korisnikovog pregleda: T13 vremenska zona akcijskih cijena, T14 paralelne
+izmjene korpe, T15 konzistentan snapshot backupa. T11 aktivirati naknadno čim
+korisnik odabere mail servis. Ne počinjati nove taskove prije pregleda segmenta.

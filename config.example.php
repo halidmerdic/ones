@@ -52,4 +52,16 @@ return [
         // Use a private password of at least 15 characters; never commit it.
         'initial_admin_password' => 'PROMIJENI-U-JAKU-LOZINKU',
     ],
+    'mail' => [
+        // Copy into private config.local.php. Never commit SMTP credentials.
+        // Sender must be authorized by your provider (SPF/DKIM/DMARC).
+        'host' => '',
+        'port' => 587,
+        'encryption' => 'tls', // STARTTLS; use ssl for implicit TLS on port 465.
+        'username' => '',
+        'password' => '',
+        'from_address' => '',
+        // Used for links; never derived from a request Host header.
+        'public_url' => 'https://ones.ba',
+    ],
 ];

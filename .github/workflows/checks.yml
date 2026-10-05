@@ -18,11 +18,13 @@ jobs:
       - name: Runtime and PHP regressions
         run: |
           php tests/runtime.php
-          for test in auth-security business-logic storage-reliability network-security cms-xss restore-security backup-atomicity admin-bootstrap login-limits; do
+          for test in auth-security business-logic storage-reliability network-security cms-xss restore-security backup-atomicity admin-bootstrap login-limits input-policy email-security; do
             php -d auto_prepend_file=tests/strict-errors.php "tests/$test.php"
           done
       - name: JavaScript and concurrent login reservations
         run: |
           for script in *.js tests/*.cjs; do node --check "$script"; done
           node tests/logout-client.cjs
+          node tests/input-policy.cjs
+          node tests/email-concurrency.cjs
           node tests/login-concurrency.cjs

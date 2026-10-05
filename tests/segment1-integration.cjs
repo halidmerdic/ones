@@ -39,6 +39,7 @@ async function apiContext() {
   assert.equal((await post(admin, 'admin-login', { password: adminPassword })).status(), 200);
   assert.equal((await post(secondAdmin, 'admin-login', { password: adminPassword })).status(), 200);
   assert.equal((await post(customer, 'customer-register', { name: 'Original customer', email: testEmail, password: customerPassword, acceptedPrivacy: true })).status(), 200);
+  await require('./mail-helper.cjs').activateCustomer(customer, baseURL, testEmail, customerPassword);
   let current = await get(admin, 'admin-cms');
   const unsafe = structuredClone(current.cms);
   unsafe.products[0].image = 'x" onerror="window.__auditXss=1';

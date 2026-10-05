@@ -46,7 +46,7 @@ DirectoryIndex index.html
   </IfModule>
 </Files>
 
-<FilesMatch "^(api\.php|admin\.html|cart\.html|login\.html|profile\.html)$">
+<FilesMatch "^(api\.php|admin\.html|cart\.html|login\.html|profile\.html|verify\.html)$">
   <IfModule mod_headers.c>
     Header always set Cache-Control "no-store, no-cache, must-revalidate, private, max-age=0"
     Header always set Pragma "no-cache"

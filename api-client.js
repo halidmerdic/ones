@@ -1,4 +1,29 @@
 (function () {
+  window.onesPriceCents = function (value) {
+    if (value === null || value === undefined || value === "") return 0;
+    if (typeof value !== "string" && typeof value !== "number") return null;
+    const match = String(value).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, "").match(/^([0-9]{1,10})(?:[.,]([0-9]{1,2}))?$/);
+    if (!match) return /^[ \t\r\n]*$/.test(String(value)) ? 0 : null;
+    const cents = Number(match[1]) * 100 + Number((match[2] || "").padEnd(2, "0"));
+    return cents <= 100000000000 ? cents : null;
+  };
+  window.onesFormatCents = function (cents) {
+    const value = BigInt(cents);
+    const fraction = value % 100n;
+    return String(value / 100n) + (fraction ? "." + String(fraction).padStart(2, "0").replace(/0+$/, "") : "");
+  };
+  window.onesFormatPrice = value => window.onesFormatCents(window.onesPriceCents(value) ?? 0);
+
+  // New passwords count Unicode code points; bcrypt's separate limit is bytes.
+  window.onesPasswordError = function (password, admin = false) {
+    if (typeof password !== "string" || /\u0000|[\uD800-\uDFFF]/u.test(password)) return "Lozinka sadrži neispravan znak.";
+    if (Array.from(password).length < 15) return `${admin ? "Nova admin lozinka" : "Lozinka"} mora imati najmanje 15 znakova.`;
+    if (new TextEncoder().encode(password).length > 72) return "Lozinka smije zauzimati najviše 72 UTF-8 bajta; slova č/ć/š/đ/ž i emoji zauzimaju više bajtova.";
+    const blocked = ["123456789012345", "administrator123", "lozinkalozinka", "passwordpassword", "qwertyuiop12345", "onesadmin", "onesadmin123456"];
+    if (blocked.includes(password.replace(/^[ \t\r\n\v\0]+|[ \t\r\n\v\0]+$/g, "").toLowerCase()) || /^(.)\1{14,}$/su.test(password)) return "Odaberite sigurniju lozinku koja nije česta niti lako pogodiva.";
+    return null;
+  };
+
   let csrfToken = "";
   let csrfRequest = null;
   let logoutRequest = null;

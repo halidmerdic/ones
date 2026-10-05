@@ -1,9 +1,12 @@
 PLAN POPRAVKI — odobren 05.10.2026.
 Rad u segmentima od 2–4 povezana taska. Jedan task = jedan problem.
-Odobren trenutni segment: T07–T09. Završen lokalno; stati radi pregleda korisnika.
+Odobren trenutni segment: T10–T12. T10 i T12 završeni lokalno; T11 lokalno
+pripremljen i testiran. Korisnik 05.10.2026. potvrdio da nema email servis i
+zatražio lokalnu pripremu, a aktivaciju kasnije. T11 nije potpuno zatvoren.
 T01–T03 poslani na GitHub main: 2a5eb82, 05.10.2026.
 T04–T06 poslani na GitHub main: aa274da, 05.10.2026.
-Produkcijska objava nije izvršena niti je provjeren eventualni automatski deploy.
+T07–T09 poslani na GitHub main: a6370a1, 05.10.2026. PHP/JS CI i statički Pages
+build prošli. Nije izvršen deploy na Hetzner PHP aplikaciju.
 
 T01 [GITHUB 2a5eb82] F01 XSS u administraciji
 T02 [GITHUB 2a5eb82] F02 Poništavanje sesija nakon vraćanja backupa
@@ -11,12 +14,12 @@ T03 [GITHUB 2a5eb82] F03 Potpuna validacija i atomsko vraćanje backupa
 T04 [GITHUB aa274da] F28 Demonstracijska administratorska lozinka
 T05 [GITHUB aa274da] F04 Lažno uspješna odjava
 T06 [GITHUB aa274da] F05 Zaglavljeno slanje korpe
-T07 [ZAVRŠENO LOKALNO] F06 Gubitak CMS izmjena tokom spremanja
-T08 [ZAVRŠENO LOKALNO; PRODUKCIJSKA GRANA PROVJERENA] F29 Nepodržani PHP
-T09 [ZAVRŠENO LOKALNO] F27 Zaobilaženje ograničenja prijave
-T10 [ČEKA] F18 Unicode dužina lozinke
-T11 [ČEKA] F30 Potvrda email identiteta
-T12 [ČEKA] F09 Tumačenje cijena
+T07 [GITHUB a6370a1] F06 Gubitak CMS izmjena tokom spremanja
+T08 [GITHUB a6370a1; PRODUKCIJSKA GRANA PROVJERENA] F29 Nepodržani PHP
+T09 [GITHUB a6370a1] F27 Zaobilaženje ograničenja prijave
+T10 [ZAVRŠENO LOKALNO] F18 Unicode dužina lozinke
+T11 [KOD TESTIRAN LOKALNO; ČEKA EMAIL SERVIS I AKTIVACIJU] F30 Potvrda email identiteta
+T12 [ZAVRŠENO LOKALNO] F09 Tumačenje cijena
 T13 [ČEKA] F10 Vremenska zona akcijskih cijena
 T14 [ČEKA] F25 Paralelne izmjene korpe
 T15 [ČEKA] F26 Dosljedan snimak backupa
@@ -49,3 +52,4 @@ login.html, profile.html, profile.js. Sačuvati ih; ne vraćati checkout na HEAD
 Detalji i rezultati prvog segmenta: SEGMENT-01.txt.
 Detalji i rezultati drugog segmenta: SEGMENT-02.txt.
 Detalji i rezultati trećeg segmenta: SEGMENT-03.txt.
+Detalji i rezultati četvrtog segmenta: SEGMENT-04.txt.

@@ -31,16 +31,15 @@ function flash(message) {
 }
 
 function numericPrice(value) {
-  const number = Number(String(value ?? "").replace(",", ".").replace(/[^\d.]/g, ""));
-  return Number.isFinite(number) ? number : 0;
+  return (window.onesPriceCents(value) ?? 0) / 100;
 }
 
 function formatPrice(value) {
-  const number = numericPrice(value);
-  return Number.isInteger(number) ? String(number) : String(number.toFixed(2)).replace(/\.?0+$/, "");
+  return window.onesFormatPrice(value);
 }
 
 function money(value) {
+  if (typeof value === "bigint") return `${window.onesFormatCents(value)} KM`;
   if (String(value).toLowerCase().includes("upit")) return "Cijena na upit";
   return `${formatPrice(value)} KM`;
 }
@@ -75,11 +74,11 @@ function priceText(product) {
 }
 
 function itemTotal(item) {
-  return numericPrice(priceText(item.product)) * (Number(item.quantity) || 1);
+  return BigInt(window.onesPriceCents(priceText(item.product)) ?? 0) * BigInt(item.quantity);
 }
 
 function cartTotal() {
-  return cart.items.reduce((total, item) => total + itemTotal(item), 0);
+  return cart.items.reduce((total, item) => total + itemTotal(item), 0n);
 }
 
 function cartHasInquiryPrice() {

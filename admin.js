@@ -307,10 +307,8 @@ function captureCmsBaseline() {
 }
 
 function numericPrice(value) {
-  if (value === null || value === undefined || value === "") return "0";
-  const cleaned = String(value).replace(",", ".").replace(/[^\d.]/g, "");
-  const number = Number(cleaned);
-  return Number.isFinite(number) ? String(number) : "0";
+  const cents = window.onesPriceCents(value);
+  return cents === null ? "" : window.onesFormatCents(cents);
 }
 
 function productMissingSaleDate(product) {
@@ -337,8 +335,7 @@ function blogPreviewUrl(item) {
 }
 
 function formatPrice(value) {
-  const number = Number(numericPrice(value));
-  return Number.isInteger(number) ? String(number) : String(number.toFixed(2)).replace(/\.?0+$/, "");
+  return window.onesFormatPrice(value);
 }
 
 function formatDateOnly(value) {
@@ -388,11 +385,12 @@ function numberField(label, value, onInput) {
   const wrapper = document.createElement("label");
   wrapper.textContent = label;
   const input = document.createElement("input");
-  input.type = "number";
-  input.min = "0";
-  input.step = "0.01";
-  input.value = numericPrice(value);
-  input.addEventListener("input", () => onInput(numericPrice(input.value)));
+  input.type = "text";
+  input.inputMode = "decimal";
+  input.value = String(value ?? "0");
+  const validate = () => input.setCustomValidity(window.onesPriceCents(input.value) === null ? "Unesite iznos s najviše dvije decimale, bez valute ili razdjelnika hiljada." : "");
+  validate();
+  input.addEventListener("input", () => { validate(); onInput(input.value); });
   wrapper.appendChild(input);
   return wrapper;
 }
@@ -568,6 +566,13 @@ async function saveCms() {
   }
   syncOpenProductSpecs();
 
+  const invalidPriceProduct = (cms.products || []).find(product =>
+    ["price", "mpcPrice", "discountPrice", "salePrice"].some(key => window.onesPriceCents(product[key]) === null));
+  if (invalidPriceProduct) {
+    flash(`CMS nije sačuvan. Proizvod „${invalidPriceProduct.name}” ima neispravnu cijenu. Unesite iznos od 0 do 1.000.000.000 s najviše dvije decimale, bez valute ili razdjelnika hiljada.`, 9000);
+    return;
+  }
+
   if (cms.sections) {
     delete cms.sections.productFilters;
   }
@@ -580,6 +585,7 @@ async function saveCms() {
     product.mpcPrice = numericPrice(product.mpcPrice);
     product.discountPrice = numericPrice(product.discountPrice);
     product.salePrice = numericPrice(product.salePrice);
+    if (product.price !== undefined) product.price = numericPrice(product.price);
     if (product.tone === "dark") product.tone = "light";
     syncProductAttributes(product);
   });
@@ -2641,12 +2647,12 @@ function renderSecurity() {
           <input id="adminCurrentPassword" type="password" autocomplete="current-password" maxlength="72" />
         </label>
         <label>
-          Nova lozinka (najmanje 15 znakova)
-          <input id="adminNewPassword" type="password" autocomplete="new-password" minlength="15" maxlength="72" />
+          Nova lozinka (najmanje 15 znakova, najviše 72 UTF-8 bajta)
+          <input id="adminNewPassword" type="password" autocomplete="new-password" />
         </label>
         <label>
           Ponovite novu lozinku
-          <input id="adminConfirmPassword" type="password" autocomplete="new-password" minlength="15" maxlength="72" />
+          <input id="adminConfirmPassword" type="password" autocomplete="new-password" />
         </label>
         <button class="btn btn-primary" type="button" id="adminPasswordUpdateBtn">Promijeni lozinku</button>
       </article>
@@ -2685,8 +2691,9 @@ function renderSecurity() {
     const newPassword = $("#adminNewPassword").value;
     const confirmPassword = $("#adminConfirmPassword").value;
 
-    if (newPassword.length < 15) {
-      flash("Nova admin lozinka mora imati najmanje 15 znakova.");
+    const passwordError = window.onesPasswordError(newPassword, true);
+    if (passwordError) {
+      flash(passwordError);
       return;
     }
     if (newPassword !== confirmPassword) {

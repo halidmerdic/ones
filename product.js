@@ -264,13 +264,11 @@ function isDateActive(dateValue) {
 }
 
 function numericPrice(value) {
-  const number = Number(String(value ?? "").replace(",", ".").replace(/[^\d.]/g, ""));
-  return Number.isFinite(number) ? number : 0;
+  return (window.onesPriceCents(value) ?? 0) / 100;
 }
 
 function formatPrice(value) {
-  const number = numericPrice(value);
-  return Number.isInteger(number) ? String(number) : String(number.toFixed(2)).replace(/\.?0+$/, "");
+  return window.onesFormatPrice(value);
 }
 
 function formatDateOnly(value) {

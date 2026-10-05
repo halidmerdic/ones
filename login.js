@@ -82,14 +82,13 @@ async function customerRegister() {
     const data = await api("customer-register", {
       name: $("#registerName").value,
       email: $("#registerEmail").value,
-      password: $("#registerPassword").value,
       acceptedPrivacy: $("#registerConsent").checked,
       website: $("#registerWebsite")?.value || "",
     });
-    const user = data.user || { name: $("#registerName").value, email: $("#registerEmail").value };
-    rememberCustomerPreview(user);
-    redirectAfterLogin();
+    $("#registerStatus").textContent = data.message;
+    button.textContent = "Pošalji ponovo";
   } catch (error) {
+    $("#registerStatus").textContent = error.message;
     flash(error.message);
   } finally {
     button.disabled = false;

@@ -80,10 +80,9 @@ function profilePrice(product) {
   const saleEnd = product.saleUntil ? new Date(`${String(product.saleUntil).slice(0, 10)}T23:59:59`) : null;
   const activeSale = saleEnd && !Number.isNaN(saleEnd.getTime()) && saleEnd >= new Date() ? product.salePrice : null;
   const values = [activeSale, product.discountPrice, product.mpcPrice, product.price];
-  const value = values.find((candidate) => Number(String(candidate ?? "").replace(",", ".").replace(/[^\d.]/g, "")) > 0);
+  const value = values.find((candidate) => (window.onesPriceCents(candidate) ?? 0) > 0);
   if (!value) return "Cijena na upit";
-  const number = Number(String(value).replace(",", ".").replace(/[^\d.]/g, ""));
-  const label = Number.isInteger(number) ? String(number) : String(number.toFixed(2)).replace(/\.?0+$/, "");
+  const label = window.onesFormatPrice(value);
   return `${label} KM`;
 }
 
@@ -188,6 +187,10 @@ function fillProfileForm(user) {
   $("#profileNameInput").value = user.name || "";
   $("#profileEmailInput").value = user.email || "";
   $("#profilePhoneInput").value = user.phone || "";
+  $("#emailVerificationState").textContent = user.emailVerified ? "Email adresa je potvrđena." : "Email adresa još nije potvrđena. Potvrdite je prije slanja upita.";
+  $("#sendEmailVerificationBtn").hidden = !!user.emailVerified;
+  $("#pendingEmailState").textContent = user.pendingEmail ? `Čeka potvrdu: ${user.pendingEmail}. Do potvrde se prijavljujete starom adresom.` : "";
+  $("#cancelEmailChangeBtn").hidden = !user.pendingEmail;
 }
 
 function setupMobileNav() {
@@ -212,13 +215,20 @@ async function saveProfile() {
     });
     fillProfileForm(data.profile);
     $("#profileEmailPasswordInput").value = "";
-    flash("Podaci profila su sačuvani.");
+    const message = data.verificationRequired ? "Podaci su sačuvani. Potvrdite novu adresu putem email poruke; do tada vrijedi stara adresa." : "Izmjene su sačuvane.";
+    flash(message);
   } catch (error) {
     flash(error.message);
   }
 }
 
 async function savePassword() {
+  const passwordError = window.onesPasswordError($("#newPasswordInput").value);
+  if (passwordError) {
+    flash(passwordError);
+    $("#newPasswordInput").focus();
+    return;
+  }
   try {
     await api("customer-password-update", {
       currentPassword: $("#currentPasswordInput").value,
@@ -269,6 +279,27 @@ $("#profileLogoutBtn").addEventListener("click", logout);
 $("#profileMobileLogoutBtn")?.addEventListener("click", logout);
 $("#saveProfileBtn").addEventListener("click", saveProfile);
 $("#savePasswordBtn").addEventListener("click", savePassword);
+$("#sendEmailVerificationBtn").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const data = await api("customer-email-send", {});
+    $("#emailVerificationStatus").textContent = data.message;
+  } catch (error) { $("#emailVerificationStatus").textContent = error.message; }
+  finally { button.disabled = false; }
+});
+$("#cancelEmailChangeBtn").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    await api("customer-email-cancel", {});
+    $("#pendingEmailState").textContent = "Zahtjev za promjenu emaila je poništen.";
+    button.hidden = true;
+  } catch (error) { $("#emailVerificationStatus").textContent = error.message; }
+  finally { button.disabled = false; }
+});
 setupMobileNav();
 
 initProfile();

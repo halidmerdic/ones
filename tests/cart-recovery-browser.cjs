@@ -12,8 +12,10 @@ const json = (route, status, body) => route.fulfill({ status, contentType: 'appl
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 820, height: 1000 }, hasTouch: true });
-    const registered = await post(context.request, 'customer-register', { name: 'Recovery Test', email: 'cart-recovery-' + Date.now() + '@example.invalid', password: 'Recovery customer password 2026!', acceptedPrivacy: true });
+    const email = 'cart-recovery-' + Date.now() + '@example.invalid';
+    const registered = await post(context.request, 'customer-register', { name: 'Recovery Test', email, acceptedPrivacy: true });
     assert.equal(registered.status(), 200);
+    await require('./mail-helper.cjs').activateCustomer(context.request, baseURL, email, 'Recovery customer password 2026!');
     const cms = await (await context.request.get(baseURL + '/api.php?action=cms')).json();
     const productId = cms.cms.products.find(p => p.enabled !== false).id;
     await post(context.request, 'cart-add', { productId, quantity: 1 });

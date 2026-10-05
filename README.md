@@ -62,6 +62,12 @@ You can edit:
 
 Customer login is available at `http://127.0.0.1:8000/login.html`.
 
+Registration now requires an email confirmation before choosing a password.
+The email workflow is prepared locally; production activation awaits a sender
+and SMTP provider. See section 11 of `DEPLOYMENT.md` before deploying this
+segment. Without SMTP configuration the API rejects new registrations/email
+changes, and unverified accounts must confirm an address before sending inquiries.
+
 Customer cart is available at `http://127.0.0.1:8000/cart.html`.
 
 Cart flow:

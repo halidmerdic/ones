@@ -55,6 +55,7 @@ try {
         ':created_at' => date('c'),
     ]);
     $userId = (int)$pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO customer_email_state (user_id, email, verified_at) VALUES (?, ?, ?)')->execute([$userId, 'business-test@example.com', date('c')]);
     $cartId = active_cart_id($pdo, $userId);
 
     add_cart_item($pdo, $cartId, 'scooter-f3', 1);

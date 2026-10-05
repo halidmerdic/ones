@@ -9,6 +9,8 @@ if (PHP_VERSION_ID < 80500) {
 }
 require_once __DIR__ . '/backup-validation.php';
 require_once __DIR__ . '/login-security.php';
+require_once __DIR__ . '/pricing.php';
+require_once __DIR__ . '/email-security.php';
 
 function request_host(): string
 {
@@ -347,14 +349,19 @@ function password_validation_error(string $password, bool $admin = false): ?stri
 {
     $minimumLength = 15;
     $maximumLength = password_max_length();
-    if (strlen($password) < $minimumLength) {
+    if (!mb_check_encoding($password, 'UTF-8') || str_contains($password, "\0")) {
+        return 'Lozinka sadrži neispravan znak.';
+    }
+    // Count Unicode code points, matching Array.from in the browser. Never trim
+    // or normalize the value that is hashed; existing passwords stay unchanged.
+    if (mb_strlen($password, 'UTF-8') < $minimumLength) {
         return ($admin ? 'Nova admin lozinka' : 'Lozinka') . ' mora imati najmanje ' . $minimumLength . ' znakova.';
     }
     if (strlen($password) > $maximumLength) {
-        return ($admin ? 'Nova admin lozinka' : 'Lozinka') . ' smije imati najviše ' . $maximumLength . ' znakova.';
+        return 'Lozinka smije zauzimati najviše ' . $maximumLength . ' UTF-8 bajta; slova č/ć/š/đ/ž i emoji zauzimaju više bajtova.';
     }
 
-    $normalized = strtolower(trim($password));
+    $normalized = mb_strtolower(trim($password), 'UTF-8');
     $blocked = [
         '123456789012345',
         'administrator123',
@@ -382,6 +389,9 @@ function hash_password(string $password): string
 
 function verify_user_password(string $password, ?array $user): bool
 {
+    if (!mb_check_encoding($password, 'UTF-8') || str_contains($password, "\0") || strlen($password) > password_max_length()) {
+        return false;
+    }
     static $dummyHash = null;
     if ($dummyHash === null) {
         $dummyHash = hash_password(bin2hex(random_bytes(16)));
@@ -731,6 +741,7 @@ function database(array $config): PDO
     ensure_cart_item_uniqueness($pdo);
     initialize_auth_state($pdo);
     initialize_login_limits($pdo);
+    initialize_email_security($pdo);
     seed_database($pdo);
     return $pdo;
 }
@@ -1036,15 +1047,8 @@ function cms_validate_price(array &$errors, array $item, string $key, string $pa
     if (!array_key_exists($key, $item)) {
         return;
     }
-    $value = $item[$key];
-    $normalized = is_string($value) ? str_replace(',', '.', trim($value)) : $value;
-    if ((!is_int($normalized) && !is_float($normalized) && !is_string($normalized)) || $normalized === '' || !is_numeric($normalized)) {
-        cms_add_error($errors, $path . '.' . $key, 'mora biti broj.');
-        return;
-    }
-    $number = (float)$normalized;
-    if ($number < 0 || $number > 1000000000) {
-        cms_add_error($errors, $path . '.' . $key, 'mora biti između 0 i 1.000.000.000.');
+    if (price_cents($item[$key]) === null) {
+        cms_add_error($errors, $path . '.' . $key, 'mora biti decimalni iznos od 0 do 1.000.000.000 s najviše dvije decimale, bez oznake valute, eksponenta ili razdjelnika hiljada.');
     }
 }
 
@@ -1279,7 +1283,7 @@ function cms_validate_payload(array $cms): array
         if (isset($product['tone']) && !in_array($product['tone'], ['red', 'light', 'dark'], true)) {
             cms_add_error($errors, $path . '.tone', 'nije dozvoljena boja kartice.');
         }
-        if (isset($product['salePrice']) && is_numeric(str_replace(',', '.', (string)$product['salePrice'])) && (float)str_replace(',', '.', (string)$product['salePrice']) > 0 && trim((string)($product['saleUntil'] ?? '')) === '') {
+        if ((price_cents($product['salePrice'] ?? null) ?? 0) > 0 && trim((string)($product['saleUntil'] ?? '')) === '') {
             cms_add_error($errors, $path . '.saleUntil', 'je obavezan kada postoji akcijska cijena.');
         }
         if (array_key_exists('gallery', $product)) {
@@ -1940,22 +1944,12 @@ function products_by_id(PDO $pdo): array
 
 function numeric_price($value): float
 {
-    $cleaned = preg_replace('/[^\d.]/', '', str_replace(',', '.', (string)($value ?? '')));
-    if ($cleaned === null || $cleaned === '') {
-        return 0.0;
-    }
-
-    return is_numeric($cleaned) ? (float)$cleaned : 0.0;
+    return (price_cents($value) ?? 0) / 100;
 }
 
 function format_price($value): string
 {
-    $number = numeric_price($value);
-    if ($number <= 0) {
-        return '0';
-    }
-
-    return floor($number) === $number ? (string)(int)$number : rtrim(rtrim(number_format($number, 2, '.', ''), '0'), '.');
+    return format_price_cents(price_cents($value) ?? 0);
 }
 
 function date_active($dateValue): bool
@@ -2050,6 +2044,13 @@ function create_order_from_cart(PDO $pdo, int $userId, int $cartId, array $user,
 {
     try {
         $pdo->beginTransaction();
+        $pdo->exec('UPDATE email_lock SET id = id WHERE id = 1');
+        $identity = $pdo->prepare('SELECT name, email FROM users WHERE id = :id AND role = "customer"');
+        $identity->execute([':id' => $userId]);
+        $user = $identity->fetch(PDO::FETCH_ASSOC);
+        if (!$user || !email_is_verified($pdo, $userId, $user['email'])) {
+            throw new EmailFlowError('Prije slanja upita potvrdite email adresu u Profilu. Korpa je sačuvana.', 403);
+        }
         if (database_driver($pdo) === 'sqlite') {
             $sqliteLock = $pdo->prepare('UPDATE carts SET updated_at = updated_at WHERE id = :id AND user_id = :user_id');
             $sqliteLock->execute([':id' => $cartId, ':user_id' => $userId]);
@@ -2315,7 +2316,7 @@ function restore_backup_payload(PDO $pdo, array $backup, ?string $backupDirector
     }
     if (database_driver($pdo) === 'mysql') {
         $engines = $pdo->query("SELECT TABLE_NAME, ENGINE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE()")->fetchAll(PDO::FETCH_KEY_PAIR);
-        foreach (['cms_store', 'cms_revisions', 'users', 'carts', 'cart_items', 'product_favorites', 'orders', 'auth_state'] as $table) {
+        foreach (['cms_store', 'cms_revisions', 'users', 'carts', 'cart_items', 'product_favorites', 'orders', 'auth_state', 'email_lock', 'email_challenges', 'customer_email_state'] as $table) {
             if (strtolower((string)($engines[$table] ?? '')) !== 'innodb') {
                 throw new RuntimeException('Restore zahtijeva InnoDB transakcijsku tabelu: ' . $table);
             }
@@ -2327,7 +2328,10 @@ function restore_backup_payload(PDO $pdo, array $backup, ?string $backupDirector
 
     try {
         $pdo->beginTransaction();
+        $pdo->exec('UPDATE email_lock SET id = id WHERE id = 1');
         $revision = save_cms($pdo, $backup['cms']);
+        $pdo->exec('DELETE FROM email_challenges');
+        $pdo->exec('DELETE FROM customer_email_state');
         $pdo->exec('DELETE FROM cart_items');
         $pdo->exec('DELETE FROM product_favorites');
         $pdo->exec('DELETE FROM orders');
@@ -2368,6 +2372,9 @@ try {
         'customer-profile-update',
         'customer-password-update',
         'customer-register',
+        'customer-email-send',
+        'customer-email-confirm',
+        'customer-email-cancel',
         'customer-login',
         'customer-logout',
         'favorite-toggle',
@@ -2469,7 +2476,7 @@ try {
             $stmt = $pdo->prepare('SELECT name, email, phone FROM users WHERE id = :id LIMIT 1');
             $stmt->execute([':id' => (int)$_SESSION['customer_id']]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            $user = $row ? ['name' => $row['name'], 'email' => $row['email'], 'phone' => $row['phone'], 'role' => 'customer'] : null;
+            $user = $row ? array_merge(['name' => $row['name'], 'email' => $row['email'], 'phone' => $row['phone'], 'role' => 'customer'], customer_email_details($pdo, (int)$_SESSION['customer_id'], $row['email'])) : null;
         }
         respond([
             'ok' => true,
@@ -2491,12 +2498,12 @@ try {
 
         respond([
             'ok' => true,
-            'user' => [
+            'user' => array_merge(customer_email_details($pdo, $userId, $user['email']), [
                 'name' => $user['name'],
                 'email' => $user['email'],
                 'phone' => $user['phone'],
                 'createdAt' => $user['created_at'],
-            ],
+            ]),
             'orders' => customer_orders_payload($pdo, $userId),
             'cart' => cart_payload($pdo, $userId),
             'favorites' => favorites_payload($pdo, $userId),
@@ -2540,15 +2547,22 @@ try {
             rehash_password_if_needed($pdo, $currentUser, $currentPassword);
         }
 
+        if ($emailChanged) {
+            $existing = $pdo->prepare('SELECT id FROM users WHERE email = :email AND id <> :id');
+            $existing->execute([':email' => $email, ':id' => $userId]);
+            if ($existing->fetchColumn()) respond(['ok' => false, 'message' => 'Ovu adresu nije moguće koristiti.'], 409);
+            request_email_confirmation($pdo, 'change', $email, $name, $currentUser, client_ip(), $requestAuthEpoch);
+        }
+        $storedEmail = $currentUser['email'];
         try {
-            $stmt = $pdo->prepare('UPDATE users SET name = :name, email = :email, phone = :phone WHERE id = :id AND role = "customer"');
-            $stmt->execute([':name' => $name, ':email' => $email, ':phone' => $phone, ':id' => $userId]);
+            $stmt = $pdo->prepare('UPDATE users SET name = :name, phone = :phone WHERE id = :id AND role = "customer"');
+            $stmt->execute([':name' => $name, ':phone' => $phone, ':id' => $userId]);
             $_SESSION['customer_name'] = $name;
             if ($emailChanged) {
                 $currentUser['name'] = $name;
                 establish_auth_session('customer', $currentUser, $requestAuthEpoch);
             }
-            respond(['ok' => true, 'profile' => ['name' => $name, 'email' => $email, 'phone' => $phone]]);
+            respond(['ok' => true, 'verificationRequired' => $emailChanged, 'profile' => array_merge(['name' => $name, 'email' => $storedEmail, 'phone' => $phone], customer_email_details($pdo, $userId, $storedEmail))]);
         } catch (PDOException $error) {
             if (is_unique_constraint_violation($error)) {
                 respond(['ok' => false, 'message' => 'Korisnik sa ovim emailom već postoji.'], 409);
@@ -2593,49 +2607,53 @@ try {
     if ($action === 'customer-register') {
         $body = body_json();
         reject_honeypot($body);
-        require_action_rate_limit($pdo, 'customer-register', login_identifier(client_ip()), 6, 3600, 'Previše registracija dolazi sa ove mreže. Pokušajte ponovo kasnije.');
-        $name = trim((string)($body['name'] ?? ''));
-        $email = trim(strtolower((string)($body['email'] ?? '')));
-        $password = (string)($body['password'] ?? '');
-        $acceptedPrivacy = !empty($body['acceptedPrivacy']);
-
-        if (!$acceptedPrivacy) {
-            respond(['ok' => false, 'message' => 'Potvrdite privatnost i uslove korištenja prije registracije.'], 400);
-        }
-        if (strlen($name) < 2 || strlen($name) > 120 || strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!is_string($body['name'] ?? null) || !is_string($body['email'] ?? null)) {
             respond(['ok' => false, 'message' => 'Unesite ime i ispravan email.'], 400);
         }
-        $passwordError = password_validation_error($password);
-        if ($passwordError !== null) {
-            respond(['ok' => false, 'message' => $passwordError], 400);
+        $name = trim((string)($body['name'] ?? ''));
+        $email = trim(strtolower((string)($body['email'] ?? '')));
+        if (($body['acceptedPrivacy'] ?? null) !== true) respond(['ok' => false, 'message' => 'Potvrdite privatnost i uslove korištenja prije registracije.'], 400);
+        if (cms_text_length($name) < 2 || cms_text_length($name) > 120 || strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)) respond(['ok' => false, 'message' => 'Unesite ime i ispravan email.'], 400);
+        request_email_confirmation($pdo, 'signup', $email, $name, null, client_ip(), $requestAuthEpoch);
+        respond(['ok' => true, 'verificationRequired' => true, 'message' => 'Ako je adresa dostupna za registraciju, poslana je poruka za potvrdu. Provjerite i spam folder. Link vrijedi 30 minuta; lozinku birate nakon otvaranja linka. Ako već imate profil, prijavite se.']);
+    }
+
+    if ($action === 'customer-email-send') {
+        $id = require_customer();
+        $stmt = $pdo->prepare('SELECT id, name, email, auth_version FROM users WHERE id = :id AND role = "customer"');
+        $stmt->execute([':id' => $id]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$user) {
+            clear_auth_session('customer');
+            respond(['ok' => false, 'message' => 'Prijavite se ponovo.'], 401);
         }
+        if (email_is_verified($pdo, $id, $user['email'])) respond(['ok' => true, 'message' => 'Email adresa je već potvrđena.']);
+        request_email_confirmation($pdo, 'verify', $user['email'], mb_substr($user['name'], 0, 120, 'UTF-8'), $user, client_ip(), $requestAuthEpoch);
+        respond(['ok' => true, 'message' => 'Poruka za potvrdu je poslana. Provjerite i spam folder. Link vrijedi 30 minuta.']);
+    }
 
+    if ($action === 'customer-email-confirm') {
+        $body = body_json();
+        if (!is_string($body['token'] ?? null) || (isset($body['password']) && !is_string($body['password']))) {
+            respond(['ok' => false, 'message' => 'Neispravan zahtjev za potvrdu emaila.'], 400);
+        }
+        $signedInUser = customer_session_active($pdo) ? (int)$_SESSION['customer_id'] : null;
+        $user = confirm_customer_email($pdo, (string)($body['token'] ?? ''), (string)($body['password'] ?? ''), $signedInUser);
+        establish_auth_session('customer', $user, $requestAuthEpoch);
+        respond(['ok' => true, 'user' => ['name' => $user['name'], 'email' => $user['email'], 'emailVerified' => true, 'role' => 'customer']]);
+    }
+
+    if ($action === 'customer-email-cancel') {
+        $id = require_customer();
         try {
-            $pdo->beginTransaction();
-            $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role, created_at, privacy_accepted_at) VALUES (:name, :email, :password_hash, "customer", :created_at, :privacy_accepted_at)');
-            $stmt->execute([
-                ':name' => $name,
-                ':email' => $email,
-                ':password_hash' => hash_password($password),
-                ':created_at' => date('c'),
-                ':privacy_accepted_at' => date('c'),
-            ]);
-            $userId = (int)$pdo->lastInsertId();
-            $cart = $pdo->prepare('INSERT INTO carts (user_id, status, created_at, updated_at) VALUES (:user_id, "active", :created_at, :updated_at)');
-            $cart->execute([':user_id' => $userId, ':created_at' => date('c'), ':updated_at' => date('c')]);
+            email_transaction($pdo);
+            $pdo->prepare('DELETE FROM email_challenges WHERE user_id = :id')->execute([':id' => $id]);
             $pdo->commit();
-
-            establish_auth_session('customer', ['id' => $userId, 'name' => $name, 'auth_version' => 0], $requestAuthEpoch);
-            respond(['ok' => true, 'user' => ['name' => $name, 'email' => $email, 'role' => 'customer']]);
         } catch (Throwable $error) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            if ($error instanceof PDOException && is_unique_constraint_violation($error)) {
-                respond(['ok' => false, 'message' => 'Profil nije moguće kreirati s unesenim podacima.'], 409);
-            }
+            if ($pdo->inTransaction()) $pdo->rollBack();
             throw $error;
         }
+        respond(['ok' => true]);
     }
 
     if ($action === 'customer-login') {
@@ -2991,6 +3009,9 @@ try {
     }
 
     respond(['ok' => false, 'message' => 'Nepoznata akcija.'], 404);
+} catch (EmailFlowError $error) {
+    if ($error->status === 429) header('Retry-After: 60');
+    respond(['ok' => false, 'message' => $error->getMessage(), 'code' => 'EMAIL_VERIFICATION'], $error->status);
 } catch (Throwable $error) {
     error_log('oneS API error: ' . $error->getMessage());
     respond([

@@ -161,6 +161,7 @@ async function cartChecks(browser, width, dark) {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     assert.equal((await post(ctx, 'customer-register', { name: 'Segment Two', email, password, acceptedPrivacy: true })).status(), 200);
+    await require('./mail-helper.cjs').activateCustomer(ctx, baseURL, email, password);
     const cms = (await get(ctx, 'cms')).cms;
     const product = cms.products.find(p => p.enabled !== false);
     assert.ok(product);

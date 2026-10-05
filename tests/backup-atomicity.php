@@ -12,7 +12,7 @@ function backup_check(bool $ok, string $message): void {
 }
 function backup_test_snapshot(PDO $pdo): array {
     $result = [];
-    foreach (['cms_store', 'cms_revisions', 'users', 'carts', 'cart_items', 'product_favorites', 'orders', 'auth_state'] as $table) {
+    foreach (['cms_store', 'cms_revisions', 'users', 'carts', 'cart_items', 'product_favorites', 'orders', 'auth_state', 'email_challenges', 'customer_email_state'] as $table) {
         $result[$table] = table_rows($pdo, $table);
     }
     return $result;
@@ -32,9 +32,11 @@ backup_check((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 1
 $pdo->prepare('INSERT INTO users (name,email,password_hash,role,created_at) VALUES (?,?,?,?,?)')
     ->execute(['Test customer', 'atomic@example.invalid', hash_password('Atomic customer password 2026!'), 'customer', date('c')]);
 $userId = (int)$pdo->lastInsertId();
+$pdo->prepare('INSERT INTO customer_email_state (user_id, email, verified_at) VALUES (?, ?, ?)')->execute([$userId, 'atomic@example.invalid', date('c')]);
 $cartId = active_cart_id($pdo, $userId);
 add_cart_item($pdo, $cartId, 'scooter-f3', 2);
 create_order_from_cart($pdo, $userId, $cartId, ['name' => 'Test customer', 'email' => 'atomic@example.invalid'], '061123456', 'Snapshot', false);
+insert_rows($pdo, 'email_challenges', [['token_hash' => str_repeat('f', 64), 'kind' => 'change', 'user_id' => $userId, 'email' => 'pending@example.invalid', 'old_email' => 'atomic@example.invalid', 'name' => 'Test customer', 'auth_version' => 0, 'auth_epoch' => auth_epoch($pdo), 'created_at' => time(), 'expires_at' => time() + 1800, 'sent' => 1]]);
 $original = backup_payload($pdo);
 $backupDirectory = sys_get_temp_dir() . '/ones-atomic-test-' . bin2hex(random_bytes(8));
 $before = backup_test_snapshot($pdo);
@@ -120,6 +122,7 @@ try {
     backup_check(get_cms($pdo)['contact']['email'] === 'restored@example.invalid', 'Valid restore failed');
     backup_check(count(table_rows($pdo, 'orders')) === 1 && count(table_rows($pdo, 'users')) === 2, 'Valid restore lost records');
     backup_check(auth_epoch($pdo) !== $before['auth_state'][0]['epoch'], 'Successful restore failed to revoke sessions');
+    backup_check(table_rows($pdo, 'email_challenges') === [] && table_rows($pdo, 'customer_email_state') === [], 'Successful restore kept verification state');
     $files = glob($backupDirectory . '/pre-restore-*.json');
     backup_check(count($files) === 3, 'Pre-restore filenames collided or were lost');
     foreach ($files as $file) {
