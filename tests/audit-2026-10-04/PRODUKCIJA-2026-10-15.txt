@@ -1,0 +1,67 @@
+PRODUKCIJA I ZAVRŠNE UI IZMJENE — 15.10.2026.
+
+STATUS
+Svih 40 taskova iz početnog plana implementirano. Datirani segmentni izvještaji
+ostaju historijski zapisi; njihove napomene o čekanju SMTP-a/deploya zamijenjene
+su ovim produkcijskim statusom i ažuriranim TASKOVI.txt.
+
+PRODUKCIJSKI ROLLOUT
+Korisnik je izvršavao SSH/WinSCP korake i slao rezultate. Probna migracija
+zasebne kopije baze na stvarnom MariaDB serveru prošla je, uključujući ponovljenu
+migraciju i provjeru sheme. Apache je zaustavljen za završni backup i migraciju.
+Kontrolni zbirovi SQL backupa i arhive fajlova te gzip provjera arhive prošli su.
+Produkcijska migracija na shemu 2 i provjera s ograničenim web DB nalogom prošle
+su. Provjera ranijih korisnika, upita, CMS-a, favorita i količina u korpama prošla
+je prije aktiviranja novog koda. Web DB nalog koristi SELECT/INSERT/UPDATE/DELETE;
+privatni migracijski nalog nije instaliran u javnu konfiguraciju.
+Nakon dopune dva zaštitna fajla u data svih 452 fajla paketa odgovaralo je
+manifestu. Apache je pokrenut i javna provjera deploy/verify-production.ps1 je
+prošla. Baza, tajne i postojeći uploadovi nisu uključivani u pakete za GitHub.
+
+EMAIL I FUNKCIONALNE PROVJERE — POTVRDIO KORISNIK
+Naknadno je odobren privremeni Google SMTP pošiljalac uz app password, umjesto
+ranijeg odgađanja aktivacije. Potvrđen je prijem lokalnog i serverskog testa,
+potvrda postojeće email adrese kroz aplikaciju i registracija s novom adresom.
+Potvrđeno je čuvanje proizvoda/količine u korpi nakon osvježavanja i ponovne
+prijave te uklanjanje testnog proizvoda. Testni upit je uspješno poslan i korisnik
+je potvrdio da je vidljiv i u CMS-u. Službeni pošiljalac može se zamijeniti kasnije.
+Privatne SMTP vrijednosti nisu dio ovog izvještaja niti repozitorija.
+
+UI IZMJENE
+Postavljene su lokalne izmjene izgleda administrativne prijave, korisničke
+prijave/registracije i profila. Profil prikazuje proširive detalje upita i status
+spremanja podataka/lozinke. Verzije zajedničkog CSS-a su usklađene, a izmijenjena
+skripta profila dobila je novu URL oznaku da se izbjegne stari browser cache.
+Svih osam postavljenih fajlova odgovaralo je manifestu; korisnik potvrdio prikaz.
+
+Naknadno je na produkciji prijavljen meni profila udaljen od dugmeta. app.js sada
+računa položaj prema dugmetu i ograničava ga na širinu prozora, ažurira ga pri
+resizeu i zatvara kada mobilni prikaz sakrije dugme. Escape zatvara meni i vraća
+fokus, a aria-expanded prati stanje. index.html koristi novu verziju app.js.
+Prethodna dva fajla su arhivirana. Korisnik je potvrdio oba kontrolna zbira i
+ispravan položaj menija nakon postavljanja.
+
+VALIDACIJA I GRANICE
+- 152 lokalne provjere deployment politike/pakovanja prošle.
+- 66 lokalnih browser provjera profila/prijave: šest širina (320, 390, 768, 820,
+  1024, 1440), obje teme, detalji upita, prikaz napomene kao teksta i submit
+  formulara profila/lozinke. API je simuliran; bez pisanja u produkciju.
+- 88 lokalnih browser provjera menija: reprodukcija prethodnog pomaka, položaj,
+  promjena širine do mobilnog prikaza, obje teme, skrolanje, klik izvan menija,
+  ponovno zatvaranje klikom, Escape i fokus. Bez produkcijskih zahtjeva.
+- Javna produkcijska provjera nakon paketa od osam fajlova prošla: javni API,
+  sigurnosna zaglavlja, cookie zastavice, zabrana privatnih putanja, no-store,
+  preusmjerenja, CSS oznake, sitemap i robots. Ta provjera nije uključivala
+  opcionalni direktni pristup origin IP-u mimo Cloudflarea.
+- Posljednju ispravku menija funkcionalno je potvrdio korisnik. Lokalna simulacija
+  različitih širina nije fizički test svih telefona/tableta niti svih preglednika.
+- Novi GitHub CI/Pages status treba utvrditi za commit ovog izvještaja; prethodni
+  uspješni runovi ne predstavljaju provjeru novog commita.
+
+PREOSTALI OPERATIVNI KORACI
+Preuzeti završni backup baze i fajlova prije migracije na korisnikov računar,
+u zaseban privatni folder, i potvrditi lokalne kontrolne zbirove. Raniji backup
+već je preuzet i provjeren. Završni backup je snimak PRIJE nadogradnje; ne sadrži
+kasniju potvrdu emaila, testnu registraciju/upit ni nove UI izmjene.
+Zamjena privremenog pošiljaoca službenom adresom nije blokada rada aplikacije.
+Probna baza i privatni alati na serveru zadržani su; nisu dio javnog web paketa.

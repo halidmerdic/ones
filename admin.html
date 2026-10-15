@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#111216" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=20260808-1" />
     <link rel="stylesheet" href="styles.css?v=a74a2509e3055fc8" />
-    <link rel="stylesheet" href="admin.css?v=ed68bb62b6256f15" />
+    <link rel="stylesheet" href="admin.css?v=430a15d405e17616" />
     <link rel="stylesheet" href="cms-relations.css?v=cb8b10126656876b" />
     <link rel="stylesheet" href="admin-feedback.css?v=7fecd36edd729afb" />
     <link rel="stylesheet" href="admin-responsive.css?v=9e8267172782389c" />
@@ -50,16 +50,21 @@
 
         <section class="cms-validation-banner" id="cmsValidationBanner" role="alert" aria-live="assertive" hidden></section>
 
-        <form class="login-panel" id="loginPanel" hidden>
-          <h2>Admin prijava</h2>
-          <p>Prijavite se za upravljanje proizvodima, sadržajem i upitima kupaca.</p>
-          <label>
-            Lozinka
-            <span class="password-field">
-              <input id="passwordInput" type="password" autocomplete="current-password" maxlength="72" placeholder="Unesite lozinku" required />
-              <button type="button" class="password-toggle" data-password-toggle="passwordInput" aria-label="Prikazi lozinku">Vidi</button>
-            </span>
-          </label>
+        <form class="login-panel admin-login-panel" id="loginPanel" hidden>
+          <div class="admin-login-heading">
+            <p class="eyebrow">Zaštićeni pristup</p>
+            <h2>Admin prijava</h2>
+            <p class="admin-login-copy">Prijavite se za upravljanje proizvodima, sadržajem i upitima kupaca.</p>
+          </div>
+          <div class="admin-login-fields">
+            <label>
+              Lozinka
+              <span class="password-field">
+                <input id="passwordInput" type="password" autocomplete="current-password" maxlength="72" placeholder="Unesite lozinku" required />
+                <button type="button" class="password-toggle" data-password-toggle="passwordInput" aria-label="Prikazi lozinku">Vidi</button>
+              </span>
+            </label>
+          </div>
           <button class="btn btn-primary" type="submit" id="loginBtn">Prijava</button>
         </form>
 

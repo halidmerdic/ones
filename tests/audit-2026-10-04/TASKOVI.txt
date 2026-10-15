@@ -2,9 +2,12 @@ PLAN POPRAVKI — odobren 05.10.2026.
 Rad u segmentima od 2–4 povezana taska. Jedan task = jedan problem.
 Posljednji segment: T36–T38; poslan na GitHub 05.10.2026, commit 8764128.
 T10/T12 i pripremljeni kod T11 poslani su na GitHub: 8f79f61.
-T11 čeka službeni email servis i aktivaciju, prema korisnikovom izboru.
-Privremeni app password ne postavljamo, prema dogovoru.
-Ukupno 39/40 taskova završeno i poslano na GitHub.
+Status ažuriran 15.10.2026: svih 40 taskova implementirano; produkcijski rollout završen.
+T11 aktiviran uz naknadno odobren privremeni Google SMTP pošiljalac i app password.
+Korisnik je potvrdio prijem poruke, potvrdu postojeće adrese i novu registraciju.
+Zamjena pošiljaoca službenom adresom ostaje naknadna operativna stavka.
+Detalji produkcijskih provjera i posljednjih UI izmjena: PRODUKCIJA-2026-10-15.txt.
+Raniji datirani zapisi ispod opisuju stanje u trenutku pojedinog segmenta.
 T40 je novi zasebni nalaz otkriven i popravljen tokom testiranja T28.
 T01–T03 poslani na GitHub main: 2a5eb82, 05.10.2026.
 T04–T06 poslani na GitHub main: aa274da, 05.10.2026.
@@ -25,7 +28,7 @@ T07 [GITHUB a6370a1] F06 Gubitak CMS izmjena tokom spremanja
 T08 [GITHUB a6370a1; PRODUKCIJSKA GRANA PROVJERENA] F29 Nepodržani PHP
 T09 [GITHUB a6370a1] F27 Zaobilaženje ograničenja prijave
 T10 [GITHUB 8f79f61] F18 Unicode dužina lozinke
-T11 [KOD NA GITHUBU 8f79f61; ČEKA EMAIL SERVIS I AKTIVACIJU] F30 Potvrda email identiteta
+T11 [GITHUB 8f79f61; PRODUKCIJSKI AKTIVIRAN I POTVRĐEN 15.10.2026] F30 Potvrda email identiteta
 T12 [GITHUB 8f79f61] F09 Tumačenje cijena
 T13 [GITHUB f4e63b1] F10 Vremenska zona akcijskih cijena
 T14 [GITHUB f4e63b1] F25 Paralelne izmjene korpe
@@ -78,10 +81,9 @@ T32–T33 poslani na GitHub main: cd2399e, 05.10.2026. PHP/JS CI i statički Pag
 Detalji dvanaestog segmenta: SEGMENT-12.txt.
 T34–T35 poslani na GitHub main: 8f0d74a, 05.10.2026. PHP/JS CI i statički Pages build prošli.
 Detalji trinaestog segmenta: SEGMENT-13.txt.
-Preostaje T11: službeni email servis i aktivacija. Privremeni app password nije dogovoren.
-Nema narednog otvorenog segmenta nezavisnog od T11. Nakon email aktivacije slijede
-produkcijski rollout i provjere izvan lokalnog testnog okruženja kao zasebni
-operativni koraci; nijedan PHP deploy nije izvršen. Rezultati CI/Pages provjera
-vezani su za commit i dostupni u GitHub Actions nakon pusha.
+Završno stanje 15.10.2026: T11 i produkcijski rollout završeni. Nema narednog
+otvorenog segmenta iz početnog plana. Preuzimanje završnog serverskog backupa
+na korisnikov računar još čeka potvrdu. Rezultati CI/Pages provjera vezani su
+za konkretan commit; lokalni testovi nisu potvrda prolaska novog GitHub runa.
 Dopuna nakon prvog pusha: Linux pristup skrivenom .htaccess fajlu i objavljivanje
 Pages asseta po basename pravilima. Lokalna proširena provjera: 152 testa.

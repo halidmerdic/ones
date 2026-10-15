@@ -129,49 +129,63 @@ function renderOrders(orders) {
     return;
   }
 
-  list.innerHTML = orders
+  const rows = orders
     .map((order) => {
       const status = statusInfo(order.status);
+      const itemCount = (order.items || []).reduce((total, item) => total + (Number(item.quantity) || 1), 0);
+      const itemLabel = itemCount === 1 ? "1 artikal" : `${itemCount} artikala`;
       const items = (order.items || [])
         .map((item) => `<li><span>${escapeHtml(item.name)} x${Number(item.quantity) || 1}</span><strong>${escapeHtml(item.price || "0")}</strong></li>`)
         .join("");
 
       return `
-        <article class="profile-order">
-          <div class="profile-order-head">
-            <div>
-              <span>Upit #${Number(order.id)}</span>
-              <h3>${escapeHtml(status.label)}</h3>
-            </div>
+        <details class="profile-order">
+          <summary class="profile-order-summary">
+            <span class="profile-order-id">
+              <strong>Upit #${Number(order.id)}</strong>
+              <small>${escapeHtml(status.label)}</small>
+            </span>
+            <time datetime="${escapeHtml(order.createdAt || "")}">${escapeHtml(formatDate(order.createdAt))}</time>
+            <span class="profile-order-count">${escapeHtml(itemLabel)}</span>
             <span class="status-badge profile-status ${status.className}">${escapeHtml(order.status || "Novo")}</span>
-          </div>
-          <div class="profile-status-panel">
-            <p>${escapeHtml(status.text)}</p>
-          </div>
-          <div class="profile-order-meta">
-            <div>
-              <span>Datum slanja</span>
-              <strong>${escapeHtml(formatDate(order.createdAt))}</strong>
+            <span class="profile-order-toggle" aria-hidden="true"></span>
+          </summary>
+          <div class="profile-order-details">
+            <div class="profile-status-panel">
+              <p>${escapeHtml(status.text)}</p>
             </div>
-            <div>
-              <span>Telefon za upit</span>
-              <strong>${escapeHtml(order.phone || "-")}</strong>
+            <div class="profile-order-meta">
+              <div>
+                <span>Telefon za upit</span>
+                <strong>${escapeHtml(order.phone || "-")}</strong>
+              </div>
+              <div>
+                <span>Zadnja izmjena</span>
+                <strong>${escapeHtml(formatDate(order.updatedAt))}</strong>
+              </div>
             </div>
-            <div>
-              <span>Zadnja izmjena</span>
-              <strong>${escapeHtml(formatDate(order.updatedAt))}</strong>
-            </div>
+            <ul class="order-items">${items}</ul>
+            ${
+              order.note
+                ? `<div class="profile-order-note"><span>Vaša napomena</span><p>${escapeHtml(order.note)}</p></div>`
+                : ""
+            }
           </div>
-          <ul class="order-items">${items}</ul>
-          ${
-            order.note
-              ? `<div class="profile-order-note"><span>Vaša napomena</span><p>${escapeHtml(order.note)}</p></div>`
-              : ""
-          }
-        </article>
+        </details>
       `;
     })
     .join("");
+
+  list.innerHTML = `
+    <div class="profile-order-list-head" aria-hidden="true">
+      <span>Upit</span>
+      <span>Datum</span>
+      <span>Artikli</span>
+      <span>Status</span>
+      <span></span>
+    </div>
+    <div class="profile-order-list">${rows}</div>
+  `;
 }
 
 function fillProfileForm(user) {
@@ -179,7 +193,15 @@ function fillProfileForm(user) {
     window.onesStorage.local.removeItem(customerPreviewKey);
     window.onesStorage.session.setItem(customerPreviewKey, JSON.stringify({ name: user.name || "Kupac" }));
   } catch {}
-  $("#profileName").textContent = user.name;
+  const initials = String(user.name || "Kupac")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase() || "K";
+  $("#profileAvatar").textContent = initials;
+  $("#profileName").textContent = user.name || "Kupac";
   $("#profileEmail").textContent = [user.email, user.phone].filter(Boolean).join(" · ");
   $("#profileNameInput").value = user.name || "";
   $("#profileEmailInput").value = user.email || "";
@@ -202,7 +224,24 @@ function updateBottomCartCount(count) {
   });
 }
 
-async function saveProfile() {
+function setFormStatus(selector, message, state = "") {
+  const status = $(selector);
+  status.textContent = message;
+  status.dataset.state = state;
+}
+
+function setButtonBusy(button, busy, busyLabel, defaultLabel) {
+  button.disabled = busy;
+  button.textContent = busy ? busyLabel : defaultLabel;
+}
+
+async function saveProfile(event) {
+  event.preventDefault();
+  const form = $("#profileDetails");
+  if (!form.reportValidity()) return;
+  const button = $("#saveProfileBtn");
+  setButtonBusy(button, true, "Spremanje...", "Sačuvaj podatke");
+  setFormStatus("#profileSaveStatus", "Spremanje izmjena...");
   try {
     const data = await api("customer-profile-update", {
       name: $("#profileNameInput").value,
@@ -213,19 +252,29 @@ async function saveProfile() {
     fillProfileForm(data.profile);
     $("#profileEmailPasswordInput").value = "";
     const message = data.verificationRequired ? "Podaci su sačuvani. Potvrdite novu adresu putem email poruke; do tada vrijedi stara adresa." : "Izmjene su sačuvane.";
+    setFormStatus("#profileSaveStatus", message, "success");
     flash(message);
   } catch (error) {
+    setFormStatus("#profileSaveStatus", error.message, "error");
     flash(error.message);
+  } finally {
+    setButtonBusy(button, false, "Spremanje...", "Sačuvaj podatke");
   }
 }
 
-async function savePassword() {
+async function savePassword(event) {
+  event.preventDefault();
+  const form = $("#profilePasswordForm");
+  if (!form.reportValidity()) return;
   const passwordError = window.onesPasswordError($("#newPasswordInput").value);
   if (passwordError) {
-    flash(passwordError);
+    setFormStatus("#profilePasswordStatus", passwordError, "error");
     $("#newPasswordInput").focus();
     return;
   }
+  const button = $("#savePasswordBtn");
+  setButtonBusy(button, true, "Spremanje...", "Promijeni lozinku");
+  setFormStatus("#profilePasswordStatus", "Spremanje nove lozinke...");
   try {
     await api("customer-password-update", {
       currentPassword: $("#currentPasswordInput").value,
@@ -233,10 +282,25 @@ async function savePassword() {
     });
     $("#currentPasswordInput").value = "";
     $("#newPasswordInput").value = "";
+    setFormStatus("#profilePasswordStatus", "Lozinka je promijenjena.", "success");
     flash("Lozinka je promijenjena.");
   } catch (error) {
+    setFormStatus("#profilePasswordStatus", error.message, "error");
     flash(error.message);
+  } finally {
+    setButtonBusy(button, false, "Spremanje...", "Promijeni lozinku");
   }
+}
+
+function editProfile() {
+  const form = $("#profileDetails");
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
+  form.classList.remove("profile-card-attention");
+  requestAnimationFrame(() => form.classList.add("profile-card-attention"));
+  setTimeout(() => {
+    $("#profileNameInput").focus({ preventScroll: true });
+    form.classList.remove("profile-card-attention");
+  }, 450);
 }
 
 async function logout() {
@@ -273,8 +337,9 @@ async function initProfile() {
 
 $("#profileLogoutBtn").addEventListener("click", logout);
 $("#profileMobileLogoutBtn")?.addEventListener("click", logout);
-$("#saveProfileBtn").addEventListener("click", saveProfile);
-$("#savePasswordBtn").addEventListener("click", savePassword);
+$("#editProfileBtn").addEventListener("click", editProfile);
+$("#profileDetails").addEventListener("submit", saveProfile);
+$("#profilePasswordForm").addEventListener("submit", savePassword);
 $("#sendEmailVerificationBtn").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   if (button.disabled) return;

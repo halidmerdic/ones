@@ -9,55 +9,65 @@
     <meta name="theme-color" content="#111216" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=20260808-1" />
     <link rel="stylesheet" href="styles.css?v=a74a2509e3055fc8" />
-    <link rel="stylesheet" href="admin.css?v=ed68bb62b6256f15" />
+    <link rel="stylesheet" href="admin.css?v=430a15d405e17616" />
   </head>
   <body class="admin-body">
     <main class="auth-page">
-      <a class="brand" href="/" aria-label="oneS početna">
-        <img src="assets/ones-logo.webp" alt="oneS logo" />
-      </a>
-      <button class="theme-toggle auth-theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+      <header class="auth-header">
+        <a class="brand" href="/" aria-label="oneS početna">
+          <img src="assets/ones-logo.webp" alt="oneS logo" />
+        </a>
+        <button class="theme-toggle auth-theme-toggle" type="button" data-theme-toggle aria-label="Prebaci na tamni mod" title="Prebaci na tamni mod" aria-pressed="false"><span aria-hidden="true">◐</span></button>
+      </header>
 
       <section class="auth-grid">
-        <form class="login-panel" id="customerLoginForm">
-          <p class="eyebrow">Kupac</p>
-          <h1>Prijavi se</h1>
-          <p>Profil će se koristiti za sačuvanu korpu, omiljene proizvode i buduće narudžbe.</p>
-          <label>
-            Email
-            <input id="loginEmail" type="email" autocomplete="email" maxlength="190" required />
-          </label>
-          <label>
-            Lozinka
-            <span class="password-field">
-              <input id="loginPassword" type="password" autocomplete="current-password" maxlength="72" required />
-              <button type="button" class="password-toggle" data-password-toggle="loginPassword" aria-label="Prikazi lozinku">Vidi</button>
-            </span>
-          </label>
+        <form class="login-panel auth-panel" id="customerLoginForm">
+          <div class="auth-panel-heading">
+            <p class="eyebrow">Kupac</p>
+            <h1>Prijavi se</h1>
+            <p class="auth-panel-copy">Pristupite sačuvanoj korpi, omiljenim proizvodima i poslanim upitima.</p>
+          </div>
+          <div class="auth-fields">
+            <label>
+              Email
+              <input id="loginEmail" type="email" autocomplete="email" maxlength="190" required />
+            </label>
+            <label>
+              Lozinka
+              <span class="password-field">
+                <input id="loginPassword" type="password" autocomplete="current-password" maxlength="72" required />
+                <button type="button" class="password-toggle" data-password-toggle="loginPassword" aria-label="Prikazi lozinku">Vidi</button>
+              </span>
+            </label>
+          </div>
           <button class="btn btn-primary" type="submit" id="customerLoginBtn">Prijava</button>
         </form>
 
-        <form class="login-panel" id="customerRegisterForm">
-          <p class="eyebrow">Novi profil</p>
-          <h2>Registracija</h2>
-          <p>Kreirajte profil da kasnije možete čuvati korpu i podatke za upit.</p>
-          <label>
-            Ime
-            <input id="registerName" type="text" autocomplete="name" minlength="2" maxlength="120" required />
-          </label>
-          <label>
-            Email
-            <input id="registerEmail" type="email" autocomplete="email" maxlength="190" required />
-          </label>
-          <p>Poslat ćemo link za potvrdu adrese. Lozinku birate tek nakon otvaranja linka.</p>
-          <label class="consent-field">
-            <input id="registerConsent" type="checkbox" required />
-            <span>Pročitao/la sam <a href="privacy.html" target="_blank" rel="noreferrer">obavijest o privatnosti</a> i prihvatam <a href="terms.html" target="_blank" rel="noreferrer">uslove korištenja</a>.</span>
-          </label>
-          <label class="anti-spam-field" aria-hidden="true">
-            Website
-            <input id="registerWebsite" type="text" name="website" tabindex="-1" autocomplete="off" />
-          </label>
+        <form class="login-panel auth-panel" id="customerRegisterForm">
+          <div class="auth-panel-heading">
+            <p class="eyebrow">Novi profil</p>
+            <h2>Registracija</h2>
+            <p class="auth-panel-copy">Kreirajte profil za bržu kupovinu i jednostavnije slanje upita.</p>
+          </div>
+          <div class="auth-fields">
+            <label>
+              Ime
+              <input id="registerName" type="text" autocomplete="name" minlength="2" maxlength="120" required />
+            </label>
+            <label>
+              Email
+              <input id="registerEmail" type="email" autocomplete="email" maxlength="190" required />
+            </label>
+            <p class="field-hint">Poslat ćemo link za potvrdu adrese. Lozinku birate tek nakon otvaranja linka.</p>
+            <label class="consent-field">
+              <input id="registerConsent" type="checkbox" required />
+              <span>Pročitao/la sam <a href="privacy.html" target="_blank" rel="noreferrer">obavijest o privatnosti</a> i prihvatam <a href="terms.html" target="_blank" rel="noreferrer">uslove korištenja</a>.</span>
+            </label>
+            <label class="anti-spam-field" aria-hidden="true">
+              Website
+              <input id="registerWebsite" type="text" name="website" tabindex="-1" autocomplete="off" />
+            </label>
+          </div>
           <button class="btn btn-secondary" type="submit" id="customerRegisterBtn">Pošalji link za potvrdu</button>
           <p id="registerStatus" role="status" aria-live="polite"></p>
         </form>

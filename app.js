@@ -449,6 +449,7 @@ async function logoutCustomer() {
   if (sectionEnabled("products")) renderProducts();
   const menu = qs("#accountMenu");
   if (menu) menu.hidden = true;
+  qs("#accountLink")?.setAttribute("aria-expanded", "false");
   flash("Odjavljeni ste.");
 }
 
@@ -459,10 +460,41 @@ function setupAccountMenu() {
   const menu = qs("#accountMenu");
   const logoutBtn = qs("#logoutBtn");
 
+  if (!accountLink || !menu) return;
+  accountLink.setAttribute("aria-controls", menu.id);
+  accountLink.setAttribute("aria-expanded", "false");
+
+  function closeMenu() {
+    menu.hidden = true;
+    accountLink.setAttribute("aria-expanded", "false");
+  }
+
+  function positionMenu() {
+    if (menu.hidden) return;
+    if (!accountLink.getClientRects().length) {
+      closeMenu();
+      return;
+    }
+    const parent = menu.offsetParent;
+    if (!parent) return;
+    const trigger = accountLink.getBoundingClientRect();
+    const container = parent.getBoundingClientRect();
+    const left = Math.max(12, Math.min(trigger.left, document.documentElement.clientWidth - menu.offsetWidth - 12));
+    menu.style.right = "auto";
+    menu.style.left = `${left - container.left - parent.clientLeft}px`;
+    menu.style.top = `${trigger.bottom - container.top - parent.clientTop + 8}px`;
+  }
+
   accountLink?.addEventListener("click", (event) => {
     if (!currentCustomer) return;
     event.preventDefault();
-    menu.hidden = !menu.hidden;
+    if (!menu.hidden) {
+      closeMenu();
+      return;
+    }
+    menu.hidden = false;
+    accountLink.setAttribute("aria-expanded", "true");
+    positionMenu();
   });
 
   [footerAccountLink, mobileAccountLink].forEach((link) => {
@@ -477,7 +509,14 @@ function setupAccountMenu() {
   document.addEventListener("click", (event) => {
     if (!currentCustomer || menu.hidden) return;
     if (menu.contains(event.target) || accountLink.contains(event.target)) return;
-    menu.hidden = true;
+    closeMenu();
+  });
+
+  window.addEventListener("resize", positionMenu);
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || menu.hidden) return;
+    closeMenu();
+    accountLink.focus();
   });
 }
 

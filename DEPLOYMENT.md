@@ -325,15 +325,19 @@ node --use-system-ca .\deploy\verify-production.mjs --origin-ip "YOUR_HETZNER_IP
 Do not consider the Cloudflare setup complete while the direct-origin check
 fails. Fix the Hetzner Cloud Firewall first, then rerun the same command.
 
-## 11. Email verification — local implementation, activation pending
+## 11. Email verification — production activated 2026-10-15
 
-The owner confirmed on 2026-10-05 that no email provider exists yet. The T11
-implementation has been tested against a disposable loopback SMTP capture only.
-Production sending is NOT activated. Do not deploy this segment to the live PHP
-site until a sender/provider is configured and delivery has been verified: without
-mail configuration, registration and email changes return 503; unverified
-customers cannot submit new inquiries. Existing logins, profile data, favorites,
-carts and past inquiries remain accessible.
+The owner subsequently authorized a temporary Google SMTP sender with an app
+password. On 2026-10-15 the owner confirmed receipt of the server SMTP test,
+existing-account email verification and a new registration on production. T11
+and the schema-version-2 production rollout are complete. Replacing the sender
+with the official mailbox remains a later operational task. See
+`tests/audit-2026-10-04/PRODUKCIJA-2026-10-15.txt` for verification scope.
+
+For future installations, configure a sender/provider and verify delivery before
+enabling registration: without mail configuration, registration and email changes
+return 503; unverified customers cannot submit new inquiries. Existing logins,
+profile data, favorites, carts and past inquiries remain accessible.
 
 Copy the `mail` section from `config.example.php` into the private server config.
 Set an authorized sender, SMTP host, port, username and password there; never
@@ -771,8 +775,8 @@ Deploy this release during maintenance:
 5. Verify admin/customer login, catalogue, inquiry creation, filtered lists,
    details, pagination and native/JSON restore on a staging copy with that
    restricted web account. Then switch the release, refresh existing browser
-   tabs and remove maintenance. Migration does not configure the pending SMTP
-   service or activate T11; registration/email-change prerequisites still apply.
+   tabs and remove maintenance. Migration does not configure SMTP;
+   registration/email-change prerequisites still apply to each installation.
 
 Migrations serialize through a MySQL named lock or an SQLite file lock. Existing
 unversioned databases are adopted, required columns/coordination tables are

@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#111216" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=20260808-1" />
     <link rel="stylesheet" href="styles.css?v=a74a2509e3055fc8" />
-    <link rel="stylesheet" href="admin.css?v=ed68bb62b6256f15" />
+    <link rel="stylesheet" href="admin.css?v=430a15d405e17616" />
   </head>
   <body class="admin-body">
     <main class="auth-page profile-page">
@@ -27,67 +27,99 @@
       </header>
 
       <section class="login-panel profile-panel">
-        <p class="eyebrow">Kupac</p>
-        <h1 id="profileName">Moj profil</h1>
-        <p id="profileEmail">Učitavanje profila...</p>
+        <div class="profile-identity">
+          <span class="profile-avatar" id="profileAvatar" aria-hidden="true">MP</span>
+          <div class="profile-identity-copy">
+            <p class="eyebrow">Moj profil</p>
+            <h1 id="profileName">Učitavanje profila...</h1>
+            <p class="profile-contact" id="profileEmail">Učitavanje kontakt podataka...</p>
+          </div>
+        </div>
+        <div class="profile-panel-actions">
+          <span class="profile-session-status"><span aria-hidden="true"></span>Aktivan profil</span>
+          <button class="btn btn-secondary" type="button" id="editProfileBtn" aria-controls="profileDetails">Uredi podatke</button>
+        </div>
       </section>
 
       <section class="profile-layout">
-        <article class="profile-card">
-          <h2>Pregled</h2>
-          <div class="profile-stats">
-            <div>
-              <span>Aktivna korpa</span>
-              <strong id="profileCartCount">0</strong>
+        <div class="profile-column profile-sidebar">
+          <article class="profile-card profile-overview-card">
+            <div class="profile-card-heading">
+              <p class="eyebrow">Račun</p>
+              <h2>Pregled</h2>
             </div>
-            <div>
-              <span>Poslani upiti</span>
-              <strong id="profileOrderCount">0</strong>
+            <div class="profile-stats">
+              <div>
+                <span>Aktivna korpa</span>
+                <strong id="profileCartCount">0</strong>
+              </div>
+              <div>
+                <span>Poslani upiti</span>
+                <strong id="profileOrderCount">0</strong>
+              </div>
+              <div>
+                <span>Omiljeni proizvodi</span>
+                <strong id="profileFavoriteCount">0</strong>
+              </div>
             </div>
-            <div>
-              <span>Omiljeni proizvodi</span>
-              <strong id="profileFavoriteCount">0</strong>
+            <div class="profile-card-actions">
+              <a class="btn btn-primary" href="cart.html">Otvori korpu</a>
+              <a class="btn btn-secondary" href="/#proizvodi">Nastavi kupovinu</a>
             </div>
-          </div>
-          <div class="admin-actions">
-            <a class="btn btn-primary" href="cart.html">Otvori korpu</a>
-            <a class="btn btn-secondary" href="/#proizvodi">Nastavi kupovinu</a>
-          </div>
-        </article>
+          </article>
 
-        <article class="profile-card">
-          <h2>Podaci profila</h2>
-          <label>
-            Ime
-            <input id="profileNameInput" type="text" autocomplete="name" minlength="2" maxlength="120" required />
-          </label>
-          <label>
-            Email
-            <input id="profileEmailInput" type="email" autocomplete="email" maxlength="190" required />
-          </label>
-          <label>
-            Trenutna lozinka (samo za promjenu emaila)
-            <input id="profileEmailPasswordInput" type="password" autocomplete="current-password" maxlength="72" />
-          </label>
-          <label>
-            Telefon
-            <input id="profilePhoneInput" type="tel" autocomplete="tel" maxlength="30" placeholder="npr. 061 000 000" />
-          </label>
-          <button class="btn btn-primary" type="button" id="saveProfileBtn">Sačuvaj podatke</button>
-        </article>
+          <form class="profile-card profile-password-card" id="profilePasswordForm">
+            <div class="profile-card-heading">
+              <p class="eyebrow">Sigurnost</p>
+              <h2>Promijeni lozinku</h2>
+            </div>
+            <label>
+              Trenutna lozinka
+              <input id="currentPasswordInput" type="password" autocomplete="current-password" maxlength="72" required />
+            </label>
+            <label>
+              Nova lozinka
+              <input id="newPasswordInput" type="password" autocomplete="new-password" required />
+              <span class="profile-field-hint">Najmanje 15 znakova, najviše 72 UTF-8 bajta (emoji i naša slova zauzimaju više bajtova).</span>
+            </label>
+            <div class="profile-form-actions">
+              <button class="btn btn-secondary" type="submit" id="savePasswordBtn">Promijeni lozinku</button>
+              <span class="profile-form-status" id="profilePasswordStatus" role="status" aria-live="polite"></span>
+            </div>
+          </form>
+        </div>
 
-        <article class="profile-card">
-          <h2>Lozinka</h2>
-          <label>
-            Trenutna lozinka
-            <input id="currentPasswordInput" type="password" autocomplete="current-password" maxlength="72" required />
-          </label>
-          <label>
-            Nova lozinka (najmanje 15 znakova, najviše 72 UTF-8 bajta; naša slova i emoji zauzimaju više bajtova)
-            <input id="newPasswordInput" type="password" autocomplete="new-password" required />
-          </label>
-          <button class="btn btn-secondary" type="button" id="savePasswordBtn">Promijeni lozinku</button>
-        </article>
+        <div class="profile-column profile-main-column">
+          <form class="profile-card profile-details-card" id="profileDetails">
+            <div class="profile-card-heading">
+              <p class="eyebrow">Lični podaci</p>
+              <h2>Podaci profila</h2>
+              <p>Ove podatke koristimo za vašu korpu i upite.</p>
+            </div>
+            <div class="profile-fields-grid">
+              <label>
+                Ime
+                <input id="profileNameInput" type="text" autocomplete="name" minlength="2" maxlength="120" required />
+              </label>
+              <label>
+                Telefon
+                <input id="profilePhoneInput" type="tel" autocomplete="tel" maxlength="30" placeholder="npr. 061 000 000" />
+              </label>
+              <label class="profile-field-wide">
+                Email
+                <input id="profileEmailInput" type="email" autocomplete="email" maxlength="190" required />
+              </label>
+              <label class="profile-field-wide">
+                Potvrda za promjenu emaila
+                <input id="profileEmailPasswordInput" type="password" autocomplete="current-password" maxlength="72" />
+                <span class="profile-field-hint">Trenutnu lozinku unesite samo ako mijenjate email adresu.</span>
+              </label>
+            </div>
+            <div class="profile-form-actions">
+              <button class="btn btn-primary" type="submit" id="saveProfileBtn">Sačuvaj podatke</button>
+              <span class="profile-form-status" id="profileSaveStatus" role="status" aria-live="polite"></span>
+            </div>
+          </form>
 
           <article class="profile-card">
             <h2>Potvrda email adrese</h2>
@@ -98,13 +130,21 @@
             <p id="emailVerificationStatus" role="status" aria-live="polite"></p>
           </article>
 
-        <article class="profile-card">
-          <h2>Omiljeni proizvodi</h2>
-          <div class="profile-favorites" id="profileFavorites"></div>
-        </article>
+          <article class="profile-card profile-favorites-card">
+            <div class="profile-card-heading">
+              <p class="eyebrow">Sačuvano</p>
+              <h2>Omiljeni proizvodi</h2>
+            </div>
+            <div class="profile-favorites" id="profileFavorites"></div>
+          </article>
+        </div>
 
-        <article class="profile-card">
-          <h2>Historija upita</h2>
+        <article class="profile-card profile-orders-card">
+          <div class="profile-card-heading">
+            <p class="eyebrow">Aktivnost</p>
+            <h2>Historija upita</h2>
+            <p>Otvorite red za pregled artikala i svih detalja upita.</p>
+          </div>
           <div class="profile-orders" id="profileOrders"></div>
         </article>
       </section>
@@ -131,6 +171,6 @@
     <script src="assets/vendor/purify-3.4.16.min.js"></script>
     <script src="api-client.js?v=20261005-security-12"></script>
     <script src="profile-orders.js?v=20261005-security-12"></script>
-    <script src="profile.js?v=20261005-security-12"></script>
+    <script src="profile.js?v=20261015-profile-1"></script>
   </body>
 </html>
